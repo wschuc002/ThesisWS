@@ -15,7 +15,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 ## Check for required packages and install them (incl dependencies) if they are not installed yet.
-list.of.packages <- c("data.table","fossil", "geosphere", "sp", "rgdal")
+list.of.packages <- c("data.table","fossil", "geosphere", "sp", "rgdal", "rgeos", "maptools")
 new.packages <- list.of.packages[!(list.of.packages %in% installed.packages()[,"Package"])]
 if(length(new.packages)) install.packages(new.packages)
 
@@ -28,11 +28,15 @@ library(fossil)
 
 library(foreign)
 
+library(rgeos)
+library(maptools)
+
+
+
 ## Clear the workspace
 #rm(list = ls()) 
 
 getwd()
-setwd("C:/NLExtract/src")
 
 zip_in = file.path("data", "bag-adressen-laatst.csv.zip")
 unzip(zip_in, exdir= file.path("data"))
@@ -47,8 +51,8 @@ Shape_out = file.path("output", "BAGadres_ProvincieUtrecht.shp")
 
 dbf_in = file.path("data", "verblijfsobjectgebruiksdoel.dbf")
 
-require(data.table)
-BAG = fread(csv_in, sep=";", header=TRUE, integer64 = "numeric") # this will take about 5 minutes.
+#require(data.table)
+BAG = fread(csv_in, sep=";", header=TRUE, integer64 = "numeric") # 64-bit only.  This will take about 5 minutes.
 #file.remove(csv_in)
 
 # Make a subset of BAG addresses
@@ -121,9 +125,6 @@ points(Residence_subbed[4,], col="blue" )
 #Gebonden = rbind(Residence_subbed,Workplace_subbed)
 
 # Calculate distance by matrix
-
-library(rgeos)
-library(maptools)
 
 #DIST_GEO = as.matrix(gDistance(Residence_subbed[1:20,],Workplace_subbed[1:20,]))
 
