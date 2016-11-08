@@ -1,5 +1,7 @@
 .Rproj.user
 .Rhistory
 .RData
-data/*
+backend/data/*
+backend/output/*
 git-cmd.exe
+QGIS/*
