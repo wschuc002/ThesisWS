@@ -30,6 +30,8 @@
 
 source("modules/input.r")
 source("modules/RGBtoSingleBand.r")
+source("modules/DetermineRoutes.r")
+source("modules/CumulativeExposure.r")
 
 download.AQNL("20161108_pm10_no2.7z") # bug in downloading files from Google Drive
 unzip.AQNL("20161108_pm10_no2.zip")
@@ -41,7 +43,7 @@ for (i in RGB.list)
   RGBtoSingleBand(i)
 }
 
-
+DetermineRoutesNL("Limburg")
 
 
 
