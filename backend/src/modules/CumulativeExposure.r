@@ -15,13 +15,46 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 ## Check for required packages and install them (incl dependencies) if they are not installed yet.
-#list.of.packages <- c("data.table","sp","rgdal","foreign","rgeos","osrm")
-#new.packages <- list.of.packages[!(list.of.packages %in% installed.packages()[,"Package"])]
-#if(length(new.packages)) install.packages(new.packages)
+list.of.packages <- c("data.table","spacetime")
+new.packages <- list.of.packages[!(list.of.packages %in% installed.packages()[,"Package"])]
+if(length(new.packages)) install.packages(new.packages)
 
 ## Load the packages
-#library(data.table)
+library(data.table)
+library(spacetime)
+library(raster)
+
+# x: geometry (S/T locations) of the queries                      [eg.: Residence]
+# y: layer from which the geometries or attributes are queried    [eg.: NO2]
 
 
 df <- data.frame(count=1:10000)
 df <- within(df, acc_sum <- cumsum(count))
+
+CumulativeExposure <- function(None, ...)
+{
+  # read Personal Place History (PPH) (x)
+  PPH_in = file.path("..", "output", "Residence.geojson")
+  PPH = readOGR(PPH_in, layer = 'OGRGeoJSON')
+  
+  # read raster of pollutant (y)
+  rast_in = file.path("..", "output", "20161108_no2_09_WS.tif")
+  WSraster = raster(rast_in)
+  
+  # set start- & end time
+  time = as.POSIXct("2016-11-08", tz = "GMT")
+  endTime = as.POSIXct("2016-11-09", tz = "GMT")
+  
+  sp = SpatialPoints(PPH)
+  
+  stfdf = STFDF(sp, time, endTime, data = PPH@data)
+  stplot(stfdf)
+  
+  WSover = over(stfdf, WSraster, returnList = FALSE)
+  
+  plot(WSraster)
+  plot(PPH, add=TRUE)
+}
+
+
+

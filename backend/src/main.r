@@ -14,11 +14,13 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-## TESTED ON WINDOWS 7 (64-bit)
+## TESTED ON WINDOWS 7 (64-bit), R v3.3.1
 
 ## TODO:  - Make separate modules.
+##        - DetermineRoutes for Flanders
 ##        - Download input data from server (Google Drive).
-##        - Systematically convert RGB to SingleBand
+##        - More residential profiles than "Office worker"
+##        - Introduce "spacetime" package and test is
 ##        - ...
 
 ## Note 1: This script only brings different modules in modules/ together.
@@ -33,7 +35,7 @@ source("modules/RGBtoSingleBand.r")
 source("modules/DetermineRoutes.r")
 source("modules/CumulativeExposure.r")
 
-download.AQNL("20161108_pm10_no2.7z") # bug in downloading files from Google Drive
+download.AQNL("https://drive.google.com/file/d/0B5dbtjRcWbwiSU9tOUQ0TUxZR0E") # bug in downloading files from Google Drive
 unzip.AQNL("20161108_pm10_no2.zip")
 
 #RGBtoSingleBand("20161108_vandaag_no2_03.tiff")
@@ -43,9 +45,15 @@ for (i in RGB.list)
   RGBtoSingleBand(i)
 }
 
-DetermineRoutesNL("Limburg")
+DetermineRoutesNL(c("Utrecht", "Gelderland"), 100, 1000)
 
+CRAB_Doel = DetermineAddressGoals_FL("Antwerpen")
+SaveAsFile(CRAB_Doel, "CRAB_OUT_Antwerpen", "GeoJSON", TRUE)
+DetermineRoutesFL(CRAB_Doel, 100, 1000)
 
+#rm(CRAB_Doel)
+
+CumulativeExposure()
 
 
 ## Check for required packages and install them (incl dependencies) if they are not installed yet.
