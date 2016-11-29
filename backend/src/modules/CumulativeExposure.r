@@ -20,9 +20,10 @@ new.packages <- list.of.packages[!(list.of.packages %in% installed.packages()[,"
 if(length(new.packages)) install.packages(new.packages)
 
 ## Load the packages
-library(data.table)
+#library(data.table)
 library(spacetime)
 library(raster)
+library(rgdal)
 
 # x: geometry (S/T locations) of the queries                      [eg.: Residence]
 # y: layer from which the geometries or attributes are queried    [eg.: NO2]
@@ -34,8 +35,11 @@ df <- within(df, acc_sum <- cumsum(count))
 CumulativeExposure <- function(None, ...)
 {
   # read Personal Place History (PPH) (x)
-  PPH_in = file.path("..", "output", "Residence.geojson")
-  PPH = readOGR(PPH_in, layer = 'OGRGeoJSON')
+  PPH.R_in = file.path("..", "output", "Residence.geojson")
+  PPH.R = readOGR(PPH.R_in, layer = 'OGRGeoJSON')
+  
+  PPH.C_in = file.path("..", "output", "Commuting Routes.geojson")
+  PPH.C = readOGR(PPH.C_in, layer = 'OGRGeoJSON')
   
   # read raster of pollutant (y)
   rast_in = file.path("..", "output", "20161108_no2_09_WS.tif")
@@ -45,15 +49,23 @@ CumulativeExposure <- function(None, ...)
   time = as.POSIXct("2016-11-08", tz = "GMT")
   endTime = as.POSIXct("2016-11-09", tz = "GMT")
   
-  sp = SpatialPoints(PPH)
+  sp.P = SpatialPoints(PPH.R)
+  stfdf.P = STFDF(sp.P, time, endTime, data = PPH.R@data)
+  stplot(stfdf.P)
   
-  stfdf = STFDF(sp, time, endTime, data = PPH@data)
-  stplot(stfdf)
+  #subsetje lijnen
+  PPH.C[1]
+  plot(PPH.C[1])
+  with(PPH.C[PPH.C@data$src == "RES_1"], plot(PPH.C))
+  plot(PPH.C[PPH.C@data$src == "RES_1"])
   
-  WSover = over(stfdf, WSraster, returnList = FALSE)
+  stfdf.L = STFDF(PPH.C, time, endTime, data = PPH.R@data)
+  stplot(stfdf.L)
+  
+  WSover = over(stfdf.L, WSraster, returnList = FALSE)
   
   plot(WSraster)
-  plot(PPH, add=TRUE)
+  plot(PPH.C, add=TRUE)
 }
 
 
