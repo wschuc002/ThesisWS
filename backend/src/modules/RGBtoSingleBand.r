@@ -33,7 +33,7 @@ RGBtoSingleBand <- function(RGB.airNL.in, ... )
   {
 
     ## Read Air Quality data (PM10)
-    pm10_in = file.path("..", "data", "RIVM2", RGB.airNL.in)
+    pm10_in = file.path("..", "data", "RIVM", RGB.airNL.in)
     PM10_b1 = raster(pm10_in, band=1)
     PM10_b2 = raster(pm10_in, band=2)
     PM10_b3 = raster(pm10_in, band=3)

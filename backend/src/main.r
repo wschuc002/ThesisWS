@@ -36,12 +36,14 @@ source("modules/DetermineRoutes.r")
 source("modules/CumulativeExposure.r")
 source("modules/ReadIDF5files.r")
 source("modules/HourOfTheYear.r")
+source("modules/PersonalLocationToLocationID.r")
+source("modules/LinkPointsToTime.r")
 
 ndownload.AQNL("https://drive.google.com/file/d/0B5dbtjRcWbwiSU9tOUQ0TUxZR0E") # bug in downloading files from Google Drive
 unzip.AQNL("20161108_pm10_no2.zip")
 
 #RGBtoSingleBand("20161108_vandaag_no2_03.tiff")
-RGB.list = list.files(file.path("..", "data", "RIVM2"), pattern = ".tiff" )
+RGB.list = list.files(file.path("..", "data", "RIVM"), pattern = ".tiff" )
 for (i in RGB.list)
 {
   RGBtoSingleBand(i)
@@ -58,15 +60,33 @@ DetermineRoutesFL(CRAB_Doel, 100, 1000)
 CumulativeExposure()
 
 CT = CreateConversionTable()
+CT.SP = MakeCTSpatial(CT)
 
-LocationID = PersonalLocationToLocationID()
+
+PPH.C_in = file.path("..", "output", "CommutingRoutes_Antwerpen.geojson")
+PPH.C = readOGR(PPH.C_in, layer = 'OGRGeoJSON')
+PPH.R_in = file.path("..", "output", "Residence_Antwerpen.geojson")
+PPH.R = readOGR(PPH.R_in, layer = 'OGRGeoJSON')
+LocationIDs = PersonalLocationToLocationID(PPH.C, CT.SP, 1) # returns integers for Residence(points) and lists with integers for CommutingRoutes (lines)
+
+PPH.W_in = file.path("..", "output", "Workplace_Antwerpen.geojson")
+PPH.W = readOGR(PPH.W_in, layer = 'OGRGeoJSON')
+TimeVertex.POSIXct = LinkPointsToTime(PPH.C, LocationIDs, 2009) # Time of the Commuting routes vertices
+
+
+# !! Duration in Commuting Routes waarschijnlijk flink onderschat. Hier naar kijken voor correctie.
+
 ActiveH5FLocation = ReadHDF5("no2", 68083) # replace number with LocationID
-Hour = HourOfTheYear(2009, as.POSIXct("2009-01-07 23:17:00", tz = "GMT"))
+Hour = HourOfTheYear(2009, as.POSIXct("2009-01-07 23:17:00", tz = "GMT")) # replace date with date PPH
 ExposureValue = ExtractExposureValue(ActiveH5FLocation, Hour) # Value of space-time intersection
 
 
-
+SaveAsFile(CT2, "CT2", "GeoJSON", TRUE)
 RESO.BE = CalculateResolution(CT)
+
+
+
+
 
 ## Check for required packages and install them (incl dependencies) if they are not installed yet.
 list.of.packages = c("data.table","sp","rgdal","foreign","rgeos","osrm", "futile.options", "lambda.r", "sensorweb4R")
