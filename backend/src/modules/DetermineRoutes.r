@@ -293,37 +293,17 @@ DetermineAddressGoals_FL <- function(FL.Gemeente, ... )
   return(CRAB_Doel)
 }
 
-SaveAsFile <- function(CRAB_Doel, Filename, Format, OverwriteLayer, ...)
-{
-  if (Format == "Shapefile")
-    {
-      # Write to Shapefile in output folder
-      Shape_out = file.path("..", "output")
-      writeOGR(CRAB_Doel, Shape_out, Filename, driver="ESRI Shapefile", overwrite_layer = OverwriteLayer)
-    }
-  if (Format == "GeoJSON")
-    {
-      # Write to GeoJSON in output folder
-      GeoJSON_out = file.path("..", "output", Filename)
-      writeOGR(CRAB_Doel, GeoJSON_out, Filename, driver="GeoJSON", overwrite_layer = overwrite_layer)
-      GeoJSON_ext = ".geojson"
-      file.rename(GeoJSON_out, file.path("..", "output", paste0(Filename, GeoJSON_ext)))
-    }
-}
-
-#FL.offices = 100
-#FL.workplaces = 1000
-DetermineRoutesFL <- function(CRAB_Doel, FL.offices, FL.workplaces, ... )
+DetermineRoutesFL <- function(CRAB_Doel, FL.Gemeente, FL.residence, FL.workplaces, OSRM.level, ... )
 {
 
   # Create the attribute "object_id" (verplaatsen naar andere functie)
-  CRAB_Doel@data["FL_id"] = seq.int(nrow(CRAB_Doel@data))
+  CRAB_Doel@data["object_id"] = seq.int(nrow(CRAB_Doel@data))
   
   ## Subset: only Residence
   Residence = subset(CRAB_Doel, CRAB_Doel@data$DOEL == "Woonfunctie")
   
   ## Pick x random redidence object_id and make a subset
-  RandObj_Re = sample(Residence@data$object_id, FL.offices)
+  RandObj_Re = sample(Residence@data$object_id, FL.residence)
   keeps_RS_Re = RandObj_Re
   Residence_KEEPS = Residence@data$object_id %in% keeps_RS_Re
   Residence_random = subset(Residence, Residence_KEEPS)
@@ -381,8 +361,8 @@ DetermineRoutesFL <- function(CRAB_Doel, FL.offices, FL.workplaces, ... )
   Workplace_KEEPS2 = Workplace_random@data$NR %in% keeps_WP
   Workplace_random_NR = subset(Workplace_random, Workplace_KEEPS2)
   
-  SaveAsFile(Residence_random_kopp, "Residence_Antwerpen", "GeoJSON", TRUE)
-  SaveAsFile(Workplace_random_NR, "Workplace_Antwerpen", "GeoJSON", TRUE)
+  SaveAsFile(Residence_random_kopp, paste0("Residence_", FL.Gemeente), "GeoJSON", TRUE)
+  SaveAsFile(Workplace_random_NR, paste0("Workplace_", FL.Gemeente), "GeoJSON", TRUE)
   
   # Transform RD new -> WGS84 for the route calculation (OSRM)
   WGS84 = "+init=epsg:4326"
@@ -408,26 +388,40 @@ DetermineRoutesFL <- function(CRAB_Doel, FL.offices, FL.workplaces, ... )
   BE_crs = "+init=epsg:31370"
   
   ## Generate Commuting Routes (CR)
-  CommutingRoutes = list()
-  for (i in seq(1, length(Residence_random_kopp_WGS84_T), by=1))
+  # Outwards (Residence -> Workplace)
+  CommutingRoutes1 = list()
+  CommutingRoutes2 = list()
+  for (i in seq_along(Residence_random_kopp_WGS84_T))
   {
-    CommutingRoutes[i] = osrmRoute(src=c(paste("RES",i,sep="_"), RESWOR["lon1"][i,], RESWOR["lat1"][i,]),
-                                   dst = c(paste("WOR",RESWOR["koppeling"][i,],sep="_"), RESWOR["lon2"][i,], RESWOR["lat2"][i,]),
-                                   overview = "full", #"simplified"
+    RES = c(paste("RES",i,sep="_"), RESWOR["lon1"][i,], RESWOR["lat1"][i,])
+    WOR = c(paste("WOR",RESWOR["koppeling"][i,],sep="_"), RESWOR["lon2"][i,], RESWOR["lat2"][i,])
+    
+    CommutingRoutes1[i] = osrmRoute(src= RES, dst = WOR, overview = OSRM.level, # "full"/"simplified"
                                    sp = TRUE)
-    CommutingRoutes[[i]] = spTransform(CommutingRoutes[[i]], BE_crs)
-    CommutingRoutes[[i]]@lines[[1]]@ID = paste(CommutingRoutes[[i]]@lines[[1]]@ID,i)
-    row.names(CommutingRoutes[[i]]) = as.character(i)
+    CommutingRoutes1[[i]] = spTransform(CommutingRoutes1[[i]], BE_crs)
+    CommutingRoutes1[[i]]@lines[[1]]@ID = paste(CommutingRoutes1[[i]]@lines[[1]]@ID,i)
+    row.names(CommutingRoutes1[[i]]) = as.character(i)
+    
+    CommutingRoutes2[i] = osrmRoute(src= WOR, dst = RES, overview = OSRM.level, # "full"/"simplified"
+                                    sp = TRUE)
+    CommutingRoutes2[[i]] = spTransform(CommutingRoutes2[[i]], BE_crs)
+    CommutingRoutes2[[i]]@lines[[1]]@ID = paste(CommutingRoutes2[[i]]@lines[[1]]@ID,i)
+    row.names(CommutingRoutes2[[i]]) = as.character(i)
   }
   
   # Convert large list to a SpatialLinesDataFrame with all the Commuting Routes
-  CommutingRoutes_SLDF = CommutingRoutes[[1]]
+  CommutingRoutes1_SLDF = CommutingRoutes1[[1]]
+  CommutingRoutes2_SLDF = CommutingRoutes2[[1]]
   for (i in seq(2, length(Residence_random_kopp_WGS84_T), by=1))
   {
-    CommutingRoutes_SLDF = rbind(CommutingRoutes_SLDF, CommutingRoutes[[i]])
+    CommutingRoutes1_SLDF = rbind(CommutingRoutes1_SLDF, CommutingRoutes1[[i]])
+    CommutingRoutes2_SLDF = rbind(CommutingRoutes2_SLDF, CommutingRoutes2[[i]])
   }
+
+  CommutingRoutes1_SLDF@data["PersonID"] = seq.int(CommutingRoutes1_SLDF)
+  CommutingRoutes2_SLDF@data["PersonID"] = seq.int(CommutingRoutes2_SLDF)
   
-  SaveAsFile(CommutingRoutes_SLDF, "CommutingRoutes_Antwerpen", "GeoJSON", TRUE)
-  
-  #return()
+  SaveAsFile(CommutingRoutes1_SLDF, paste0("CommutingRoutesOutwards_", FL.Gemeente), "GeoJSON", TRUE)
+  SaveAsFile(CommutingRoutes2_SLDF, paste0("CommutingRoutesInwards_", FL.Gemeente), "GeoJSON", TRUE)
+
 }
