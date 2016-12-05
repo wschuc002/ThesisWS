@@ -29,7 +29,7 @@ LinkPointsToTime <- function(PPH.C, LocationIDs, Year, ...)
   TimeVertex = list()
   TimeVertex.POSIXct = list()
   
-  TimeLeaveFromRes = as.POSIXct(paste0(Year,"-01-01 08:00:00"), tz = "GMT")
+  TimeLeaveFromRes = as.POSIXct(paste0(Year,"-01-01 08:00:00"), tz = "GMT") # and then count from last minute at Residence
   
   for (i in seq_along(PPH.C))
   {
@@ -42,7 +42,7 @@ LinkPointsToTime <- function(PPH.C, LocationIDs, Year, ...)
       TimeVertex[[i]][t] = TimeLeaveFromRes+durVer*(t*60)
     }
     
-    TimeVertex.POSIXct[[i]] = as.POSIXct(TimeVertex[[i]], origin = "1970-01-01", tz = "GMT")
+    TimeVertex.POSIXct[[i]] = as.POSIXct(TimeVertex[[i]], origin = "1970-01-01", tz = "GMT") # time format correction
   }
   return(TimeVertex.POSIXct)
 }

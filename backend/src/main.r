@@ -28,16 +28,22 @@
 
 ## Note 2: It is expected that the working directory is set to backend/src/
 
+## TERMS:
+## PPH: Personal Place History
+## CT: Conversion Table
+
 #### Import modules ####
 
 source("modules/input.r")
 source("modules/RGBtoSingleBand.r")
 source("modules/DetermineRoutes.r")
 source("modules/CumulativeExposure.r")
+source("modules/ConversionTable.r")
 source("modules/ReadIDF5files.r")
 source("modules/HourOfTheYear.r")
 source("modules/PersonalLocationToLocationID.r")
 source("modules/LinkPointsToTime.r")
+source("modules/SaveAsFile.r")
 
 ndownload.AQNL("https://drive.google.com/file/d/0B5dbtjRcWbwiSU9tOUQ0TUxZR0E") # bug in downloading files from Google Drive
 unzip.AQNL("20161108_pm10_no2.zip")
@@ -52,39 +58,55 @@ for (i in RGB.list)
 DetermineRoutesNL(c("Utrecht", "Gelderland"), 100, 1000)
 
 CRAB_Doel = DetermineAddressGoals_FL("Antwerpen")
-SaveAsFile(CRAB_Doel, "CRAB_OUT_Antwerpen", "GeoJSON", TRUE)
-DetermineRoutesFL(CRAB_Doel, 100, 1000)
-
+SaveAsFile(CRAB_Doel, "CRAB_OUT_Antwerpen", "Shapefile", TRUE)
+CRAB_Doel = readOGR(file.path("..", "output", "CRAB_OUT_Antwerpen.shp"), layer = "CRAB_OUT_Antwerpen")
+DetermineRoutesFL(CRAB_Doel, "Antwerpen", 15, 1000, "simplified")
 #rm(CRAB_Doel)
-
-CumulativeExposure()
 
 CT = CreateConversionTable()
 CT.SP = MakeCTSpatial(CT)
 
-
-PPH.C_in = file.path("..", "output", "CommutingRoutes_Antwerpen.geojson")
-PPH.C = readOGR(PPH.C_in, layer = 'OGRGeoJSON')
+PPH.C1_in = file.path("..", "output", "CommutingRoutesOutwards_Antwerpen.geojson")
+PPH.C1 = readOGR(PPH.C1_in, layer = 'OGRGeoJSON')
+PPH.C2_in = file.path("..", "output", "CommutingRoutesInwards_Antwerpen.geojson")
+PPH.C2 = readOGR(PPH.C2_in, layer = 'OGRGeoJSON')
 PPH.R_in = file.path("..", "output", "Residence_Antwerpen.geojson")
 PPH.R = readOGR(PPH.R_in, layer = 'OGRGeoJSON')
-LocationIDs = PersonalLocationToLocationID(PPH.C, CT.SP, 1) # returns integers for Residence(points) and lists with integers for CommutingRoutes (lines)
+LocationIDs.C1 = PersonalLocationToLocationID(PPH.C1, CT.SP, 1)
+LocationIDs.C2 = PersonalLocationToLocationID(PPH.C2, CT.SP, 1)
+LocationIDs.R = PersonalLocationToLocationID(PPH.R, CT.SP, 1)
 
 PPH.W_in = file.path("..", "output", "Workplace_Antwerpen.geojson")
 PPH.W = readOGR(PPH.W_in, layer = 'OGRGeoJSON')
-TimeVertex.POSIXct = LinkPointsToTime(PPH.C, LocationIDs, 2009) # Time of the Commuting routes vertices
+
+PPH.C1@data$duration = PPH.C1@data$duration * 1.2 # duration correction
+PPH.C2@data$duration = PPH.C2@data$duration * 1.2 # duration correction
+
+TimeVertex.POSIXct = LinkPointsToTime(PPH.C1, LocationIDs.C1, 2009) # Time of the Commuting routes vertices Outwards
+#TimeVertex.POSIXct = LinkPointsToTime(PPH.R, LocationIDs.R, 2009) # Time of the Commuting routes vertices Outwards
+HourVertex = HourOfTheYear2(2009, TimeVertex.POSIXct, 0) # replace date with date PPH
+
+ExposureValue = ExtractExposureValue("no2", LocationIDs.C1[[2]][1], HourVertex[[2]][3]) # LocationIDs.C1[[<individual>]][<vertex(route)>]
+ExposureValue                                                                           # HourVertex[[<individual>]][<vertex(route)>]
+
+# test what is more eddicient: from main script or inside "ExtractExposureValue"
+for (i in seq(1,3)) # seq_along(LocationIDs.C1)
+{
+  for (v in seq_along(LocationIDs.C1[[i]]))
+  {
+    
+    ExposureValue = ExtractExposureValue("no2", LocationIDs.C1[[i]][v], HourVertex[[i]][v])
+    #print(i,v, ExposureValue)
+    #paste("Ind:",(i),"Ver:",(v), "Exp:", ExposureValue)
+    print(ExposureValue)
+  }
+}
 
 
-# !! Duration in Commuting Routes waarschijnlijk flink onderschat. Hier naar kijken voor correctie.
-
-ActiveH5FLocation = ReadHDF5("no2", 68083) # replace number with LocationID
-Hour = HourOfTheYear(2009, as.POSIXct("2009-01-07 23:17:00", tz = "GMT")) # replace date with date PPH
-ExposureValue = ExtractExposureValue(ActiveH5FLocation, Hour) # Value of space-time intersection
 
 
 SaveAsFile(CT2, "CT2", "GeoJSON", TRUE)
 RESO.BE = CalculateResolution(CT)
-
-
 
 
 

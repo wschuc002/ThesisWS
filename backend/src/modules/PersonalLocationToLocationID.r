@@ -45,15 +45,14 @@ PersonalLocationToLocationID <- function(Points_in, CT.SP, nearestPoints, ...)
     tree = createTree(coordinates(CT.SP))
     
     inds.list = list() # create empty list to put the 'inds' values in per vertex
-    for (i in seq_along(Points_in@data$src))
+    for (i in seq_along(Points_in))
     {
-      RESi = paste0("RES_", i)
-      Points_in.sub = subset(Points_in, Points_in@data$src == RESi)
+      Points_in.sub = subset(Points_in, Points_in@data$PersonID == i)
       #plot(Points_in.sub, add=T)
       inds = knnLookup(tree, newdat=coordinates(coordinates(Points_in.sub)), k = nearestPoints)
       inds = as.integer(inds)
       
-      inds.list[[RESi]] = inds
+      inds.list[[i]] = inds
     }
     LocationIDs = inds.list
   }
