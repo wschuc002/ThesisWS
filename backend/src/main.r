@@ -16,8 +16,8 @@
 
 ## TESTED ON WINDOWS 7 (64-bit), R v3.3.1
 
-## TODO:  - Make separate modules.
-##        - DetermineRoutes for Flanders
+## TODO:  - ...
+##        - ...
 ##        - Download input data from server (Google Drive).
 ##        - More residential profiles than "Office worker"
 ##        - Introduce "spacetime" package and test is
@@ -34,16 +34,20 @@
 
 #### Import modules ####
 
-source("modules/input.r")
+#source("modules/input.r")
+source("modules/SaveAsFile.r")
 source("modules/RGBtoSingleBand.r")
 source("modules/DetermineRoutes.r")
-source("modules/CumulativeExposure.r")
 source("modules/ConversionTable.r")
-source("modules/ReadIDF5files.r")
-source("modules/HourOfTheYear.r")
 source("modules/PersonalLocationToLocationID.r")
 source("modules/LinkPointsToTime.r")
-source("modules/SaveAsFile.r")
+source("modules/HourOfTheYear.r")
+source("modules/ReadIDF5files.r")
+source("modules/CumulativeExposure.r")
+
+source("modules/TimePhases.r")
+
+
 
 ndownload.AQNL("https://drive.google.com/file/d/0B5dbtjRcWbwiSU9tOUQ0TUxZR0E") # bug in downloading files from Google Drive
 unzip.AQNL("20161108_pm10_no2.zip")
@@ -72,35 +76,73 @@ PPH.C2_in = file.path("..", "output", "CommutingRoutesInwards_Antwerpen.geojson"
 PPH.C2 = readOGR(PPH.C2_in, layer = 'OGRGeoJSON')
 PPH.R_in = file.path("..", "output", "Residence_Antwerpen.geojson")
 PPH.R = readOGR(PPH.R_in, layer = 'OGRGeoJSON')
+PPH.W_in = file.path("..", "output", "Workplace_Antwerpen.geojson")
+PPH.W = readOGR(PPH.W_in, layer = 'OGRGeoJSON')
 LocationIDs.C1 = PersonalLocationToLocationID(PPH.C1, CT.SP, 1)
 LocationIDs.C2 = PersonalLocationToLocationID(PPH.C2, CT.SP, 1)
 LocationIDs.R = PersonalLocationToLocationID(PPH.R, CT.SP, 1)
-
-PPH.W_in = file.path("..", "output", "Workplace_Antwerpen.geojson")
-PPH.W = readOGR(PPH.W_in, layer = 'OGRGeoJSON')
+LocationIDs.W = PersonalLocationToLocationID(PPH.W, CT.SP, 1)
 
 PPH.C1@data$duration = PPH.C1@data$duration * 1.2 # duration correction
 PPH.C2@data$duration = PPH.C2@data$duration * 1.2 # duration correction
 
-TimeVertex.POSIXct = LinkPointsToTime(PPH.C1, LocationIDs.C1, 2009) # Time of the Commuting routes vertices Outwards
-#TimeVertex.POSIXct = LinkPointsToTime(PPH.R, LocationIDs.R, 2009) # Time of the Commuting routes vertices Outwards
-HourVertex = HourOfTheYear2(2009, TimeVertex.POSIXct, 0) # replace date with date PPH
+## get the time distribution right
+#TimeVertex.R = TimeAtResidence(PPH.R, LocationIDs.R, 2009, 8) # Time at Residence
 
-ExposureValue = ExtractExposureValue("no2", LocationIDs.C1[[2]][1], HourVertex[[2]][3]) # LocationIDs.C1[[<individual>]][<vertex(route)>]
-ExposureValue                                                                           # HourVertex[[<individual>]][<vertex(route)>]
+TimeVertex.C1 = LinkPointsToTime.Commuting(PPH.C1, LocationIDs.C1, 2009, 8) # Time of the Commuting routes vertices Outwards
+TimeVertex.C2 = LinkPointsToTime.Commuting(PPH.C2, LocationIDs.C2, 2009, 17) # Time of the Commuting routes vertices Inwards
 
-# test what is more eddicient: from main script or inside "ExtractExposureValue"
-for (i in seq(1,3)) # seq_along(LocationIDs.C1)
-{
-  for (v in seq_along(LocationIDs.C1[[i]]))
-  {
-    
-    ExposureValue = ExtractExposureValue("no2", LocationIDs.C1[[i]][v], HourVertex[[i]][v])
-    #print(i,v, ExposureValue)
-    #paste("Ind:",(i),"Ver:",(v), "Exp:", ExposureValue)
-    print(ExposureValue)
-  }
-}
+HourVertex.C1 = HourOfTheYear2(2009, TimeVertex.C1, 0)
+HourVertex.C2 = HourOfTheYear2(2009, TimeVertex.C2, 0)
+
+# ExposureValue = ExtractExposureValue("no2", LocationIDs.C1[[2]][1], HourVertex[[2]][3]) # LocationIDs.C1[[<individual>]][<vertex(route)>]
+# ExposureValue                                                                           # HourVertex[[<individual>]][<vertex(route)>]
+# 
+# # test what is more eddicient: from main script or inside "ExtractExposureValue"
+# for (i in seq(1,1)) # seq_along(LocationIDs.C1)
+# {
+#   for (v in seq_along(LocationIDs.C1[[i]]))
+#   {
+#     
+#     ExposureValue = ExtractExposureValue("no2", LocationIDs.C1[[i]][v], HourVertex[[i]][v])
+#     #print(i,v, ExposureValue)
+#     #paste("Ind:",(i),"Ver:",(v), "Exp:", ExposureValue)
+#     print(ExposureValue)
+#   }
+# }
+
+###TIME
+YearDates = YearDates(2009)
+BusinesDates = BusinesDates(YearDates)
+
+PPH.Phases.Times = TimePhaser(8, 17, TimeVertex.C1, TimeVertex.C2)
+PPH.Phases.DateTimes = PPH.Phases.Times
+
+PHASES = TimePhaserList(BusinesDates, PPH.Phases.DateTimes)
+#PHASES[[1]]
+
+TIME.R = AtResidenceOrWork("Residence", PHASES, BusinesDates, Correct = T)
+TIME.W = AtResidenceOrWork("Workplace", PHASES, BusinesDates, Correct = T)
+
+#rm(CT,CT.SP,PPH.C1,PPH.C1_in,PPH.C2,PPH.C2_in,PPH.R,PPH.R_in,PPH.W,PPH.W_in)
+
+#HOURS.R = HourOfTheYear2(2009, TIME.R, 0)
+HOURS.R = HourOfTheYear3(2009, TIME.R, 0)
+ExposureValue.R = ExtractExposureValue2("no2", LocationIDs.R[[1]], HOURS.R)
+
+#HOURS.W = HourOfTheYear2(2009, TIME.W, 0)
+HOURS.W = HourOfTheYear3(2009, TIME.W, 0)
+
+ExposureValue.R = ExtractExposureValue2("no2", LocationIDs.R, HOURS.R)
+ExposureValue.R[[11]][[1]] # [[individual#]][[BusinesDay#]]
+
+ExposureValue.W = ExtractExposureValue2("no2", LocationIDs.W, HOURS.W)
+
+
+
+
+
+ExposureValue.C1_WS = ExtractExposureValue2("no2", LocationIDs.C1, HOURS.C1)
 
 
 

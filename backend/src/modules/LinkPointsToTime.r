@@ -24,12 +24,12 @@
 ## Load the packages
 
 
-LinkPointsToTime <- function(PPH.C, LocationIDs, Year, ...)
+LinkPointsToTime.Commuting <- function(PPH.C, LocationIDs, Year, Time, ...)
 {
   TimeVertex = list()
   TimeVertex.POSIXct = list()
   
-  TimeLeaveFromRes = as.POSIXct(paste0(Year,"-01-01 08:00:00"), tz = "GMT") # and then count from last minute at Residence
+  TimeLeaveFromRes = as.POSIXct(paste0(Year,"-01-01"), tz = "GMT")+Time*60**2 # and then count from last minute at Residence
   
   for (i in seq_along(PPH.C))
   {
@@ -45,4 +45,48 @@ LinkPointsToTime <- function(PPH.C, LocationIDs, Year, ...)
     TimeVertex.POSIXct[[i]] = as.POSIXct(TimeVertex[[i]], origin = "1970-01-01", tz = "GMT") # time format correction
   }
   return(TimeVertex.POSIXct)
+}
+
+YearDates <- function(Year, ...) #no correction for leap years
+{
+  #create the days of the year
+  StartDay = as.POSIXct(paste0(Year,"-01-01"), tz = "GMT")
+  YearDates = StartDay
+  for (i in 2:365)
+  {
+    YearDates[[i]] = StartDay+(i-1)*24*60**2
+  }
+  return(YearDates)
+}
+
+BusinesDates <- function(YearDates, ...)
+{
+  da = 1:365
+  bd = da %% 6 & da %% 7
+
+  #filter out weekends
+  BusinesDates = subset(YearDates, bd)
+  
+  return(BusinesDates)
+}
+
+LeaveDates <- function(Dates, Time, ...)
+{
+  Leaves = Dates+Time*60**2
+  return(Leaves)
+}
+
+StayDateTime.R<- function(Dates, Time, ...) # based on lenght BusinesDates (261)
+{
+  StayDates = list()
+  for (i in seq_along(Dates))
+  {
+    StayDates[[i]] = Dates[i]
+    
+    for (t in 0:Time)
+    {
+      StayDates[[i]][t+1] = StayDates[[i]][t]+1*60**2
+    }
+  }
+  return(StayDates)
 }

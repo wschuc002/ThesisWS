@@ -56,28 +56,28 @@ ReadHDF5 <- function(pol, locationId.BE, ...)
   
 }
 
-h5ls(h5f_in)
-WSWSWS = h5read(h5f_in,"0/data")
-WSWSWS2 = h5f$0$data
+# h5ls(h5f_in)
+# WSWSWS = h5read(h5f_in,"0/data")
+# WSWSWS2 = h5f$0$data
+# 
+# h5f_WS$"6"$data[4,6500]
+# 
+# activeDataset = locationId.BE / 10000
+# activeLocation = locationId.BE %% 10000
+# activeName = activeDataset - (activeLocation/10000)
+# 
+# h5f$paste0(activeName)$data[4,3000]
+# 
+# h5f$"9"$data[4,6500]
+# h5f[[as.character(activeName)]]
+# 
+# 
+# 
+# (h5read(h5f_in, as.character(activeName)))[4,3000]
+# 
+# h5f&"7"[4,6000]
 
-h5f_WS$"6"$data[4,6500]
-
-activeDataset = locationId.BE / 10000
-activeLocation = locationId.BE %% 10000
-activeName = activeDataset - (activeLocation/10000)
-
-h5f$paste0(activeName)$data[4,3000]
-
-h5f$"9"$data[4,6500]
-h5f[[as.character(activeName)]]
-
-
-
-(h5read(h5f_in, as.character(activeName)))[4,3000]
-
-h5f&"7"[4,6000]
-
-HDF5_dir = file.path("..", "data", "BE", "ATMOSYS", "no2-gzip_WS.hdf5")
+#HDF5_dir = file.path("..", "data", "BE", "ATMOSYS", "no2-gzip_WS.hdf5")
 UnzipHDF5 <- function(HDF5_dir, ...)
 {
   h5createFile(HDF5_dir)
@@ -292,6 +292,44 @@ ExtractExposureValue <- function(pol, locationId.BE, HourOfTheYear, ...)
   
   H5Fclose(h5f)
   return (ExposureValue)
+}
+
+#pol = "no2"
+#locationId.BE = LocationIDs.R
+#HOURS = HOURS.R
+ExtractExposureValue2 <- function(pol, locationId.BE, HOURS, ...)
+{
+  ## Open the IDF5-file
+  pollutant = pol
+  polFile = paste0(pol, "-gzip.hdf5")
+  h5f_in = file.path("..", "data", "BE", "ATMOSYS", polFile)
+  
+  EXPWS = list()
+  
+  for (i in seq_along(locationId.BE))
+  #for (i in seq(1,2))
+  {
+    activeDataset = locationId.BE[i] / 10000
+    activeLocation = locationId.BE[i] %% 10000
+    activeName = activeDataset - (activeLocation/10000)
+    
+    EXP = HOURS
+    h5f.active = h5read(h5f_in, as.character(activeName))
+    
+    EXP = HOURS
+    for (d in seq_along(HOURS))
+      #for (d in seq(1,2))
+    {
+      for (h in seq_along(HOURS[[d]]))
+        #for (h in seq(1,2))
+      {
+        EXP[[d]][h] = h5f.active$data[HOURS[[d]][h]+1, activeLocation] #[hour of the year,activeLocation]
+      }
+    }
+    EXPWS[[i]] = EXP
+  }
+
+  return (EXPWS)
 }
 
 ExtractExposureValue_ <- function(ActiveH5FLocation, HourOfTheYear, ...)

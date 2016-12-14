@@ -29,8 +29,8 @@ library(rgdal)
 # y: layer from which the geometries or attributes are queried    [eg.: NO2]
 
 
-df <- data.frame(count=1:10000)
-df <- within(df, acc_sum <- cumsum(count))
+#df <- data.frame(count=1:10000)
+#df <- within(df, acc_sum <- cumsum(count))
 
 CumulativeExposure <- function(None, ...)
 {
@@ -67,6 +67,3 @@ CumulativeExposure <- function(None, ...)
   plot(WSraster)
   plot(PPH.C, add=TRUE)
 }
-
-
-
