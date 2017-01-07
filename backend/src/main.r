@@ -67,6 +67,8 @@ CRAB_Doel = readOGR(file.path("..", "output", "CRAB_OUT_Antwerpen.shp"), layer =
 DetermineRoutesFL(CRAB_Doel, "Antwerpen", 15, 1000, "simplified")
 #rm(CRAB_Doel)
 
+
+
 CT = CreateConversionTable()
 CT.SP = MakeCTSpatial(CT)
 
@@ -86,14 +88,15 @@ LocationIDs.W = PersonalLocationToLocationID(PPH.W, CT.SP, 1)
 PPH.C1@data$duration = PPH.C1@data$duration * 1.2 # duration correction
 PPH.C2@data$duration = PPH.C2@data$duration * 1.2 # duration correction
 
-## get the time distribution right
-#TimeVertex.R = TimeAtResidence(PPH.R, LocationIDs.R, 2009, 8) # Time at Residence
 
-TimeVertex.C1 = LinkPointsToTime.Commuting(PPH.C1, LocationIDs.C1, 2009, 8) # Time of the Commuting routes vertices Outwards
-TimeVertex.C2 = LinkPointsToTime.Commuting(PPH.C2, LocationIDs.C2, 2009, 17) # Time of the Commuting routes vertices Inwards
+Leave.R = 8
+Leave.W = 17
 
-HourVertex.C1 = HourOfTheYear2(2009, TimeVertex.C1, 0)
-HourVertex.C2 = HourOfTheYear2(2009, TimeVertex.C2, 0)
+TimeVertex.C1 = LinkPointsToTime.Commuting(PPH.C1, LocationIDs.C1, 2009, Leave.R) # Time of the Commuting routes vertices Outwards
+TimeVertex.C2 = LinkPointsToTime.Commuting(PPH.C2, LocationIDs.C2, 2009, Leave.W) # Time of the Commuting routes vertices Inwards
+
+HOURVertex.C1 = HourOfTheYear2(2009, TIMEVertex.C1, 0)
+HOURVertex.C2 = HourOfTheYear2(2009, TIMEVertex.C2, 0)
 
 # ExposureValue = ExtractExposureValue("no2", LocationIDs.C1[[2]][1], HourVertex[[2]][3]) # LocationIDs.C1[[<individual>]][<vertex(route)>]
 # ExposureValue                                                                           # HourVertex[[<individual>]][<vertex(route)>]
@@ -111,38 +114,52 @@ HourVertex.C2 = HourOfTheYear2(2009, TimeVertex.C2, 0)
 #   }
 # }
 
-###TIME
+
 YearDates = YearDates(2009)
 BusinesDates = BusinesDates(YearDates)
 
-PPH.Phases.Times = TimePhaser(8, 17, TimeVertex.C1, TimeVertex.C2)
+PPH.Phases.Times = TimePhaser(Leave.R, Leave.W, TimeVertex.C1, TimeVertex.C2)
 PPH.Phases.DateTimes = PPH.Phases.Times
 
 PHASES = TimePhaserList(BusinesDates, PPH.Phases.DateTimes)
-#PHASES[[1]]
+PHASES[[1]][1,1] #[[businesday#]][individual,]
 
 TIME.R = AtResidenceOrWork("Residence", PHASES, BusinesDates, Correct = T)
 TIME.W = AtResidenceOrWork("Workplace", PHASES, BusinesDates, Correct = T)
+TIME.R[[14]][[200]] #[[individual]][[businesday#]]
+TIME.W[[14]][[200]] #[[individual]][[businesday#]]
 
-#rm(CT,CT.SP,PPH.C1,PPH.C1_in,PPH.C2,PPH.C2_in,PPH.R,PPH.R_in,PPH.W,PPH.W_in)
+TIMEVertex.C1 = LinkPointsToTime.Commuting2("Outwards", PPH.C1, LocationIDs.C1, PHASES) # Time of the Commuting routes vertices Outwards
+TIMEVertex.C2 = LinkPointsToTime.Commuting2("Inwards", PPH.C2, LocationIDs.C2, PHASES) # Time of the Commuting routes vertices Inwards
+TIMEVertex.C1[[14]][[200]] #[[individual]][[businesday#]]
+TIMEVertex.C2[[14]][[200]] #[[individual]][[businesday#]]
 
-#HOURS.R = HourOfTheYear2(2009, TIME.R, 0)
-HOURS.R = HourOfTheYear3(2009, TIME.R, 0)
-ExposureValue.R = ExtractExposureValue2("no2", LocationIDs.R[[1]], HOURS.R)
+HOURS.R = HourOfTheYear4(2009, TIME.R, 0)
+HOURS.W = HourOfTheYear4(2009, TIME.W, 0)
+HOURS.C1 = HourOfTheYear4(2009, TIMEVertex.C1, 0)
+HOURS.C2 = HourOfTheYear4(2009, TIMEVertex.C2, 0)
+HOURS.R[[14]][[200]] #[[individual]][[businesday#]]
+HOURS.W[[14]][[200]] #[[individual]][[businesday#]]
+HOURS.C1[[14]][[200]] #[[individual]][[businesday#]]
+HOURS.C2[[14]][[200]] #[[individual]][[businesday#]]
 
-#HOURS.W = HourOfTheYear2(2009, TIME.W, 0)
-HOURS.W = HourOfTheYear3(2009, TIME.W, 0)
+rm(CT, CT.SP, PPH.C1, PPH.C1_in, PPH.C2, PPH.C2_in, PPH.R, PPH.R_in ,PPH.W, PPH.W_in, PPH.Phases.DateTimes, PPH.Phases.Times,
+   YearDates, BusinesDates, Leave.W, Leave.R, PHASES, TIME.R, TIME.W, TimeVertex.C1, TimeVertex.C2, TIMEVertex.C1, TIMEVertex.C2,
+   list.of.packages, new.packages)
 
-ExposureValue.R = ExtractExposureValue2("no2", LocationIDs.R, HOURS.R)
-ExposureValue.R[[11]][[1]] # [[individual#]][[BusinesDay#]]
+ExposureValue.R = ExtractExposureValue1("no2", LocationIDs.R, HOURS.R)
+ExposureValue.W = ExtractExposureValue1("no2", LocationIDs.W, HOURS.W)
+ExposureValue.R[[1]][[2]] # [[individual#]][[BusinesDay#]]
+ExposureValue.W[[3]][[200]] # [[individual#]][[BusinesDay#]]
 
-ExposureValue.W = ExtractExposureValue2("no2", LocationIDs.W, HOURS.W)
+# R_path = file.path("..", "output", "R.csv")
+# R_csv = write.csv(ExposureValue.R, R_path)
 
 
+ExposureValue.C1 = ExtractExposureValue2("no2", LocationIDs.C1, HOURS.C1)
 
+ExposureValue.C2 = ExtractExposureValue2("no2", LocationIDs.C2, HOURS.C2)
 
-
-ExposureValue.C1_WS = ExtractExposureValue2("no2", LocationIDs.C1, HOURS.C1)
 
 
 

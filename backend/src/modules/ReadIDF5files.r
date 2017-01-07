@@ -28,54 +28,6 @@ library(stringr)
 library(rgdal)
 library(rgeos)
 
-#pol = "no2"
-#locationId.BE = 68083
-
-ReadHDF5 <- function(pol, locationId.BE, ...)
-{
-  ## Open the IDF5-file
-  pollutant = pol
-  polFile = paste0(pol, "-gzip.hdf5")
-  h5f_in = file.path("..", "data", "BE", "ATMOSYS", polFile)
-  h5f = H5Fopen(h5f_in)
-  #h5f.D = H5Dopen(h5f, h5loc = h5f$"0")
-  
-  activeDataset = locationId.BE / 10000
-  activeLocation = locationId.BE %% 10000
-  activeName = activeDataset - (activeLocation/10000)
-  
-  h5f.active = h5read(h5f_in, as.character(activeName)) # h5read(h5f_in, 6)
-  #h5f.active.df = data.frame(h5f.active)
-  
-  #h5f.active = h5read(h5f_in, "6", index=list(2,201))
-  h5f.active$data[5,activeLocation] #[hour of the year,activeLocation]
-  
-  #ActiveH5FLocation = list(h5f.active.df, activeLocation)
-  
-  return(ActiveH5FLocation)
-  
-}
-
-# h5ls(h5f_in)
-# WSWSWS = h5read(h5f_in,"0/data")
-# WSWSWS2 = h5f$0$data
-# 
-# h5f_WS$"6"$data[4,6500]
-# 
-# activeDataset = locationId.BE / 10000
-# activeLocation = locationId.BE %% 10000
-# activeName = activeDataset - (activeLocation/10000)
-# 
-# h5f$paste0(activeName)$data[4,3000]
-# 
-# h5f$"9"$data[4,6500]
-# h5f[[as.character(activeName)]]
-# 
-# 
-# 
-# (h5read(h5f_in, as.character(activeName)))[4,3000]
-# 
-# h5f&"7"[4,6000]
 
 #HDF5_dir = file.path("..", "data", "BE", "ATMOSYS", "no2-gzip_WS.hdf5")
 UnzipHDF5 <- function(HDF5_dir, ...)
@@ -94,272 +46,186 @@ UnzipHDF5 <- function(HDF5_dir, ...)
   
   h5write(h5f.active, HDF5_dir, as.character(6))
   
+  h5write(h5f.active, HDF5_dir, as.character(7))
   
+  h5createDataset(HDF5_dir, as.character(7), dims = C(1,1))
+  H5close()
+  
+  h5f_WS$"7"$data[[1]]
+  
+  h5read(HDF5_dir, as.character(7))
+  h5readAttributes(HDF5_dir, as.character(7))
   
   H5Fclose(h5f_WS)
   H5Fclose(h5f)
 }
 
 
-ExtractExposureValue <- function(pol, locationId.BE, HourOfTheYear, ...)
-{
-  ## Open the IDF5-file
-  pollutant = pol
-  polFile = paste0(pol, "-gzip.hdf5")
-  h5f_in = file.path("..", "data", "BE", "ATMOSYS", polFile)
-  h5f = H5Fopen(h5f_in)
-  
-  activeDataset = locationId.BE / 10000
-  activeLocation = locationId.BE %% 10000
-  activeName = activeDataset - (activeLocation/10000)
-  
-  # find better solution than repeating 42 times
-  if (activeName == 0)
-  {
-    ExposureValue = h5f$"0"$data[HourOfTheYear+1, activeLocation]
-    #ExposureValue = h5f$"0"$data[4,6500]
-  }
-  
-  if (activeName == 1)
-  {
-    ExposureValue = h5f$"1"$data[HourOfTheYear+1, activeLocation]
-  }
-  if (activeName == 2)
-  {
-    ExposureValue = h5f$"2"$data[HourOfTheYear+1, activeLocation]
-  }
-  if (activeName == 3)
-  {
-    ExposureValue = h5f$"3"$data[HourOfTheYear+1, activeLocation]
-  }
-  if (activeName == 4)
-  {
-    ExposureValue = h5f$"4"$data[HourOfTheYear+1, activeLocation]
-  }
-  if (activeName == 5)
-  {
-    ExposureValue = h5f$"5"$data[HourOfTheYear+1, activeLocation]
-  }
-  if (activeName == 6)
-  {
-    ExposureValue = h5f$"6"$data[HourOfTheYear+1, activeLocation]
-  }
-  if (activeName == 7)
-  {
-    ExposureValue = h5f$"7"$data[HourOfTheYear+1, activeLocation]
-  }
-  if (activeName == 8)
-  {
-    ExposureValue = h5f$"8"$data[HourOfTheYear+1, activeLocation]
-  }
-  if (activeName == 9)
-  {
-    ExposureValue = h5f$"9"$data[HourOfTheYear+1, activeLocation]
-  }
-  if (activeName == 10)
-  {
-    ExposureValue = h5f$"10"$data[HourOfTheYear+1, activeLocation]
-  }
-  if (activeName == 11)
-  {
-    ExposureValue = h5f$"11"$data[HourOfTheYear+1, activeLocation]
-  }
-  if (activeName == 12)
-  {
-    ExposureValue = h5f$"12"$data[HourOfTheYear+1, activeLocation]
-  }
-  if (activeName == 13)
-  {
-    ExposureValue = h5f$"13"$data[HourOfTheYear+1, activeLocation]
-  }
-  if (activeName == 14)
-  {
-    ExposureValue = h5f$"14"$data[HourOfTheYear+1, activeLocation]
-  }
-  if (activeName == 15)
-  {
-    ExposureValue = h5f$"15"$data[HourOfTheYear+1, activeLocation]
-  }
-  if (activeName == 16)
-  {
-    ExposureValue = h5f$"16"$data[HourOfTheYear+1, activeLocation]
-  }
-  if (activeName == 17)
-  {
-    ExposureValue = h5f$"17"$data[HourOfTheYear+1, activeLocation]
-  }
-  if (activeName == 18)
-  {
-    ExposureValue = h5f$"18"$data[HourOfTheYear+1, activeLocation]
-  }
-  if (activeName == 19)
-  {
-    ExposureValue = h5f$"19"$data[HourOfTheYear+1, activeLocation]
-  }
-  if (activeName == 20)
-  {
-    ExposureValue = h5f$"20"$data[HourOfTheYear+1, activeLocation]
-  }
-  if (activeName == 21)
-  {
-    ExposureValue = h5f$"21"$data[HourOfTheYear+1, activeLocation]
-  }
-  if (activeName == 22)
-  {
-    ExposureValue = h5f$"22"$data[HourOfTheYear+1, activeLocation]
-  }
-  if (activeName == 23)
-  {
-    ExposureValue = h5f$"23"$data[HourOfTheYear+1, activeLocation]
-  }
-  if (activeName == 24)
-  {
-    ExposureValue = h5f$"24"$data[HourOfTheYear+1, activeLocation]
-  }
-  if (activeName == 25)
-  {
-    ExposureValue = h5f$"25"$data[HourOfTheYear+1, activeLocation]
-  }
-  if (activeName == 26)
-  {
-    ExposureValue = h5f$"26"$data[HourOfTheYear+1, activeLocation]
-  }
-  if (activeName == 27)
-  {
-    ExposureValue = h5f$"27"$data[HourOfTheYear+1, activeLocation]
-  }
-  if (activeName == 28)
-  {
-    ExposureValue = h5f$"28"$data[HourOfTheYear+1, activeLocation]
-  }
-  if (activeName == 29)
-  {
-    ExposureValue = h5f$"29"$data[HourOfTheYear+1, activeLocation]
-  }
-  if (activeName == 30)
-  {
-    ExposureValue = h5f$"30"$data[HourOfTheYear+1, activeLocation]
-  }
-  if (activeName == 31)
-  {
-    ExposureValue = h5f$"31"$data[HourOfTheYear+1, activeLocation]
-  }
-  if (activeName == 32)
-  {
-    ExposureValue = h5f$"32"$data[HourOfTheYear+1, activeLocation]
-  }
-  if (activeName == 33)
-  {
-    ExposureValue = h5f$"33"$data[HourOfTheYear+1, activeLocation]
-  }
-  if (activeName == 34)
-  {
-    ExposureValue = h5f$"34"$data[HourOfTheYear+1, activeLocation]
-  }
-  if (activeName == 35)
-  {
-    ExposureValue = h5f$"35"$data[HourOfTheYear+1, activeLocation]
-  }
-  if (activeName == 36)
-  {
-    ExposureValue = h5f$"36"$data[HourOfTheYear+1, activeLocation]
-  }
-  if (activeName == 37)
-  {
-    ExposureValue = h5f$"37"$data[HourOfTheYear+1, activeLocation]
-  }
-  if (activeName == 38)
-  {
-    ExposureValue = h5f$"38"$data[HourOfTheYear+1, activeLocation]
-  }
-  if (activeName == 39)
-  {
-    ExposureValue = h5f$"39"$data[HourOfTheYear+1, activeLocation]
-  }
-  if (activeName == 40)
-  {
-    ExposureValue = h5f$"40"$data[HourOfTheYear+1, activeLocation]
-  }
-  if (activeName == 41)
-  {
-    ExposureValue = h5f$"41"$data[HourOfTheYear+1, activeLocation]
-  }
-  if (activeName == 42)
-  {
-    ExposureValue = h5f$"42"$data[HourOfTheYear+1, activeLocation]
-  }
-  
-  
-  H5Fclose(h5f)
-  return (ExposureValue)
-}
 
 #pol = "no2"
-#locationId.BE = LocationIDs.R
-#HOURS = HOURS.R
-ExtractExposureValue2 <- function(pol, locationId.BE, HOURS, ...)
+#locationId.BE = LocationIDs.C1
+#HOURS = HOURS.C1
+#rm(pol, locationId.BE, HOURS)
+ExtractExposureValue1 <- function(pol, locationId.BE, HOURS, ...) # Method 1: read from compressed file
 {
   ## Open the IDF5-file
-  pollutant = pol
   polFile = paste0(pol, "-gzip.hdf5")
   h5f_in = file.path("..", "data", "BE", "ATMOSYS", polFile)
   
-  EXPWS = list()
+  EXPWS = list(list())
   
-  for (i in seq_along(locationId.BE))
-  #for (i in seq(1,2))
+  if (class(locationId.BE)== "integer") #R & W
   {
-    activeDataset = locationId.BE[i] / 10000
-    activeLocation = locationId.BE[i] %% 10000
-    activeName = activeDataset - (activeLocation/10000)
-    
-    EXP = HOURS
-    h5f.active = h5read(h5f_in, as.character(activeName))
-    
-    EXP = HOURS
-    for (d in seq_along(HOURS))
-      #for (d in seq(1,2))
+    for (i in seq_along(locationId.BE)) # per individual
+      #for (i in seq(1,2))
     {
-      for (h in seq_along(HOURS[[d]]))
-        #for (h in seq(1,2))
+      activeDataset = locationId.BE[i] / 10000
+      activeLocation = locationId.BE[i] %% 10000
+      activeName = activeDataset - (activeLocation/10000)
+      
+      h5f.active = h5read(h5f_in, as.character(activeName))
+      
+      EXP = HOURS[[i]] # use same structure
+      
+      for (h in seq_along(HOURS[[i]])) # per day
+        #for (h in seq(1,3))
       {
-        EXP[[d]][h] = h5f.active$data[HOURS[[d]][h]+1, activeLocation] #[hour of the year,activeLocation]
+        for (f in seq_along(HOURS[[i]][[h]])) # per hour
+        {
+          EXP[[h]][f] = h5f.active$data[HOURS[[i]][[h]][f]+1, activeLocation] #[hour of the year,activeLocation]
+        }
       }
+      EXPWS[[i]] = EXP
     }
-    EXPWS[[i]] = EXP
   }
-
+  
+  if (class(locationId.BE)== "list") #C1 & C2
+  {
+    #for (i in seq_along(locationId.BE)) # per individual
+    for (i in seq(1,2))
+    {
+      for (v in locationId.BE[i])
+      {
+        
+        activeDataset = locationId.BE[[i]][v] / 10000
+        activeLocation = locationId.BE[i] %% 10000
+        activeName = activeDataset - (activeLocation/10000)
+        
+        h5f.active = h5read(h5f_in, as.character(activeName))
+        
+        EXP = HOURS[[i]] # use same structure
+        
+        #for (h in seq_along(HOURS[[i]])) # per day
+        for (h in seq(1,3))
+        {
+          for (f in seq_along(HOURS[[i]][[h]])) # per hour
+          {
+            EXP[[h]][f] = h5f.active$data[HOURS[[i]][[h]][f]+1, activeLocation] #[hour of the year,activeLocation]
+          }
+        }
+        EXPWS[[i]] = EXP
+        
+        
+        
+        
+      }
+      
+      
+      
+    }
+  }
+  
   return (EXPWS)
 }
 
-ExtractExposureValue_ <- function(ActiveH5FLocation, HourOfTheYear, ...)
+ExtractExposureValue2 <- function(pol, locationId.BE, HOURS, ...) # Method 2: read from uncompressed (larger) file
 {
-  #locationId = locationId.BE #68083 # LEFT OF . IS "name" | RIGHT OF . IS "otype dclass dim"
-  #activeCode  = as.character(CT$location[68083])
+  ## Open the IDF5-file
+  polFile = paste0(pol, "-gzip.hdf5")
+  h5f_in = file.path("..", "data", "BE", "ATMOSYS", polFile)
   
-  ExposureValue = ActiveH5FLocation[[1]][[paste0("data.", ActiveH5FLocation[[2]])]][HourOfTheYear+1]
+  activeDataset_WS = list(list())
+  activeLocation_WS = list(list())
+  activeName_WS = list(list())
   
-  return (ExposureValue)
-}
+  #Bool_00 = list(list())
+  
+  for (i in seq_along(locationId.BE))
+  {
+    activeDataset_WS[[i]] = locationId.BE[[i]] / 10000
+    activeLocation_WS[[i]] = locationId.BE[[i]] %% 10000
+    activeName_WS[[i]] = activeDataset_WS[[i]] - (activeLocation_WS[[i]]/10000)
+  }
+  
+#   I.nr = NA
+#   for (i in seq_along(locationId.BE)) # per individual
+#   {
+#     I.nr[i] = paste0("I_", sprintf("%04d", (i) ))
+#   }
+#   
+#   Bool.nr = NA
+#   for (n in seq(0,43)) # per slot (0-42)
+#   {
+#     Bool.nr[n] = paste0("Bool_", sprintf("%03d", n-1))
+#   }
+#   
+#   Bools = list()
+#   
+#   for (i in seq_along(I.nr)) # create Boolian for active dataset
+#   {
+#     Bools[[i]] = data.frame(matrix(NA, nrow = length(activeName_WS[[i]]), ncol = 43))
+#     colnames(Bools[[i]]) = Bool.nr
+#     
+#     for (n in seq_along(Bools[[i]])) # per slot (0-42)
+#     {
+#       Bools[[i]][n] = activeName_WS[[i]] == n-1
+#     }
+#   }
+#   names(Bools) = I.nr
+  
 
-
-ExtractExposureValueResidence <- function(ActiveH5FLocation, HourOfTheYear, ...)
-{
+  ## copy Bools so that the exposure values can be fillen in
+  ## every non-filled in slot will still be a Boolian (TRUE or FALSE)
+  #EXP = Bools
   
+  #h5f.active_WS = h5read(h5f_in, as.character(0)) # deze verwijderen | staat hier vanwege snelheid tests
   
-  ExposureValueResidence = ActiveH5FLocation[[1]][[paste0("data.", ActiveH5FLocation[[2]])]][HourOfTheYear+1]
-  return (ExposureValueResidence )
-}
-
-CalculateResolution <- function(CT, ...)
-{
-  ## calculate resolution
-  BE_surface = 30528 #Belgian surface in km2
-  data.obs = nrow(CT)
-  #obs.per.km2 = data.obs/BE_surface # obs per km2
+  EXPWS = list(list())
   
-  obs.per.km2 = data.obs/BE_surface # observations per km2
-  ws = sqrt(obs.per.km2)
-  res = 1/ws*1000
-  paste0("The average resolution is: ", res, "m ", "x ", res, "m.")
+  for (i in seq_along(activeName_WS)) # per individual
+  {
+    EXP = HOURS[[i]] # use same structure to fill in one pollutant value per hour
+  }
+  
+  activeName_WS_SS = activeName_WS
+  
+  for (a in seq(0,42)) # per slot (0-42) [active location]
+  #for (a in seq(4,8))
+  #for (a in 42)  
+  {
+    h5f.active_WS = h5read(h5f_in, as.character(a))
+    
+    for (i in seq_along(activeName_WS)) # per individual
+    #for (i in seq_along(1))
+    {
+      for (v in seq_along(activeName_WS[[i]])) # per vector
+      {
+        if (activeName_WS[[i]][v] == a)
+        {
+          #activeName_WS_SS[[i]][v] = 9999
+          for (d in seq_along(HOURS[[i]])) # per day
+          #for (d in seq(1,3))
+          {
+            for (h in seq_along(HOURS[[i]][[d]])) # per hour
+            {
+              EXP[[d]][v] = h5f.active_WS$data[HOURS[[i]][[d]][h]+1, activeLocation_WS[[i]][v]] #[hour of the year,activeLocation]
+            }
+          }
+          EXPWS[[i]] = EXP
+        }
+      }
+    }
+  }
+  
+  return (EXPWS) 
 }
