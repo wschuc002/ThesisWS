@@ -23,6 +23,42 @@
 
 ## Load the packages
 
+LinkPointsToTime.Commuting2 <- function(Direction.C, PPH.C, LocationIDs, PHASES, ...)
+{
+  TimeVertex = list()
+  TimeVertex.POSIXct = list()
+  TIME.C = list(list())
+  
+  for (i in seq_along(PPH.C))
+  {
+  
+    for (y in seq_along(BusinesDates))
+    {
+      if (Direction.C == "Outwards")
+      {
+        TimeLeaveFrom = PHASES[[y]][i,1]
+      }
+      if (Direction.C == "Inwards")
+      {
+        TimeLeaveFrom = PHASES[[y]][i,3]
+      }
+      
+      Vertices = length(LocationIDs[[i]])
+      durVer = PPH.C@data$duration[i]/Vertices # duration between vertices (in minutes)
+      
+      TimeVertex[[y]] = LocationIDs[[i]]
+      for (t in seq_along(LocationIDs[[i]]))
+      {
+        TimeVertex[[y]][t] = TimeLeaveFrom+durVer*(t*60)
+      }
+      
+      TimeVertex.POSIXct[[y]] = as.POSIXct(TimeVertex[[y]], origin = "1970-01-01", tz = "GMT") # time format correction
+    }
+    
+  TIME.C[[i]] = TimeVertex.POSIXct
+  }
+  return(TIME.C)
+}
 
 LinkPointsToTime.Commuting <- function(PPH.C, LocationIDs, Year, Time, ...)
 {

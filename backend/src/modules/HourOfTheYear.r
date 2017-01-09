@@ -65,3 +65,23 @@ HourOfTheYear3 <- function(Year, TimeVertices, Decimals, ...)
   }
   return(HourOfYearVertex)
 }
+
+HourOfTheYear4 <- function(Year, TimeVertices, Decimals, ...)
+{
+  HourOfYearVertex = list()
+  HOURS = list(list())
+  StartTimeYear = as.POSIXct(paste0(Year,"-01-01 00:00:00"), tz = "GMT")
+  
+  for (i in seq_along(TimeVertices))
+  {
+    for (y in seq_along(TimeVertices[[i]]))
+    {
+      
+      HourOfYearVertex[[y]] = difftime(TimeVertices[[i]][[y]], StartTimeYear, units="hours")
+      HourOfYearVertex[[y]] = round(as.numeric(HourOfYearVertex[[y]]), digits = Decimals)
+      HourOfYearVertex[[y]] = HourOfYearVertex[[y]] + 1 # +1 correction
+    }
+    HOURS[[i]] = HourOfYearVertex
+  }
+  return(HOURS)
+}
