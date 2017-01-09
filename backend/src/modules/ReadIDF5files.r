@@ -14,12 +14,15 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-## Check for required packages and install them (incl dependencies) if they are not installed yet.
-# list.of.packages <- c("rhdf5", "raster")
-# new.packages <- list.of.packages[!(list.of.packages %in% installed.packages()[,"Package"])]
-# #if(length(new.packages)) install.packages(new.packages)
-# if(length(new.packages)) source("http://bioconductor.org/biocLite.R")
-# biocLite("rhdf5")
+# Check for required packages and install them (incl dependencies) if they are not installed yet.
+list.of.packages <- c("rhdf5", "raster")
+new.packages <- list.of.packages[!(list.of.packages %in% installed.packages()[,"Package"])]
+if(length(new.packages)) install.packages(new.packages)
+if(length(new.packages))
+  {
+  source("http://bioconductor.org/biocLite.R")
+  biocLite("rhdf5")
+  }
 
 ## Load the packages
 library(rhdf5)
@@ -190,18 +193,30 @@ ExtractExposureValue2 <- function(pol, locationId.BE, HOURS, ...) # Method 2: re
   
   #h5f.active_WS = h5read(h5f_in, as.character(0)) # deze verwijderen | staat hier vanwege snelheid tests
   
-  EXPWS = list(list())
+  #EXPWS = list(list())
   
-  for (i in seq_along(activeName_WS)) # per individual
+#   for (i in seq_along(activeName_WS)) # per individual
+#   {
+#     EXP = HOURS[[i]] # use same structure to fill in one pollutant value per hour
+#     
+#   }
+  
+  EXP = HOURS # use same structure to fill in one pollutant value per hour
+  # filling values with NA
+  for (i in seq_along(activeName_WS))
   {
-    EXP = HOURS[[i]] # use same structure to fill in one pollutant value per hour
+    for (d in seq_along(HOURS[[i]])) # per vector
+    {
+      for (v in seq_along(activeName_WS[[i]])) # per day
+      {
+        EXP[[i]][[d]][v] = NA
+      }
+    }
   }
   
-  activeName_WS_SS = activeName_WS
-  
-  for (a in seq(0,42)) # per slot (0-42) [active location]
-  #for (a in seq(4,8))
-  #for (a in 42)  
+  #for (a in seq(0,42)) # per slot (0-42) [active location]
+  for (a in seq(4,8))
+  #for (a in 16)
   {
     h5f.active_WS = h5read(h5f_in, as.character(a))
     
@@ -212,20 +227,20 @@ ExtractExposureValue2 <- function(pol, locationId.BE, HOURS, ...) # Method 2: re
       {
         if (activeName_WS[[i]][v] == a)
         {
-          #activeName_WS_SS[[i]][v] = 9999
           for (d in seq_along(HOURS[[i]])) # per day
           #for (d in seq(1,3))
           {
             for (h in seq_along(HOURS[[i]][[d]])) # per hour
             {
-              EXP[[d]][v] = h5f.active_WS$data[HOURS[[i]][[d]][h]+1, activeLocation_WS[[i]][v]] #[hour of the year,activeLocation]
+              EXP[[i]][[d]][v] = h5f.active_WS$data[HOURS[[i]][[d]][h]+1, activeLocation_WS[[i]][v]] #[hour of the year,activeLocation]
             }
           }
-          EXPWS[[i]] = EXP
+          
         }
       }
+      #EXPWS[[i]] = EXP
     }
   }
   
-  return (EXPWS) 
+  return (EXP) 
 }

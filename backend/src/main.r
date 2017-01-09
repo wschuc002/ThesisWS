@@ -46,7 +46,7 @@ source("modules/ReadIDF5files.r")
 source("modules/CumulativeExposure.r")
 
 source("modules/TimePhases.r")
-
+source("modules/TimeDifferenceCalculation.r")
 
 
 ndownload.AQNL("https://drive.google.com/file/d/0B5dbtjRcWbwiSU9tOUQ0TUxZR0E") # bug in downloading files from Google Drive
@@ -95,25 +95,8 @@ Leave.W = 17
 TimeVertex.C1 = LinkPointsToTime.Commuting(PPH.C1, LocationIDs.C1, 2009, Leave.R) # Time of the Commuting routes vertices Outwards
 TimeVertex.C2 = LinkPointsToTime.Commuting(PPH.C2, LocationIDs.C2, 2009, Leave.W) # Time of the Commuting routes vertices Inwards
 
-HOURVertex.C1 = HourOfTheYear2(2009, TIMEVertex.C1, 0)
-HOURVertex.C2 = HourOfTheYear2(2009, TIMEVertex.C2, 0)
-
-# ExposureValue = ExtractExposureValue("no2", LocationIDs.C1[[2]][1], HourVertex[[2]][3]) # LocationIDs.C1[[<individual>]][<vertex(route)>]
-# ExposureValue                                                                           # HourVertex[[<individual>]][<vertex(route)>]
-# 
-# # test what is more eddicient: from main script or inside "ExtractExposureValue"
-# for (i in seq(1,1)) # seq_along(LocationIDs.C1)
-# {
-#   for (v in seq_along(LocationIDs.C1[[i]]))
-#   {
-#     
-#     ExposureValue = ExtractExposureValue("no2", LocationIDs.C1[[i]][v], HourVertex[[i]][v])
-#     #print(i,v, ExposureValue)
-#     #paste("Ind:",(i),"Ver:",(v), "Exp:", ExposureValue)
-#     print(ExposureValue)
-#   }
-# }
-
+# HOURVertex.C1 = HourOfTheYear2(2009, TIMEVertex.C1, 0)
+# HOURVertex.C2 = HourOfTheYear2(2009, TIMEVertex.C2, 0)
 
 YearDates = YearDates(2009)
 BusinesDates = BusinesDates(YearDates)
@@ -143,6 +126,9 @@ HOURS.W[[14]][[200]] #[[individual]][[businesday#]]
 HOURS.C1[[14]][[200]] #[[individual]][[businesday#]]
 HOURS.C2[[14]][[200]] #[[individual]][[businesday#]]
 
+HOURS.C1_3d = HourOfTheYear4(2009, TIMEVertex.C1, 3)
+HOURS.C2_3d = HourOfTheYear4(2009, TIMEVertex.C2, 3)
+
 rm(CT, CT.SP, PPH.C1, PPH.C1_in, PPH.C2, PPH.C2_in, PPH.R, PPH.R_in ,PPH.W, PPH.W_in, PPH.Phases.DateTimes, PPH.Phases.Times,
    YearDates, BusinesDates, Leave.W, Leave.R, PHASES, TIME.R, TIME.W, TimeVertex.C1, TimeVertex.C2, TIMEVertex.C1, TIMEVertex.C2,
    list.of.packages, new.packages)
@@ -155,13 +141,41 @@ ExposureValue.W[[3]][[200]] # [[individual#]][[BusinesDay#]]
 # R_path = file.path("..", "output", "R.csv")
 # R_csv = write.csv(ExposureValue.R, R_path)
 
-
+start.time = Sys.time()
 ExposureValue.C1 = ExtractExposureValue2("no2", LocationIDs.C1, HOURS.C1)
+end.time = Sys.time()
+time.taken = end.time - start.time
+time.taken
+
+
+TEST = TimeDifference(HourOfTheYear4(2009, TIMEVertex.C1, 3))
 
 ExposureValue.C2 = ExtractExposureValue2("no2", LocationIDs.C2, HOURS.C2)
 
+# Kan sneller wannneer (R,W,) C1 en C2 tegelijk worden berekend.
 
 
+
+
+smoothingSpline = smooth.spline(x=HOURS.C1_3d[[2]][[70]], ExposureValue.C1[[2]][[70]], spar=0.035)
+plot(x=HOURS.C1_3d[[2]][[70]], y=ExposureValue.C1[[2]][[70]], ylim=c(0, 100))
+lines(smoothingSpline)
+
+
+
+
+library(ggplot2)
+qplot(HOURS.C1_3d[[2]][[70]],ExposureValue.C1[[2]][[70]], geom='smooth', span =0.5, ylim=c(0, 100))
+
+start.time = Sys.time()
+
+length(HOURS.C1[[15]][[1]])
+
+end.time = Sys.time()
+time.taken = end.time - start.time
+paste("The script has finished running in", time.taken, "seconds.")
+
+length(ExposureValue.C1[[12]][[1]])
 
 
 SaveAsFile(CT2, "CT2", "GeoJSON", TRUE)
