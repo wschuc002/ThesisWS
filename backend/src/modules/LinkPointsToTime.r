@@ -52,7 +52,7 @@ LinkPointsToTime.Commuting2 <- function(Direction.C, PPH.C, LocationIDs, PHASES,
         TimeVertex[[y]][t] = TimeLeaveFrom+durVer*(t*60)
       }
       
-      TimeVertex.POSIXct[[y]] = as.POSIXct(TimeVertex[[y]], origin = "1970-01-01", tz = "GMT") # time format correction
+      TimeVertex.POSIXct[[y]] = as.POSIXct(TimeVertex[[y]], origin = "1970-01-01", tz = "CET") # time format correction
     }
     
   TIME.C[[i]] = TimeVertex.POSIXct
@@ -65,7 +65,7 @@ LinkPointsToTime.Commuting <- function(PPH.C, LocationIDs, Year, Time, ...)
   TimeVertex = list()
   TimeVertex.POSIXct = list()
   
-  TimeLeaveFromRes = as.POSIXct(paste0(Year,"-01-01"), tz = "GMT")+Time*60**2 # and then count from last minute at Residence
+  TimeLeaveFromRes = as.POSIXct(paste0(Year,"-01-01"), tz = "CET")+Time*60**2 # and then count from last minute at Residence
   
   for (i in seq_along(PPH.C))
   {
@@ -78,7 +78,7 @@ LinkPointsToTime.Commuting <- function(PPH.C, LocationIDs, Year, Time, ...)
       TimeVertex[[i]][t] = TimeLeaveFromRes+durVer*(t*60)
     }
     
-    TimeVertex.POSIXct[[i]] = as.POSIXct(TimeVertex[[i]], origin = "1970-01-01", tz = "GMT") # time format correction
+    TimeVertex.POSIXct[[i]] = as.POSIXct(TimeVertex[[i]], origin = "1970-01-01", tz = "CET") # time format correction
   }
   return(TimeVertex.POSIXct)
 }
@@ -86,7 +86,7 @@ LinkPointsToTime.Commuting <- function(PPH.C, LocationIDs, Year, Time, ...)
 YearDates <- function(Year, ...) #no correction for leap years
 {
   #create the days of the year
-  StartDay = as.POSIXct(paste0(Year,"-01-01"), tz = "GMT")
+  StartDay = as.POSIXct(paste0(Year,"-01-01"), tz = "CET")
   YearDates = StartDay
   for (i in 2:365)
   {
@@ -95,7 +95,7 @@ YearDates <- function(Year, ...) #no correction for leap years
   return(YearDates)
 }
 
-BusinesDates <- function(YearDates, ...)
+BusinesDates1 <- function(YearDates, ...)
 {
   da = 1:365
   bd = da %% 6 & da %% 7

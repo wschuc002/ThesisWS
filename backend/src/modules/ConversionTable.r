@@ -14,19 +14,21 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-## Check for required packages and install them (incl dependencies) if they are not installed yet.
-# list.of.packages <- c("sp")
-# new.packages <- list.of.packages[!(list.of.packages %in% installed.packages()[,"Package"])]
-# #if(length(new.packages)) install.packages(new.packages)
+# Check for required packages and install them (incl dependencies) if they are not installed yet.
+list.of.packages <- c("sp", "stringr")
+new.packages <- list.of.packages[!(list.of.packages %in% installed.packages()[,"Package"])]
+if(length(new.packages)) install.packages(new.packages)
 
 ## Load the packages
 library(sp)
+library(stringr)
 
-CreateConversionTable <- function(...)
+CreateConversionTable <- function(data_in,...)
 {
   
   ## Read data-file
-  data_in = file.path("..", "data", "BE", "ATMOSYS", "atmosys-timeseries_2.data")
+  #data_in = try(file.path("..", "data", "BE", "ATMOSYS", "atmosys-timeseries_2.data"), silent = TRUE)
+  #data_in = try(file.path("G", "ATMOSYS", "atmosys-timeseries_2.data"), silent = FALSE)
   data = read.table(data_in, sep = "\n")
   #head(data)
   #df = data.frame(data)

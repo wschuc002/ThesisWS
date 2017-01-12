@@ -16,7 +16,7 @@
 
 HourOfTheYear <- function(Year, CurrentTime, ...)
 {
-  StartTime = as.POSIXct(paste0(Year,"-01-01 00:00:00"), tz = "GMT")
+  StartTime = as.POSIXct(paste0(Year,"-01-01 00:00:00"), tz = "CET")
   
   Hour = difftime(CurrentTime, StartTime, units="hours")
   Hour = as.numeric(Hours)
@@ -30,7 +30,7 @@ HourOfTheYear <- function(Year, CurrentTime, ...)
 HourOfTheYear2 <- function(Year, TimeVertices, Decimals, ...)
 {
   TimeVertices_1 = TimeVertices[[1]]
-  StartTimeYear = as.POSIXct(paste0(Year,"-01-01 00:00:00"), tz = "GMT")
+  StartTimeYear = as.POSIXct(paste0(Year,"-01-01 00:00:00"), tz = "CET")
   
   Hours = difftime(TimeVertices[[2]], StartTimeYear, units="hours")
   Hours = as.numeric(Hours)
@@ -49,7 +49,7 @@ HourOfTheYear2 <- function(Year, TimeVertices, Decimals, ...)
 HourOfTheYear3 <- function(Year, TimeVertices, Decimals, ...)
 {
   TimeVertices_1 = TimeVertices[[1]]
-  StartTimeYear = as.POSIXct(paste0(Year,"-01-01 00:00:00"), tz = "GMT")
+  StartTimeYear = as.POSIXct(paste0(Year,"-01-01 00:00:00"), tz = "CET")
   
   Hours = difftime(TimeVertices[[2]], StartTimeYear, units="hours")
   Hours = as.numeric(Hours)
@@ -70,7 +70,7 @@ HourOfTheYear4 <- function(Year, TimeVertices, Decimals, ...)
 {
   HourOfYearVertex = list()
   HOURS = list(list())
-  StartTimeYear = as.POSIXct(paste0(Year,"-01-01 00:00:00"), tz = "GMT")
+  StartTimeYear = as.POSIXct(paste0(Year,"-01-01 00:00:00"), tz = "CET")
   
   for (i in seq_along(TimeVertices))
   {

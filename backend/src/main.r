@@ -14,7 +14,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-## TESTED ON WINDOWS 7 (64-bit), R v3.3.1
+## TESTED ON WINDOWS 7 (64-bit), R v3.3.1, tz UTC+01:00
 
 ## TODO:  - ...
 ##        - ...
@@ -38,16 +38,20 @@
 source("modules/SaveAsFile.r")
 source("modules/RGBtoSingleBand.r")
 source("modules/DetermineRoutes.r")
+
 source("modules/ConversionTable.r")
 source("modules/PersonalLocationToLocationID.r")
 source("modules/LinkPointsToTime.r")
 source("modules/HourOfTheYear.r")
 source("modules/ReadIDF5files.r")
-source("modules/CumulativeExposure.r")
 
 source("modules/TimePhases.r")
-source("modules/TimeDifferenceCalculation.r")
 
+#source("modules/TimeDifferenceCalculation.r")
+
+#source("modules/CumulativeExposure.r")
+
+#library("rgdal")
 
 ndownload.AQNL("https://drive.google.com/file/d/0B5dbtjRcWbwiSU9tOUQ0TUxZR0E") # bug in downloading files from Google Drive
 unzip.AQNL("20161108_pm10_no2.zip")
@@ -68,8 +72,9 @@ DetermineRoutesFL(CRAB_Doel, "Antwerpen", 15, 1000, "simplified")
 #rm(CRAB_Doel)
 
 
-
-CT = CreateConversionTable()
+#data_in = file.path("..", "data", "BE", "ATMOSYS", "atmosys-timeseries_2.data")
+data_in = file.path("G:", "ATMOSYS", "atmosys-timeseries_2.data")
+CT = CreateConversionTable(data_in)
 CT.SP = MakeCTSpatial(CT)
 
 PPH.C1_in = file.path("..", "output", "CommutingRoutesOutwards_Antwerpen.geojson")
@@ -88,7 +93,6 @@ LocationIDs.W = PersonalLocationToLocationID(PPH.W, CT.SP, 1)
 PPH.C1@data$duration = PPH.C1@data$duration * 1.2 # duration correction
 PPH.C2@data$duration = PPH.C2@data$duration * 1.2 # duration correction
 
-
 Leave.R = 8
 Leave.W = 17
 
@@ -99,16 +103,26 @@ TimeVertex.C2 = LinkPointsToTime.Commuting(PPH.C2, LocationIDs.C2, 2009, Leave.W
 # HOURVertex.C2 = HourOfTheYear2(2009, TIMEVertex.C2, 0)
 
 YearDates = YearDates(2009)
-BusinesDates = BusinesDates(YearDates)
+BusinesDates = BusinesDates1(YearDates)
 
 PPH.Phases.Times = TimePhaser(Leave.R, Leave.W, TimeVertex.C1, TimeVertex.C2)
 PPH.Phases.DateTimes = PPH.Phases.Times
 
 PHASES = TimePhaserList(BusinesDates, PPH.Phases.DateTimes)
-PHASES[[1]][1,1] #[[businesday#]][individual,]
+as.POSIXct(PHASES[[60]][15,2], origin = "1970-01-01", tz = "CET")
+as.POSIXct(PHASES[[70]][15,1], origin = "1970-01-01", tz = "CET")
+as.POSIXct(PHASES[[70]][15,2], origin = "1970-01-01", tz = "CET")
 
-TIME.R = AtResidenceOrWork("Residence", PHASES, BusinesDates, Correct = T)
-TIME.W = AtResidenceOrWork("Workplace", PHASES, BusinesDates, Correct = T)
+PHASES[[200]][1,1] #[[businesday#]][individual,]
+
+Correct = T
+if (Correct == T) # Summertime correction correction
+{
+  PHASES = TimePhaserListC(PHASES)
+}
+
+TIME.R = AtResidenceOrWork2("Residence", PHASES, BusinesDates, Correct = F)
+TIME.W = AtResidenceOrWork2("Workplace", PHASES, BusinesDates, Correct = F)
 TIME.R[[14]][[200]] #[[individual]][[businesday#]]
 TIME.W[[14]][[200]] #[[individual]][[businesday#]]
 
@@ -133,8 +147,13 @@ rm(CT, CT.SP, PPH.C1, PPH.C1_in, PPH.C2, PPH.C2_in, PPH.R, PPH.R_in ,PPH.W, PPH.
    YearDates, BusinesDates, Leave.W, Leave.R, PHASES, TIME.R, TIME.W, TimeVertex.C1, TimeVertex.C2, TIMEVertex.C1, TIMEVertex.C2,
    list.of.packages, new.packages)
 
-ExposureValue.R = ExtractExposureValue1("no2", LocationIDs.R, HOURS.R)
-ExposureValue.W = ExtractExposureValue1("no2", LocationIDs.W, HOURS.W)
+pol = "no2"
+polFile = paste0(pol, "-gzip.hdf5")
+h5f_dir = file.path("..", "data", "BE", "ATMOSYS", polFile)
+h5f_dir = file.path("G:", "ATMOSYS", polFile)            
+                    
+ExposureValue.R = ExtractExposureValue1(h5f_dir, LocationIDs.R, HOURS.R)
+ExposureValue.W = ExtractExposureValue1(h5f_dir, LocationIDs.W, HOURS.W)
 ExposureValue.R[[1]][[2]] # [[individual#]][[BusinesDay#]]
 ExposureValue.W[[3]][[200]] # [[individual#]][[BusinesDay#]]
 
@@ -142,10 +161,17 @@ ExposureValue.W[[3]][[200]] # [[individual#]][[BusinesDay#]]
 # R_csv = write.csv(ExposureValue.R, R_path)
 
 start.time = Sys.time()
-ExposureValue.C1 = ExtractExposureValue2("no2", LocationIDs.C1, HOURS.C1)
+ExposureValue.C1 = ExtractExposureValue2(h5f_dir, LocationIDs.C1, HOURS.C1)
 end.time = Sys.time()
 time.taken = end.time - start.time
 time.taken
+
+ExposureValue.C1[[1]][[1]]
+LocationIDs.C1[[1]][22]
+
+start.time = Sys.time()
+ExposureValue.C2 = ExtractExposureValue2(h5f_dir, LocationIDs.C2, HOURS.C2)
+print(time.taken = Sys.time() - start.time)
 
 
 TEST = TimeDifference(HourOfTheYear4(2009, TIMEVertex.C1, 3))
@@ -154,7 +180,8 @@ ExposureValue.C2 = ExtractExposureValue2("no2", LocationIDs.C2, HOURS.C2)
 
 # Kan sneller wannneer (R,W,) C1 en C2 tegelijk worden berekend.
 
-
+h5f.active_WS = h5read(h5f_dir, as.character(16))
+h5f.active_WS$data[HOURS.C1[[5]][[1]][1]+1, 5187]
 
 
 smoothingSpline = smooth.spline(x=HOURS.C1_3d[[2]][[70]], ExposureValue.C1[[2]][[70]], spar=0.035)
