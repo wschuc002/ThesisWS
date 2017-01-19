@@ -99,15 +99,15 @@ AtResidenceOrWork <- function(ResOrWor, PHASES, BusinesDates, Correct, ...)
   {
     for (i in seq_along(PHASES[[y]][,1]))
     {
-      RES1 = as.POSIXct(PHASES[[y]][i,1], origin = "1970-01-01", tz = "GMT") # incl. time format correction
+      RES1 = as.POSIXct(PHASES[[y]][i,1], origin = "1970-01-01", tz = "CET") # incl. time format correction
       
-      RES2 = as.POSIXct(PHASES[[y]][i,4], origin = "1970-01-01", tz = "GMT") # incl. time format correction
+      RES2 = as.POSIXct(PHASES[[y]][i,4], origin = "1970-01-01", tz = "CET") # incl. time format correction
       CEI.R2 = ceiling_date(RES2, unit = "hours")
       
-      WOR1 = as.POSIXct(PHASES[[y]][i,2], origin = "1970-01-01", tz = "GMT") # incl. time format correction
+      WOR1 = as.POSIXct(PHASES[[y]][i,2], origin = "1970-01-01", tz = "CET") # incl. time format correction
       CEI.W = ceiling_date(WOR1, unit = "hours")
       
-      WOR2 = as.POSIXct(PHASES[[y]][i,3], origin = "1970-01-01", tz = "GMT") # incl. time format correction
+      WOR2 = as.POSIXct(PHASES[[y]][i,3], origin = "1970-01-01", tz = "CET") # incl. time format correction
     }
     
     RESWS1 = seq(BusinesDates[y], to = RES1 - 1*60**2, by = 1*60**2)

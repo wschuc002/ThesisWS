@@ -64,83 +64,12 @@ UnzipHDF5 <- function(HDF5_dir, ...)
 }
 
 
-
-#pol = "no2"
 #locationId.BE = LocationIDs.C1
 #HOURS = HOURS.C1
 #rm(pol, locationId.BE, HOURS)
-ExtractExposureValue1 <- function(h5f_dir, locationId.BE, HOURS, ...) # Method 1: read from compressed file
-{
-  ## Open the IDF5-file
-  h5f_in = h5f_dir
-  
-  EXPWS = list(list())
-  
-  if (class(locationId.BE)== "integer") #R & W
-  {
-    for (i in seq_along(locationId.BE)) # per individual
-      #for (i in seq(1,2))
-    {
-      activeDataset = locationId.BE[i] / 10000
-      activeLocation = locationId.BE[i] %% 10000
-      activeName = activeDataset - (activeLocation/10000)
-      
-      h5f.active = h5read(h5f_in, as.character(activeName))
-      
-      EXP = HOURS[[i]] # use same structure
-      
-      for (h in seq_along(HOURS[[i]])) # per day
-        #for (h in seq(1,3))
-      {
-        for (f in seq_along(HOURS[[i]][[h]])) # per hour
-        {
-          EXP[[h]][f] = h5f.active$data[HOURS[[i]][[h]][f]+1, activeLocation] #[hour of the year,activeLocation]
-        }
-      }
-      EXPWS[[i]] = EXP
-    }
-  }
-  
-  if (class(locationId.BE)== "list") #C1 & C2
-  {
-    #for (i in seq_along(locationId.BE)) # per individual
-    for (i in seq(1,2))
-    {
-      for (v in locationId.BE[i])
-      {
-        
-        activeDataset = locationId.BE[[i]][v] / 10000
-        activeLocation = locationId.BE[i] %% 10000
-        activeName = activeDataset - (activeLocation/10000)
-        
-        h5f.active = h5read(h5f_in, as.character(activeName))
-        
-        EXP = HOURS[[i]] # use same structure
-        
-        #for (h in seq_along(HOURS[[i]])) # per day
-        for (h in seq(1,3))
-        {
-          for (f in seq_along(HOURS[[i]][[h]])) # per hour
-          {
-            EXP[[h]][f] = h5f.active$data[HOURS[[i]][[h]][f]+1, activeLocation] #[hour of the year,activeLocation]
-          }
-        }
-        EXPWS[[i]] = EXP
-        
-        
-        
-        
-      }
-      
-      
-      
-    }
-  }
-  
-  return (EXPWS)
-}
 
-ExtractExposureValue2 <- function(h5f_dir, locationId.BE, HOURS, ...) # Method 2: read from uncompressed (larger) file
+
+ExtractExposureValue.Dynamic2 <- function(h5f_dir, locationId.BE, HOURS, ...) # Method 2: read from compressed file
 {
   ## Open the IDF5-file
   h5f_in = h5f_dir
@@ -181,7 +110,8 @@ ExtractExposureValue2 <- function(h5f_dir, locationId.BE, HOURS, ...) # Method 2
     {
       for (v in seq_along(activeName_WS[[i]])) # per vector
       {
-        if (activeName_WS[[i]][v] == a)
+        #if (activeName_WS[[i]][v] == a) # some bugs
+        if (as.character(activeName_WS[[i]][v]) == as.character(a))
         {
           for (d in seq_along(HOURS[[i]])) # per day
           #for (d in seq(1,3))
@@ -198,4 +128,239 @@ ExtractExposureValue2 <- function(h5f_dir, locationId.BE, HOURS, ...) # Method 2
     }
   }
   return (EXP) 
+}
+
+
+ExtractExposureValue.Dynamic3 <- function(h5f_dir, locationId.BE1, locationId.BE2, HOURS1, HOURS2, ...) # Method 3: read from compressed file, with Inwards and Outwards combined
+{
+  ## Open the IDF5-file
+  h5f_in = h5f_dir
+  
+  activeDataset_WS1 = list(list())
+  activeLocation_WS1 = list(list())
+  activeName_WS1 = list(list())
+  activeDataset_WS2 = list(list())
+  activeLocation_WS2 = list(list())
+  activeName_WS2 = list(list())
+  
+  for (i in seq_along(locationId.BE1))
+  {
+    activeDataset_WS1[[i]] = locationId.BE1[[i]] / 10000
+    activeLocation_WS1[[i]] = locationId.BE1[[i]] %% 10000
+    activeName_WS1[[i]] = activeDataset_WS1[[i]] - (activeLocation_WS1[[i]]/10000)
+  }
+  
+  for (i in seq_along(locationId.BE2))
+  {
+    activeDataset_WS2[[i]] = locationId.BE2[[i]] / 10000
+    activeLocation_WS2[[i]] = locationId.BE2[[i]] %% 10000
+    activeName_WS2[[i]] = activeDataset_WS2[[i]] - (activeLocation_WS2[[i]]/10000)
+  }
+  
+  EXP1 = HOURS1 # use same structure to fill in one pollutant value per hour
+  EXP2 = HOURS2 # use same structure to fill in one pollutant value per hour
+  # filling values with NA
+  for (i in seq_along(activeName_WS1)) # per individual
+  {
+    for (d in seq_along(HOURS1[[i]])) # per vector
+    {
+      for (v in seq_along(activeName_WS1[[i]])) # per day
+      {
+        EXP1[[i]][[d]][v] = NA
+      }
+    }
+    
+    for (d in seq_along(HOURS2[[i]])) # per vector
+    {
+      for (v in seq_along(activeName_WS2[[i]])) # per day
+      {
+        EXP2[[i]][[d]][v] = NA
+      }
+    }
+    
+  }
+  
+
+  
+  for (a in seq(0,42)) # per slot (0-42) [active location]
+  #for (a in seq(4,8))
+  #for (a in 16)
+  {
+    h5f.active_WS = h5read(h5f_in, as.character(a))
+    
+    
+    for (i in seq_along(activeName_WS1)) # per individual
+      #for (i in seq_along(1))
+    {
+      
+      for (v in seq_along(activeName_WS1[[i]])) # per vector
+      {
+        if (as.character(activeName_WS1[[i]][v]) == as.character(a))
+        {
+          for (d in seq_along(HOURS1[[i]])) # per day
+            #for (d in seq(1,3))
+          {
+            for (h in seq_along(HOURS1[[i]][[d]])) # per hour (Outwards)
+            {
+              EXP1[[i]][[d]][v] = h5f.active_WS$data[HOURS1[[i]][[d]][h]+1, activeLocation_WS1[[i]][v]] #[hour of the year,activeLocation]
+            }
+          }
+        }
+      }
+      
+      
+      for (v in seq_along(activeName_WS2[[i]])) # per vector
+      {
+        if (as.character(activeName_WS2[[i]][v]) == as.character(a))
+        {
+          for (d in seq_along(HOURS2[[i]])) # per day
+            #for (d in seq(1,3))
+          {
+            for (h in seq_along(HOURS2[[i]][[d]])) # per hour (Outwards)
+            {
+              EXP2[[i]][[d]][v] = h5f.active_WS$data[HOURS2[[i]][[d]][h]+1, activeLocation_WS2[[i]][v]] #[hour of the year,activeLocation]
+            }
+          }
+        }
+      }
+      
+      
+    }
+  }
+  return (list(EXP1,EXP2))
+}
+
+ExtractExposureValue.Integral <- function(h5f_dir, locationId.BE1, locationId.BE2, HOURS1, HOURS2, ...) # Method 3: read from compressed file, with Inwards and Outwards combined
+{
+  ## Open the IDF5-file
+  h5f_in = h5f_dir
+  
+  activeDataset_WS1 = list(list())
+  activeLocation_WS1 = list(list())
+  activeName_WS1 = list(list())
+  activeDataset_WS2 = list(list())
+  activeLocation_WS2 = list(list())
+  activeName_WS2 = list(list())
+  
+  for (i in seq_along(locationId.BE1))
+  {
+    activeDataset_WS1[[i]] = locationId.BE1[[i]] / 10000
+    activeLocation_WS1[[i]] = locationId.BE1[[i]] %% 10000
+    activeName_WS1[[i]] = activeDataset_WS1[[i]] - (activeLocation_WS1[[i]]/10000)
+  }
+  
+  for (i in seq_along(locationId.BE2))
+  {
+    activeDataset_WS2[[i]] = locationId.BE2[[i]] / 10000
+    activeLocation_WS2[[i]] = locationId.BE2[[i]] %% 10000
+    activeName_WS2[[i]] = activeDataset_WS2[[i]] - (activeLocation_WS2[[i]]/10000)
+  }
+  
+  EXP1 = HOURS1 # use same structure to fill in one pollutant value per hour
+  EXP2 = HOURS2 # use same structure to fill in one pollutant value per hour
+  # filling values with NA
+  for (i in seq_along(activeName_WS1)) # per individual
+  {
+    for (d in seq_along(HOURS1[[i]])) # per vector
+    {
+      for (v in seq_along(activeName_WS1[[i]])) # per day
+      {
+        EXP1[[i]][[d]][v] = NA
+      }
+    }
+    
+    for (d in seq_along(HOURS2[[i]])) # per vector
+    {
+      for (v in seq_along(activeName_WS2[[i]])) # per day
+      {
+        EXP2[[i]][[d]][v] = NA
+      }
+    }
+    
+  }
+  
+  
+  
+  for (a in seq(0,42)) # per slot (0-42) [active location]
+    #for (a in seq(4,8))
+    #for (a in 16)
+  {
+    h5f.active_WS = h5read(h5f_in, as.character(a))
+    
+    
+    for (i in seq_along(activeName_WS1)) # per individual
+      #for (i in seq_along(1))
+    {
+      
+      for (v in seq_along(activeName_WS1[[i]])) # per vector
+      {
+        if (as.character(activeName_WS1[[i]][v]) == as.character(a))
+        {
+          for (d in seq_along(HOURS1[[i]])) # per day
+            #for (d in seq(1,3))
+          {
+            for (h in seq_along(HOURS1[[i]][[d]])) # per hour (Outwards)
+            {
+              EXP1[[i]][[d]][v] = h5f.active_WS$data[HOURS1[[i]][[d]][h]+1, activeLocation_WS1[[i]][v]] #[hour of the year,activeLocation]
+            }
+          }
+        }
+      }
+      
+      
+      for (v in seq_along(activeName_WS2[[i]])) # per vector
+      {
+        if (as.character(activeName_WS2[[i]][v]) == as.character(a))
+        {
+          for (d in seq_along(HOURS2[[i]])) # per day
+            #for (d in seq(1,3))
+          {
+            for (h in seq_along(HOURS2[[i]][[d]])) # per hour (Outwards)
+            {
+              EXP2[[i]][[d]][v] = h5f.active_WS$data[HOURS2[[i]][[d]][h]+1, activeLocation_WS2[[i]][v]] #[hour of the year,activeLocation]
+            }
+          }
+        }
+      }
+      
+      
+    }
+  }
+  return (list(EXP1,EXP2))
+}
+
+
+ExtractExposureValue.Static <- function(h5f_dir, locationId.BE, HOURS, ...) # Method 1: read from compressed file
+{
+  ## Open the IDF5-file
+  h5f_in = h5f_dir
+  
+  EXPWS = list(list())
+  
+  if (class(locationId.BE)== "integer") #R & W
+  {
+    for (i in seq_along(locationId.BE)) # per individual
+      #for (i in seq(1,2))
+    {
+      activeDataset = locationId.BE[i] / 10000
+      activeLocation = locationId.BE[i] %% 10000
+      activeName = activeDataset - (activeLocation/10000)
+      
+      h5f.active = h5read(h5f_in, as.character(activeName))
+      
+      EXP = HOURS[[i]] # use same structure
+      
+      for (h in seq_along(HOURS[[i]])) # per day
+        #for (h in seq(1,3))
+      {
+        for (f in seq_along(HOURS[[i]][[h]])) # per hour
+        {
+          EXP[[h]][f] = h5f.active$data[HOURS[[i]][[h]][f]+1, activeLocation] #[hour of the year,activeLocation]
+        }
+      }
+      EXPWS[[i]] = EXP
+    }
+  }
+  
+  return (EXPWS)
 }

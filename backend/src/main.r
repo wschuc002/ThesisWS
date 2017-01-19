@@ -46,6 +46,9 @@ source("modules/HourOfTheYear.r")
 source("modules/ReadIDF5files.r")
 
 source("modules/TimePhases.r")
+source("modules/WeightCR.r")
+
+source("modules/SummaryStatistics.r")
 
 #source("modules/TimeDifferenceCalculation.r")
 
@@ -65,30 +68,65 @@ for (i in RGB.list)
 
 DetermineRoutesNL(c("Utrecht", "Gelderland"), 100, 1000)
 
-CRAB_Doel = DetermineAddressGoals_FL("Antwerpen")
-SaveAsFile(CRAB_Doel, "CRAB_OUT_Antwerpen", "Shapefile", TRUE)
-CRAB_Doel = readOGR(file.path("..", "output", "CRAB_OUT_Antwerpen.shp"), layer = "CRAB_OUT_Antwerpen")
-DetermineRoutesFL(CRAB_Doel, "Antwerpen", 15, 1000, "simplified")
-#rm(CRAB_Doel)
+## FLANDERS ##
+
+Subset.Gemeente = "" # empty = no subset = all municipalities | c("Gent","Antwerpen")
+Names = paste(Subset.Gemeente, collapse="_")
+Name = paste("CRAB_Doel", Names, sep = "_")
+
+if (file.exists(file.path("..", "output", paste0("CRAB_Doel_",Names,".shp"))))
+{
+  CRAB_Doel = readOGR(file.path("..", "output", paste0(Name,".shp")), layer = Name) # Bug in .geojson, read .shp
+} else
+{
+  if (Subset.Gemeente == "")
+  {
+    CRAB_Doel = DetermineAddressGoals_FL()
+  } else
+  {
+    CRAB_Doel = DetermineAddressGoals_FL(Subset.Gemeente)
+  }
+  SaveAsFile(CRAB_Doel, Name, "Shapefile", TRUE) #"GeoJSON"
+}
+
+dir.R = file.path("..", "output", paste0("Residence_",Names,".geojson"))
+dir.W = file.path("..", "output", paste0("Workplace_",Names,".geojson"))
+dir.C1s = file.path("..", "output", paste0("CommutingRoutesOutwards_",Names,"_s", ".geojson"))
+dir.C1f = file.path("..", "output", paste0("CommutingRoutesOutwards_",Names,"_f", ".geojson"))
+dir.C2s = file.path("..", "output", paste0("CommutingRoutesInwards_",Names,"_s", ".geojson"))
+dir.C2f = file.path("..", "output", paste0("CommutingRoutesIntwards_",Names,"_f", ".geojson"))
+# Check if data already exists
+if (!file.exists(dir.R)&!file.exists(dir.W)&(!file.exists(dir.C1s)|!file.exists(dir.C1f))&(!file.exists(dir.C2s)|!file.exists(dir.C2f)))
+{
+  DeterminePPH_FL(CRAB_Doel, Names, 1000, 5000, "simplified")
+}
 
 
-#data_in = file.path("..", "data", "BE", "ATMOSYS", "atmosys-timeseries_2.data")
-data_in = file.path("G:", "ATMOSYS", "atmosys-timeseries_2.data")
-CT = CreateConversionTable(data_in)
-CT.SP = MakeCTSpatial(CT)
+data_in = file.path("..", "data", "BE", "ATMOSYS", "atmosys-timeseries_2.data")
+#data_in = file.path("G:", "ATMOSYS", "atmosys-timeseries_2.data")
 
-PPH.C1_in = file.path("..", "output", "CommutingRoutesOutwards_Antwerpen.geojson")
-PPH.C1 = readOGR(PPH.C1_in, layer = 'OGRGeoJSON')
-PPH.C2_in = file.path("..", "output", "CommutingRoutesInwards_Antwerpen.geojson")
-PPH.C2 = readOGR(PPH.C2_in, layer = 'OGRGeoJSON')
-PPH.R_in = file.path("..", "output", "Residence_Antwerpen.geojson")
-PPH.R = readOGR(PPH.R_in, layer = 'OGRGeoJSON')
-PPH.W_in = file.path("..", "output", "Workplace_Antwerpen.geojson")
-PPH.W = readOGR(PPH.W_in, layer = 'OGRGeoJSON')
-LocationIDs.C1 = PersonalLocationToLocationID(PPH.C1, CT.SP, 1)
-LocationIDs.C2 = PersonalLocationToLocationID(PPH.C2, CT.SP, 1)
+#Name = paste("CT", Names, sep = "_")
+Name = "CT"
+
+if (file.exists(file.path("..", "output", paste0(Name,".shp"))))
+{
+  CRAB_Doel = readOGR(file.path("..", "output", paste0(Name,".shp")), layer = Name) # Bug in .geojson, read .shp
+} else
+{
+  CT = CreateConversionTable(data_in)
+  CT.SP = MakeCTSpatial(CT)
+  SaveAsFile(CT.SP, Name, "Shapefile", TRUE) #"GeoJSON"
+}
+
+PPH.R = readOGR(dir.R, layer = 'OGRGeoJSON')
+PPH.W = readOGR(dir.W, layer = 'OGRGeoJSON')
+PPH.C1 = readOGR(dir.C1s, layer = 'OGRGeoJSON') #PPH.C1f
+PPH.C2 = readOGR(dir.C2s, layer = 'OGRGeoJSON') #PPH.C2f
+
 LocationIDs.R = PersonalLocationToLocationID(PPH.R, CT.SP, 1)
 LocationIDs.W = PersonalLocationToLocationID(PPH.W, CT.SP, 1)
+LocationIDs.C1 = PersonalLocationToLocationID(PPH.C1, CT.SP, 1)
+LocationIDs.C2 = PersonalLocationToLocationID(PPH.C2, CT.SP, 1)
 
 PPH.C1@data$duration = PPH.C1@data$duration * 1.2 # duration correction
 PPH.C2@data$duration = PPH.C2@data$duration * 1.2 # duration correction
@@ -102,7 +140,7 @@ TimeVertex.C2 = LinkPointsToTime.Commuting(PPH.C2, LocationIDs.C2, 2009, Leave.W
 # HOURVertex.C1 = HourOfTheYear2(2009, TIMEVertex.C1, 0)
 # HOURVertex.C2 = HourOfTheYear2(2009, TIMEVertex.C2, 0)
 
-YearDates = YearDates(2009)
+YearDates = YearDates1(2009)
 BusinesDates = BusinesDates1(YearDates)
 
 PPH.Phases.Times = TimePhaser(Leave.R, Leave.W, TimeVertex.C1, TimeVertex.C2)
@@ -116,7 +154,7 @@ as.POSIXct(PHASES[[70]][15,2], origin = "1970-01-01", tz = "CET")
 PHASES[[200]][1,1] #[[businesday#]][individual,]
 
 Correct = T
-if (Correct == T) # Summertime correction correction
+if (Correct == T) # Summertime correction correction (CET vs. CEST | The S can be ignored after this correction)
 {
   PHASES = TimePhaserListC(PHASES)
 }
@@ -143,42 +181,130 @@ HOURS.C2[[14]][[200]] #[[individual]][[businesday#]]
 HOURS.C1_3d = HourOfTheYear4(2009, TIMEVertex.C1, 3)
 HOURS.C2_3d = HourOfTheYear4(2009, TIMEVertex.C2, 3)
 
-rm(CT, CT.SP, PPH.C1, PPH.C1_in, PPH.C2, PPH.C2_in, PPH.R, PPH.R_in ,PPH.W, PPH.W_in, PPH.Phases.DateTimes, PPH.Phases.Times,
+rm(CT, CT.SP, PPH.C1, PPH.C2, PPH.R, PPH.R_in ,PPH.W, PPH.W_in, PPH.Phases.DateTimes, PPH.Phases.Times,
    YearDates, BusinesDates, Leave.W, Leave.R, PHASES, TIME.R, TIME.W, TimeVertex.C1, TimeVertex.C2, TIMEVertex.C1, TIMEVertex.C2,
-   list.of.packages, new.packages)
+ list.of.packages, new.packages)
 
 pol = "no2"
 polFile = paste0(pol, "-gzip.hdf5")
 h5f_dir = file.path("..", "data", "BE", "ATMOSYS", polFile)
-h5f_dir = file.path("G:", "ATMOSYS", polFile)            
+#h5f_dir = file.path("G:", "ATMOSYS", polFile)            
                     
-ExposureValue.R = ExtractExposureValue1(h5f_dir, LocationIDs.R, HOURS.R)
-ExposureValue.W = ExtractExposureValue1(h5f_dir, LocationIDs.W, HOURS.W)
-ExposureValue.R[[1]][[2]] # [[individual#]][[BusinesDay#]]
-ExposureValue.W[[3]][[200]] # [[individual#]][[BusinesDay#]]
+ExposureValue.R = ExtractExposureValue.Static(h5f_dir, LocationIDs.R, HOURS.R)
+ExposureValue.W = ExtractExposureValue.Static(h5f_dir, LocationIDs.W, HOURS.W)
+ExposureValue.R[[25]][[2]] # [[individual#]][[BusinesDay#]]
+ExposureValue.W[[13]][[200]] # [[individual#]][[BusinesDay#]]
 
 # R_path = file.path("..", "output", "R.csv")
 # R_csv = write.csv(ExposureValue.R, R_path)
 
+# start.time = Sys.time()
+# ExposureValue.C1 = ExtractExposureValue.Dynamic2(h5f_dir, LocationIDs.C1, HOURS.C1)
+# end.time = Sys.time()
+# time.taken = end.time - start.time
+# time.taken # 40-50 minutes
+# 
+# ExposureValue.C1[[1]][[1]]
+# LocationIDs.C1[[1]][2]
+# 
+# start.time = Sys.time()
+# ExposureValue.C2 = ExtractExposureValue.Dynamic2(h5f_dir, LocationIDs.C2, HOURS.C2)
+# end.time = Sys.time()
+# time.taken = end.time - start.time
+# time.taken # 1 hour # 25.6 mins
+
+# Kan sneller wannneer (R,W,) C1 en C2 tegelijk worden berekend:
 start.time = Sys.time()
-ExposureValue.C1 = ExtractExposureValue2(h5f_dir, LocationIDs.C1, HOURS.C1)
+ExposureValue.C12 = ExtractExposureValue.Dynamic3(h5f_dir, LocationIDs.C1, LocationIDs.C2, HOURS.C1, HOURS.C2)
 end.time = Sys.time()
 time.taken = end.time - start.time
-time.taken
+time.taken # 25 minutes (15) ,33 minutes (30)
 
-ExposureValue.C1[[1]][[1]]
-LocationIDs.C1[[1]][22]
+ExposureValue.C1 = ExposureValue.C12[[1]]
+ExposureValue.C2 = ExposureValue.C12[[2]]
 
-start.time = Sys.time()
-ExposureValue.C2 = ExtractExposureValue2(h5f_dir, LocationIDs.C2, HOURS.C2)
-print(time.taken = Sys.time() - start.time)
+WEIGHTS.C1 = WeightCommutingRouteVertices(HOURS.C1_3d, HOURS.R, Leave.R)
+WEIGHTS.C2 = WeightCommutingRouteVertices(HOURS.C2_3d, HOURS.W, Leave.W)
+
+WEIGHTS.C1[[1]]
+sum(WEIGHTS.C1[[1]])
+tail(HOURS.C1_3d[[1]][[1]], n=1) - HOURS.C1_3d[[1]][[1]][1]
+
+# TOEVOEGEN: Koppeling W aan R, zodat lenght(W)=lenght(R) | When there is a many:1 relation
+PPH.R@data$RWlink = PPH.R@data$koppeling
+PPH.W@data$RWlink = PPH.W@data$NR
+PPH.W@data$WNR = seq_along(PPH.W)
+
+RW = NA
+for (k in seq_along(PPH.R))
+{
+  for (f in seq_along(PPH.W))
+  {
+    if (PPH.W@data$RWlink[f] == PPH.R@data$RWlink[k])
+    {
+      RW[k] = PPH.W@data$WNR[f]
+    }
+  }
+}
+
+for (i in seq_along(RW))
+{
+  ExposureValue.W[[i]] = ExposureValue.W[[RW[i]]]
+}
+
+ExposureValue.R.WM = Weighted.Static(ExposureValue.R, "WeightedMean")
+ExposureValue.W.WM = Weighted.Static(ExposureValue.W, "WeightedMean")
+ExposureValue.C1.WM = Weighted.Dynamic(ExposureValue.C1, WEIGHTS.C1, "WeightedMean")
+ExposureValue.C2.WM = Weighted.Dynamic(ExposureValue.C2, WEIGHTS.C2, "WeightedMean")
+
+for (i in seq_along(ExposureValue.R.WM))
+{
+  print(paste("Individual", i, ":", mean(ExposureValue.R.WM[[i]]), mean(ExposureValue.W.WM[[i]]), mean(ExposureValue.C1.WM[[i]]), mean(ExposureValue.C2.WM[[i]])))
+}
+
+mean(ExposureValue.R.WM[[1]])
+mean(ExposureValue.W.WM[[1]])
+mean(ExposureValue.C1.WM[[1]])
+mean(ExposureValue.C2.WM[[1]])
+
+hist(ExposureValue.R.WM[[3]], breaks = 50)
+
+
+
+
+EXP.R.mean = list()
+EXP.R.sum = list()
+for (i in seq_along(ExposureValue.C1)) # per individual
+{
+  for (d in seq_along(BusinesDates)) # per day
+  {
+    #Exp.R.mean = mean(ExposureValue.R[[i]][[d]])
+    #Exp.W.mean = mean(ExposureValue.W[[i]][[d]])  
+    
+    Exp.R.sum[[d]] = sum(ExposureValue.R[[i]][[d]])
+    
+  }
+  
+  
+  
+  #EXP.R.mean[[i]] = Exp.R.mean
+  EXP.R.sum[[i]] = Exp.R.sum[[d]]
+  
+#   EXP.W[[i]] = 
+#   EXP.C[[i]] = 
+  
+}
+sum(Exp.R.sum)
+
+
+sum(ExposureValue.C1[[1]][[1]] * WEIGHTS.C1[[1]], na.rm = TRUE)
 
 
 TEST = TimeDifference(HourOfTheYear4(2009, TIMEVertex.C1, 3))
 
 ExposureValue.C2 = ExtractExposureValue2("no2", LocationIDs.C2, HOURS.C2)
 
-# Kan sneller wannneer (R,W,) C1 en C2 tegelijk worden berekend.
+
 
 h5f.active_WS = h5read(h5f_dir, as.character(16))
 h5f.active_WS$data[HOURS.C1[[5]][[1]][1]+1, 5187]

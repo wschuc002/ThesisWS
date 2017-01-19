@@ -222,6 +222,8 @@ DetermineRoutesNL <- function(NL.Provincie, NL.offices, NL.workplaces, ... )
     file.rename(Gjson_out, file.path("..", "output", paste(Gjson_out_name,Gjson_out_ext,sep="")))
 }
 
+FL.Gemeente = NULL
+
 DetermineAddressGoals_FL <- function(FL.Gemeente, ... )
 {
   
@@ -251,7 +253,8 @@ DetermineAddressGoals_FL <- function(FL.Gemeente, ... )
     CRAB_filtered_sub = CRAB_filtered
   } else
   {
-    CRAB_filtered_sub = subset(CRAB_filtered, GEMEENTE==FL.Gemeente)
+    #CRAB_filtered_sub = subset(CRAB_filtered, GEMEENTE==FL.Gemeente[1])
+    CRAB_filtered_sub = CRAB_filtered[CRAB_filtered$GEMEENTE %in% FL.Gemeente,]
   }
 
   zip_in = file.path("..", "data", "BE_FL", "Bedrijventerreinen_Toestand_01_06_2016.zip")
@@ -293,7 +296,7 @@ DetermineAddressGoals_FL <- function(FL.Gemeente, ... )
   return(CRAB_Doel)
 }
 
-DetermineRoutesFL <- function(CRAB_Doel, FL.Gemeente, FL.residence, FL.workplaces, OSRM.level, ... )
+DeterminePPH_FL <- function(CRAB_Doel, Names.sub, FL.residence, FL.workplaces, OSRM.level, ... )
 {
 
   # Create the attribute "object_id" (verplaatsen naar andere functie)
@@ -361,8 +364,8 @@ DetermineRoutesFL <- function(CRAB_Doel, FL.Gemeente, FL.residence, FL.workplace
   Workplace_KEEPS2 = Workplace_random@data$NR %in% keeps_WP
   Workplace_random_NR = subset(Workplace_random, Workplace_KEEPS2)
   
-  SaveAsFile(Residence_random_kopp, paste0("Residence_", FL.Gemeente), "GeoJSON", TRUE)
-  SaveAsFile(Workplace_random_NR, paste0("Workplace_", FL.Gemeente), "GeoJSON", TRUE)
+  SaveAsFile(Residence_random_kopp, paste0("Residence_", Names.sub), "GeoJSON", TRUE)
+  SaveAsFile(Workplace_random_NR, paste0("Workplace_", Names.sub), "GeoJSON", TRUE)
   
   # Transform RD new -> WGS84 for the route calculation (OSRM)
   WGS84 = "+init=epsg:4326"
@@ -421,7 +424,7 @@ DetermineRoutesFL <- function(CRAB_Doel, FL.Gemeente, FL.residence, FL.workplace
   CommutingRoutes1_SLDF@data["PersonID"] = seq.int(CommutingRoutes1_SLDF)
   CommutingRoutes2_SLDF@data["PersonID"] = seq.int(CommutingRoutes2_SLDF)
   
-  SaveAsFile(CommutingRoutes1_SLDF, paste0("CommutingRoutesOutwards_", FL.Gemeente), "GeoJSON", TRUE)
-  SaveAsFile(CommutingRoutes2_SLDF, paste0("CommutingRoutesInwards_", FL.Gemeente), "GeoJSON", TRUE)
+  SaveAsFile(CommutingRoutes1_SLDF, paste0("CommutingRoutesOutwards_", Names.sub, "_", substr(OSRM.level, 1, 1)), "GeoJSON", TRUE)
+  SaveAsFile(CommutingRoutes2_SLDF, paste0("CommutingRoutesInwards_", Names.sub, "_", substr(OSRM.level, 1, 1)), "GeoJSON", TRUE)
 
 }

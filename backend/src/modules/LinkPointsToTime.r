@@ -83,7 +83,7 @@ LinkPointsToTime.Commuting <- function(PPH.C, LocationIDs, Year, Time, ...)
   return(TimeVertex.POSIXct)
 }
 
-YearDates <- function(Year, ...) #no correction for leap years
+YearDates1 <- function(Year, ...) #no correction for leap years
 {
   #create the days of the year
   StartDay = as.POSIXct(paste0(Year,"-01-01"), tz = "CET")
