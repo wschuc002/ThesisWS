@@ -91,26 +91,26 @@ if (file.exists(file.path("..", "output", paste0("CRAB_Doel_",Names,".shp"))))
 
 dir.R = file.path("..", "output", paste0("Residence_",Names,".geojson"))
 dir.W = file.path("..", "output", paste0("Workplace_",Names,".geojson"))
-dir.C1s = file.path("..", "output", paste0("CommutingRoutesOutwards_",Names,"_s", ".geojson"))
-dir.C1f = file.path("..", "output", paste0("CommutingRoutesOutwards_",Names,"_f", ".geojson"))
-dir.C2s = file.path("..", "output", paste0("CommutingRoutesInwards_",Names,"_s", ".geojson"))
-dir.C2f = file.path("..", "output", paste0("CommutingRoutesIntwards_",Names,"_f", ".geojson"))
+dir.C1s = file.path("..", "output", paste0("CommutingRoutesOutwards_",Names,"s", ".geojson"))
+dir.C1f = file.path("..", "output", paste0("CommutingRoutesOutwards_",Names,"f", ".geojson"))
+dir.C2s = file.path("..", "output", paste0("CommutingRoutesInwards_",Names,"s", ".geojson"))
+dir.C2f = file.path("..", "output", paste0("CommutingRoutesInwards_",Names,"f", ".geojson"))
 # Check if data already exists
 if (!file.exists(dir.R)&!file.exists(dir.W)&(!file.exists(dir.C1s)|!file.exists(dir.C1f))&(!file.exists(dir.C2s)|!file.exists(dir.C2f)))
 {
-  DeterminePPH_FL(CRAB_Doel, Names, 1000, 5000, "simplified")
+  DeterminePPH_FL(CRAB_Doel, Names, 100, 5000, "full")
 }
 
 
-data_in = file.path("..", "data", "BE", "ATMOSYS", "atmosys-timeseries_2.data")
-#data_in = file.path("G:", "ATMOSYS", "atmosys-timeseries_2.data")
+#data_in = file.path("..", "data", "BE", "ATMOSYS", "atmosys-timeseries_2.data")
+data_in = file.path("H:", "ATMOSYS", "atmosys-timeseries_2.data")
 
 #Name = paste("CT", Names, sep = "_")
 Name = "CT"
 
 if (file.exists(file.path("..", "output", paste0(Name,".shp"))))
 {
-  CRAB_Doel = readOGR(file.path("..", "output", paste0(Name,".shp")), layer = Name) # Bug in .geojson, read .shp
+  CT.SP = readOGR(file.path("..", "output", paste0(Name,".shp")), layer = Name) # Bug in .geojson, read .shp
 } else
 {
   CT = CreateConversionTable(data_in)
@@ -120,8 +120,8 @@ if (file.exists(file.path("..", "output", paste0(Name,".shp"))))
 
 PPH.R = readOGR(dir.R, layer = 'OGRGeoJSON')
 PPH.W = readOGR(dir.W, layer = 'OGRGeoJSON')
-PPH.C1 = readOGR(dir.C1s, layer = 'OGRGeoJSON') #PPH.C1f
-PPH.C2 = readOGR(dir.C2s, layer = 'OGRGeoJSON') #PPH.C2f
+PPH.C1 = readOGR(dir.C1f, layer = 'OGRGeoJSON') #PPH.C1s
+PPH.C2 = readOGR(dir.C2f, layer = 'OGRGeoJSON') #PPH.C2s
 
 LocationIDs.R = PersonalLocationToLocationID(PPH.R, CT.SP, 1)
 LocationIDs.W = PersonalLocationToLocationID(PPH.W, CT.SP, 1)
@@ -181,17 +181,31 @@ HOURS.C2[[14]][[200]] #[[individual]][[businesday#]]
 HOURS.C1_3d = HourOfTheYear4(2009, TIMEVertex.C1, 3)
 HOURS.C2_3d = HourOfTheYear4(2009, TIMEVertex.C2, 3)
 
-rm(CT, CT.SP, PPH.C1, PPH.C2, PPH.R, PPH.R_in ,PPH.W, PPH.W_in, PPH.Phases.DateTimes, PPH.Phases.Times,
-   YearDates, BusinesDates, Leave.W, Leave.R, PHASES, TIME.R, TIME.W, TimeVertex.C1, TimeVertex.C2, TIMEVertex.C1, TIMEVertex.C2,
+rm(CT, CT.SP, PPH.R_in, PPH.W_in, PPH.Phases.DateTimes, PPH.Phases.Times,
+   YearDates, BusinesDates, Leave.W, Leave.R, PHASES, TIME.R, TIME.W, TimeVertex.C1, TimeVertex.C2,
  list.of.packages, new.packages)
+
+rm(CRAB_Doel, Correct)
 
 pol = "no2"
 polFile = paste0(pol, "-gzip.hdf5")
-h5f_dir = file.path("..", "data", "BE", "ATMOSYS", polFile)
-#h5f_dir = file.path("G:", "ATMOSYS", polFile)            
-                    
-ExposureValue.R = ExtractExposureValue.Static(h5f_dir, LocationIDs.R, HOURS.R)
-ExposureValue.W = ExtractExposureValue.Static(h5f_dir, LocationIDs.W, HOURS.W)
+#h5f_dir = file.path("..", "data", "BE", "ATMOSYS", polFile)
+h5f_dir = file.path("F:", "ATMOSYS", polFile)
+
+start.time = Sys.time()                    
+ExposureValue.R = ExtractExposureValue.Static(h5f_dir, LocationIDs.R[[1]], HOURS.R)
+end.time = Sys.time()
+time.taken = end.time - start.time
+time.taken # 
+
+start.time = Sys.time()
+ExposureValue.W = ExtractExposureValue.Static(h5f_dir, LocationIDs.W[[1]], HOURS.W)
+end.time = Sys.time()
+time.taken = end.time - start.time
+time.taken # 
+
+
+
 ExposureValue.R[[25]][[2]] # [[individual#]][[BusinesDay#]]
 ExposureValue.W[[13]][[200]] # [[individual#]][[BusinesDay#]]
 
@@ -215,10 +229,10 @@ ExposureValue.W[[13]][[200]] # [[individual#]][[BusinesDay#]]
 
 # Kan sneller wannneer (R,W,) C1 en C2 tegelijk worden berekend:
 start.time = Sys.time()
-ExposureValue.C12 = ExtractExposureValue.Dynamic3(h5f_dir, LocationIDs.C1, LocationIDs.C2, HOURS.C1, HOURS.C2)
+ExposureValue.C12 = ExtractExposureValue.Dynamic3(h5f_dir, LocationIDs.C1[[1]], LocationIDs.C2[[1]], HOURS.C1[[1]], HOURS.C2[[1]])
 end.time = Sys.time()
 time.taken = end.time - start.time
-time.taken # 25 minutes (15) ,33 minutes (30)
+time.taken # 25 minutes (15) ,33 minutes (30), 7 hours (100)
 
 ExposureValue.C1 = ExposureValue.C12[[1]]
 ExposureValue.C2 = ExposureValue.C12[[2]]
@@ -267,9 +281,9 @@ mean(ExposureValue.W.WM[[1]])
 mean(ExposureValue.C1.WM[[1]])
 mean(ExposureValue.C2.WM[[1]])
 
-hist(ExposureValue.R.WM[[3]], breaks = 50)
+hist(ExposureValue.R.WM[[99]], breaks = 50)
 
-
+rm(ExposureValue.C12,ExposureValue.C1.WM, ExposureValue.C2.WM, ExposureValue.R.WM, ExposureValue.W.WM, WEIGHTS.C1, WEIGHTS.C2)
 
 
 EXP.R.mean = list()
@@ -310,9 +324,48 @@ h5f.active_WS = h5read(h5f_dir, as.character(16))
 h5f.active_WS$data[HOURS.C1[[5]][[1]][1]+1, 5187]
 
 
-smoothingSpline = smooth.spline(x=HOURS.C1_3d[[2]][[70]], ExposureValue.C1[[2]][[70]], spar=0.035)
-plot(x=HOURS.C1_3d[[2]][[70]], y=ExposureValue.C1[[2]][[70]], ylim=c(0, 100))
+smoothingSpline = smooth.spline(x=HOURS.C1_3d[[99]][[70]], ExposureValue.C1[[99]][[70]], spar=0.035)
+plot(x=HOURS.C1_3d[[99]][[70]], y=ExposureValue.C1[[99]][[70]], ylim=c(0, 100))
 lines(smoothingSpline)
+
+plot(x=c(TIMEVertex.C1[[99]][[70]]), y=ExposureValue.C1[[99]][[70]], ylim=c(0, 100))
+
+plot(x=c(TIME.R[[99]][[70]],TIME.W[[99]][[70]],TIMEVertex.C1[[99]][[70]],TIMEVertex.C2[[99]][[70]]),
+     y=c(ExposureValue.R[[99]][[70]],ExposureValue.W[[99]][[70]],ExposureValue.C1[[99]][[70]],ExposureValue.C2[[99]][[70]]),
+         ylim=c(0, 100))
+
+IND = 1
+DAY = 250
+
+# Watch for bug when (corrected) Commuting route extends 1 hour.
+#bug = max(TIMEVertex.C1[[IND]][[DAY]])-PHASES[[DAY]][IND,1]
+if (length(TIME.W[[IND]][[DAY]]) == length(ExposureValue.W[[IND]][[DAY]]))
+{
+
+  R.T = TIME.R[[IND]][[DAY]]
+  W.T = TIME.W[[IND]][[DAY]]
+  C1.T = TIMEVertex.C1[[IND]][[DAY]]
+  C2.T = TIMEVertex.C2[[IND]][[DAY]]
+  
+  R.E = ExposureValue.R[[IND]][[DAY]]
+  W.E = ExposureValue.W[[IND]][[DAY]]
+  C1.E = ExposureValue.C1[[IND]][[DAY]]
+  C2.E = ExposureValue.C2[[IND]][[DAY]]
+  
+  E.max = 100
+  E.max = max(c(ExposureValue.R[[IND]][[DAY]],ExposureValue.W[[IND]][[DAY]],ExposureValue.C1[[IND]][[DAY]],ExposureValue.C2[[IND]][[DAY]]))
+  
+  plot(x = R.T, y = R.E, col = "darkgreen", ylim=c(0, E.max+20), xlab = "Time", ylab = paste(pol, "concentration (µ/m³)"))
+  points(x = W.T, y = W.E, col = "orange")
+  points(x = C1.T, y = C1.E, col = "grey")
+  points(x = C2.T, y = C2.E, col = "darkgrey")
+
+} else
+  {
+    stop(paste("Commuting route extends 1 hour: fix bug first."))
+  }
+
+PHASES[[1]][50,]
 
 
 
