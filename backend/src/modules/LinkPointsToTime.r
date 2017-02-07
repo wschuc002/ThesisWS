@@ -95,15 +95,22 @@ YearDates1 <- function(Year, ...) #no correction for leap years
   return(YearDates)
 }
 
-BusinesDates1 <- function(YearDates, ...)
+DateType <- function(YearDates, Day.Type, ...)
 {
-  da = 1:365
-  bd = da %% 6 & da %% 7
-
-  #filter out weekends
-  BusinesDates = subset(YearDates, bd)
+  days.workweek = weekdays(YearDates) != "zaterdag" & weekdays(YearDates) != "zondag"
+  days.weekends = !days.workweek
   
-  return(BusinesDates)
+  if (Day.Type == "Workdays")
+  {
+    Dates = subset(YearDates, days.workweek)
+  }
+  
+  if (Day.Type == "Weekends")
+  {
+    Dates = subset(YearDates, days.weekends)
+  }
+  
+  return(Dates)
 }
 
 LeaveDates <- function(Dates, Time, ...)

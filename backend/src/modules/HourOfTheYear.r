@@ -19,7 +19,7 @@ HourOfTheYear <- function(Year, CurrentTime, ...)
   StartTime = as.POSIXct(paste0(Year,"-01-01 00:00:00"), tz = "CET")
   
   Hour = difftime(CurrentTime, StartTime, units="hours")
-  Hour = as.numeric(Hours)
+  Hour = as.numeric(Hour)
   
   return(Hour)
 }
@@ -79,9 +79,47 @@ HourOfTheYear4 <- function(Year, TimeVertices, Decimals, ...)
       
       HourOfYearVertex[[y]] = difftime(TimeVertices[[i]][[y]], StartTimeYear, units="hours")
       HourOfYearVertex[[y]] = round(as.numeric(HourOfYearVertex[[y]]), digits = Decimals)
-      HourOfYearVertex[[y]] = HourOfYearVertex[[y]] + 1 # +1 correction
+      HourOfYearVertex[[y]] = HourOfYearVertex[[y]]# + 1 # +1 correction
     }
     HOURS[[i]] = HourOfYearVertex
   }
   return(HOURS)
+}
+
+HourOfTheYear5 <- function(Year, Time, Decimals, ...)
+{
+  StartTimeYear = as.POSIXct(paste0(Year,"-01-01 00:00:00"), tz = "CET")
+  HourOfYearVertex = list()
+  
+  if (class(Time[[1]])[1] == "POSIXct")
+  {
+    for (d in seq_along(Time))
+    {
+      HourOfYearVertex[[d]] = difftime(Time[[d]], StartTimeYear, units="hours")
+      HourOfYearVertex[[d]] = round(as.numeric(HourOfYearVertex[[d]]), digits = Decimals)
+      #HourOfYearVertex[[d]] = HourOfYearVertex[[d]] + 1 # +1 correction
+    }
+    Hours = HourOfYearVertex
+    return(Hours)
+  }
+
+  #StartTimeYear = as.POSIXct(paste0(2009,"-01-01 00:00:00"), tz = "CET")
+  #Time = TIME.R
+  #Decimals = 0
+  if (class(Time[[1]])[1] == "list")
+  {
+    HOURS = list(list())
+    
+    for (i in seq_along(Time))
+    {
+      for (y in seq_along(Time[[i]]))
+      {
+        HourOfYearVertex[[y]] = difftime(Time[[i]][[y]], StartTimeYear, units="hours")
+        HourOfYearVertex[[y]] = round(as.numeric(HourOfYearVertex[[y]]), digits = Decimals)
+        #HourOfYearVertex[[y]] = HourOfYearVertex[[y]] + 1 # +1 correction
+      }
+      HOURS[[i]] = HourOfYearVertex
+    }
+    return(HOURS)
+  }
 }

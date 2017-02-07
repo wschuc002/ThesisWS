@@ -52,13 +52,87 @@ Weighted.Static <- function(ExposureValue, CalcType, ...)
     for (d in seq_along(ExposureValue[[i]]))
     {
       
-      if (CalcType == "WeightedMean")
+      if (CalcType == "WeightedMean.Day")
       {
         Exp[d] = mean(ExposureValue[[i]][[d]])
+      }
+      
+      if (CalcType == "WeightedMean.Ind")
+      {
+        Exp[i] = mean(ExposureValue[[i]][[d]])
       }
       
     }
     EXP[[i]] = Exp
   }
   return(EXP)
+}
+
+
+Plot.PersonalExposureGraph <- function(IND, DAY, DAYS, ...)
+{
+  
+  # Watch for bug when (corrected) Commuting route extends 1 hour.
+  #bug = max(TIMEVertex.C1[[IND]][[DAY]])-PHASES[[DAY]][IND,1]
+  if (length(TIME.W[[IND]][[DAY]]) == length(ExposureValue.W[[IND]][[DAY]]))
+  {
+    
+    #R.T = c(TIME.R[[IND]][[DAY]], TIME.R[[IND]][[DAY+1]])
+    R.T = as.POSIXct(unlist(TIME.R[[IND]][seq(DAY, DAY+DAYS, by = 1)]), origin = "1970-01-01", tz = "CET")
+    W.T = as.POSIXct(unlist(TIME.W[[IND]][seq(DAY, DAY+DAYS, by = 1)]), origin = "1970-01-01", tz = "CET")
+    C1.T = as.POSIXct(unlist(TIMEVertex.C1[[IND]][seq(DAY, DAY+DAYS, by = 1)]), origin = "1970-01-01", tz = "CET")
+    C2.T = as.POSIXct(unlist(TIMEVertex.C2[[IND]][seq(DAY, DAY+DAYS, by = 1)]), origin = "1970-01-01", tz = "CET")
+    
+    #R.E = c(ExposureValue.R[[IND]][[DAY]], ExposureValue.R[[IND]][[DAY+1]])
+    R.E = unlist(ExposureValue.R[[IND]][seq(DAY, DAY+DAYS, by = 1)])
+    W.E = unlist(ExposureValue.W[[IND]][seq(DAY, DAY+DAYS, by = 1)])
+    C1.E = unlist(ExposureValue.C1[[IND]][seq(DAY, DAY+DAYS, by = 1)])
+    C2.E = unlist(ExposureValue.C2[[IND]][seq(DAY, DAY+DAYS, by = 1)])
+    
+    E.max = max(c(R.E, W.E, C1.E, C2.E))
+    
+    plot(main = paste(Active.Type, "Individual", IND), x = R.T, y = R.E, col = "darkgreen", ylim=c(0, E.max+10),
+         xlab = "Time", ylab = paste(pol, "concentration (µ/m³)"), pch = 19)
+    points(x = W.T, y = W.E, col = "orange", pch = 19)
+    points(x = C1.T, y = C1.E, col = "darkgrey", pch = 1)
+    points(x = C2.T, y = C2.E, col = "darkgrey", pch = 19)
+    
+    legend("topleft", c("Residence","Workplace", "Commuting Outwards", "Commuting Inwards"), 
+           col=c("darkgreen","orange","darkgrey","darkgrey"), pch = c(19,19,1,19))
+    
+  } else
+  {
+    stop(paste("Commuting route extends 1 hour: fix bug first."))
+  }
+}
+
+Plot.PersonalExposureGraph.R <- function(IND, DAY, DAYS, ...)
+{
+  R.T = as.POSIXct(unlist(TIME.R[[IND]][seq(DAY, DAY+DAYS, by = 1)]), origin = "1970-01-01", tz = "CET")
+  R.E = unlist(ExposureValue.R[[IND]][seq(DAY, DAY+DAYS, by = 1)])
+
+  E.max = max(R.E)
+  
+  plot(main = paste(Active.Type, "Individual", IND), x = R.T, y = R.E, col = ifelse(R.E == 0,'red','darkgreen'), ylim=c(0, E.max+10),
+       xlab = "Time", ylab = paste(pol, "concentration (µ/m³)"), pch = 19)
+  
+  legend("topleft", "Residence", col="darkgreen", pch = 19)
+}
+
+Plot.PersonalExposureGraph.R.summary <- function(DAY, DAYS, ...)
+{
+  #R.T = seq(TIME.R_[[DAY]][1], tail(TIME.R_[[DAYS]],1), by = 1*60**2)
+  R.T = as.POSIXct(unlist(TIME.R[[1]][seq(DAY, DAY+DAYS, by = 1)]), origin = "1970-01-01", tz = "CET")
+  R.E = unlist(ExposureValue.R100[seq(DAY, DAY+DAYS, by = 1)])
+  
+  E.max = max(R.E)
+  
+  plot(main = paste(Active.Type, "Mean all", length(ExposureValue.R),"individuals"), x = R.T, y = R.E,
+       col = ifelse(R.E == 0,'red','darkgreen'), ylim=c(0, E.max+10),
+       xlab = "Time", ylab = paste(pol, "concentration (µ/m³)"), pch = 19)
+  
+  abline(v=as.POSIXct("2009-03-29 02:00:00", origin = "1970-01-01", tz = "CET"), col = "orange")
+  abline(v=as.POSIXct("2009-10-25 02:00:00", origin = "1970-01-01", tz = "CET"), col = "grey")
+  
+  legend("topleft", "Residence", col="darkgreen", pch = 19)
 }

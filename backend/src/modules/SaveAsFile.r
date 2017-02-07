@@ -24,7 +24,7 @@
 ## Load the packages
 library(rgdal)
 
-SaveAsFile <- function(INput, Filename, Format, OverwriteLayer, ...)
+SaveAsFile <- function(INput, Filename, Format, Active.Type, OverwriteLayer, ...)
 {
   if (Format == "Shapefile")
   {
@@ -41,4 +41,67 @@ SaveAsFile <- function(INput, Filename, Format, OverwriteLayer, ...)
     GeoJSON_ext = ".geojson"
     file.rename(GeoJSON_out, file.path("..", "output", paste0(Filename, GeoJSON_ext)))
   }
+  
+  if (Format == "csv")
+  {
+    csv_out = file.path("..", "output", paste(Active.Type, Filename, "Residence.csv", sep = "_"))
+    write.csv(INput, csv_out, eol = "\n")
+  }
+  
+}
+
+
+SaveAsDBF <- function(INput, Filename, Active.Type, OverwriteLayer, ...)
+{
+  for (i in seq_along(INput))
+  #for (i in seq(1,5,1))  
+  {
+    ExposureValue.R.DF = data.frame(transpose(INput[[i]]))
+    colnames(ExposureValue.R.DF) = c(1:length(ExposureValue.R.DF))
+    
+    Folder = file.path("..", "output", Active.Type)
+    
+    if (!exists(Folder))
+    {
+      dir.create(file.path("..", "output", Active.Type))
+    }
+  
+    dbf_out = file.path("..", "output", Active.Type, paste(Filename, i, sep = "_"))
+    write.dbf(ExposureValue.R.DF, dbf_out, factor2char = TRUE, max_nchar = 254)
+  }  
+}
+
+SaveAsDBF2 <- function(INput, Filename, OverwriteLayer, Active.Type, ...)
+{
+  for (i in seq_along(INput))
+    #for (i in seq(1,5,1))  
+  {
+    if (class(INput) == "list")
+    {
+      DF = data.frame(transpose(INput[[i]]))
+      colnames(DF) = c(1:length(DF))
+      
+      Folder = file.path("..", "output", Active.Type)
+      if (!dir.exists(Folder)) 
+      {
+        dir.create(Folder)
+      }
+      
+      dbf_out = file.path("..", "output", Active.Type, paste(Filename, i, sep = "_"))
+      write.dbf(DF, dbf_out, factor2char = TRUE, max_nchar = 254)
+      
+    }
+    if (class(INput) == "data.frame")
+    {
+      DF = INput
+      
+      Temp_dir = file.path("..", "output", "temp")
+      if (!dir.exists(Temp_dir)) 
+      {
+        dir.create(Temp_dir)
+      }
+      dbf_out = file.path(Temp_dir, Filename)
+      write.dbf(DF, dbf_out, factor2char = TRUE, max_nchar = 254)
+    }
+  }  
 }

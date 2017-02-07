@@ -332,35 +332,106 @@ ExtractExposureValue.Integral <- function(h5f_dir, locationId.BE1, locationId.BE
 
 ExtractExposureValue.Static <- function(h5f_dir, locationId.BE, HOURS, ...) # Method 1: read from compressed file
 {
-  ## Open the IDF5-file
-  h5f_in = h5f_dir
-  
-  EXPWS = list(list())
+
+  EXPWS = list()
   
   if (class(locationId.BE)== "integer") #R & W
   {
-    for (i in seq_along(locationId.BE)) # per individual
-      #for (i in seq(1,2))
+    #for (i in seq_along(locationId.BE)) # per individual
+    for (i in seq(1,2))
     {
       activeDataset = locationId.BE[i] / 10000
       activeLocation = locationId.BE[i] %% 10000
       activeName = activeDataset - (activeLocation/10000)
       
-      h5f.active = h5read(h5f_in, as.character(activeName))
+      h5f.active = h5read(h5f_dir, as.character(activeName))
       
       EXP = HOURS[[i]] # use same structure
       
-      for (h in seq_along(HOURS[[i]])) # per day
-        #for (h in seq(1,3))
+      for (d in seq_along(HOURS[[i]])) # per day
+        #for (d in seq(1,3))
       {
-        for (f in seq_along(HOURS[[i]][[h]])) # per hour
+        for (h in seq_along(HOURS[[i]][[d]])) # per hour
         {
-          EXP[[h]][f] = h5f.active$data[HOURS[[i]][[h]][f]+1, activeLocation] #[hour of the year,activeLocation]
+          EXP[[d]][h] = h5f.active$data[HOURS[[i]][[d]][h]+1, activeLocation] #[hour of the year,activeLocation]
         }
       }
       EXPWS[[i]] = EXP
     }
   }
+  return (EXPWS)
+}
+
+ExtractExposureValue.Static2 <- function(h5f_dir, locationId.BE, HOURS, ...) # Method 1: read from compressed file
+{
+  start.time = Sys.time()
   
+  activeDataset_WS = NA
+  activeLocation_WS = NA
+  activeName_WS = NA
+  
+  for (i in seq_along(locationId.BE))
+  {
+    activeDataset_WS[i] = locationId.BE[i] / 10000
+    activeLocation_WS[i] = locationId.BE[i] %% 10000
+    activeName_WS[i] = activeDataset_WS[i] - (activeLocation_WS[i]/10000)
+  }
+  
+  slots = seq(0,42)
+  usedNames = slots %in% activeName_WS
+  usedSlots = slots[usedNames]
+  
+  EXPWS = list()
+  
+  Temp_dir = file.path("..", "output", "temp")
+  if (!dir.exists(Temp_dir)) 
+  {
+    dir.create(Temp_dir)
+  }
+
+  for (a in usedSlots)
+  #for (a in seq(1,3))
+  #for (a in head(usedSlots,3))
+  {
+    print(paste("Starting with slot", a, "of", length(usedSlots)))
+    for (i in seq_along(locationId.BE)) # per individual
+    #for (i in seq(1,4)) 
+    {
+      if (activeName_WS[i] == as.character(a))
+      {
+        File = file.path(Temp_dir, paste0(paste("DF",activeName_WS[i], activeLocation_WS[i], sep = "-"), ".dbf"))
+        if (file.exists(File))
+        {
+          print(paste0(File, " exists. reading it..."))
+          DF = read.dbf(File)
+        }else{
+          print(paste(File, "does not exist. reading h5f slot", a, "..."))
+          h5f.active = h5read(h5f_dir, as.character(a))
+          
+          DF = data.frame(h5f.active$data[,activeLocation_WS[i]])
+          SaveAsDBF2(DF, paste("DF", activeName_WS[i], activeLocation_WS[i], sep = "-"))
+        }
+        
+        EXP = HOURS[[i]] # use same structure
+        
+        for (d in seq_along(HOURS[[i]])) # per day
+          #for (d in seq(1,3))
+        {
+          for (h in seq_along(HOURS[[i]][[d]])) # per hour
+          {
+            EXP[[d]][h] = DF[HOURS[[i]][[d]][h]+1,]
+          }
+        }
+        EXPWS[[i]] = EXP 
+      }
+    }
+  }
+  H5close()
+  
+  end.time = Sys.time()
+  time.taken.m = difftime(end.time, start.time, units = "mins")
+  time.taken.h = difftime(end.time, start.time, units = "hours")
+  time.taken.s = difftime(end.time, start.time, units = "sec")
+  print(paste("Duration of calculation:", time.taken.s, "seconds", "=", time.taken.m, "minutes", "=",time.taken.h, "hours"))
   return (EXPWS)
 }

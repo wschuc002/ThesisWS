@@ -20,6 +20,7 @@
 ##        - ...
 ##        - Download input data from server (Google Drive).
 ##        - More residential profiles than "Office worker"
+##        - Simplify "full" OSRM method, based on duration
 ##        - Introduce "spacetime" package and test is
 ##        - ...
 
@@ -68,9 +69,12 @@ for (i in RGB.list)
 
 DetermineRoutesNL(c("Utrecht", "Gelderland"), 100, 1000)
 
-## FLANDERS ##
+#### FLANDERS ####
 
-Subset.Gemeente = "" # empty = no subset = all municipalities | c("Gent","Antwerpen")
+### General ###
+# Use the official address database of Flanders and add the correct attribute 'Goal of use'
+
+Subset.Gemeente = c("Gent","Antwerpen") # empty = "" = no subset = all municipalities | c("Gent","Antwerpen")
 Names = paste(Subset.Gemeente, collapse="_")
 Name = paste("CRAB_Doel", Names, sep = "_")
 
@@ -81,29 +85,65 @@ if (file.exists(file.path("..", "output", paste0("CRAB_Doel_",Names,".shp"))))
 {
   if (Subset.Gemeente == "")
   {
-    CRAB_Doel = DetermineAddressGoals_FL()
+    CRAB_Doel = DetermineAddressGoals_FL(2)
   } else
   {
-    CRAB_Doel = DetermineAddressGoals_FL(Subset.Gemeente)
+    CRAB_Doel = DetermineAddressGoals_FL(Subset.Gemeente,2)
   }
   SaveAsFile(CRAB_Doel, Name, "Shapefile", TRUE) #"GeoJSON"
 }
 
-dir.R = file.path("..", "output", paste0("Residence_",Names,".geojson"))
-dir.W = file.path("..", "output", paste0("Workplace_",Names,".geojson"))
-dir.C1s = file.path("..", "output", paste0("CommutingRoutesOutwards_",Names,"s", ".geojson"))
-dir.C1f = file.path("..", "output", paste0("CommutingRoutesOutwards_",Names,"f", ".geojson"))
-dir.C2s = file.path("..", "output", paste0("CommutingRoutesInwards_",Names,"s", ".geojson"))
-dir.C2f = file.path("..", "output", paste0("CommutingRoutesInwards_",Names,"f", ".geojson"))
-# Check if data already exists
-if (!file.exists(dir.R)&!file.exists(dir.W)&(!file.exists(dir.C1s)|!file.exists(dir.C1f))&(!file.exists(dir.C2s)|!file.exists(dir.C2f)))
+## 
+
+# Residential-Behavourial types
+FL01_OfficeWorker = "01.OW"
+FL02_HomeOffice = "02.HO"
+FL03_SchoolPupil = "03.SP"
+FL04_XXXX = "04.XX"
+FL05_XXXX = "05.XX"
+
+Active.Type = FL02_HomeOffice
+
+OSRM.Level = "simplified" # "simplified" or "full" version of vectors in routes (OSRM package)
+
+dir.R = file.path("..", "output", paste0(Active.Type,"_Residence_",Names,".geojson"))
+
+if (Active.Type != "02.HO")
 {
-  DeterminePPH_FL(CRAB_Doel, Names, 100, 5000, "full")
+  dir.C1s = file.path("..", "output", paste0(Active.Type,"_CommutingRoutesOutwards_",Names,"_s", ".geojson"))
+  dir.C2s = file.path("..", "output", paste0(Active.Type,"_CommutingRoutesInwards_",Names,"_s", ".geojson"))
+
+  dir.C1f = file.path("..", "output", paste0(Active.Type,"_CommutingRoutesOutwards_",Names,"_f", ".geojson"))
+  dir.C2f = file.path("..", "output", paste0(Active.Type,"_CommutingRoutesInwards_",Names,"_f", ".geojson"))
+}
+
+if (Active.Type == "01.OW" | Active.Type == "03.SP")
+{
+  dir.S = file.path("..", "output", paste0(Active.Type,"_Secondary_",Names,".geojson"))
+}
+
+if (OSRM.Level != "full" & OSRM.Level != "simplified")
+{
+  stop(paste("OSRM.Level should be 'full' or 'simplified'."))
+}
+
+if (Active.Type == "02.HO")
+{
+  if (!file.exists(dir.R))
+  {
+    DeterminePPH_FL(CRAB_Doel, Names, 100, 1000, OSRM.Level, Active.Type)
+  }
+}else{
+  # Check if data already exists. If so, it will not run.
+  if (!file.exists(dir.R)&!file.exists(dir.S)&(!file.exists(dir.C1s)|!file.exists(dir.C1f))&(!file.exists(dir.C2s)|!file.exists(dir.C2f)))
+  {
+    DeterminePPH_FL(CRAB_Doel, Names, 100, 1000, OSRM.Level, Active.Type)
+  }
 }
 
 
-#data_in = file.path("..", "data", "BE", "ATMOSYS", "atmosys-timeseries_2.data")
-data_in = file.path("H:", "ATMOSYS", "atmosys-timeseries_2.data")
+data_in = file.path("..", "data", "BE", "ATMOSYS", "atmosys-timeseries_2.data")
+#data_in = file.path("H:", "ATMOSYS", "atmosys-timeseries_2.data")
 
 #Name = paste("CT", Names, sep = "_")
 Name = "CT"
@@ -118,96 +158,132 @@ if (file.exists(file.path("..", "output", paste0(Name,".shp"))))
   SaveAsFile(CT.SP, Name, "Shapefile", TRUE) #"GeoJSON"
 }
 
+year.active = 2009
+YearDates = YearDates1(year.active)
+BusinesDates = DateType(YearDates,"Workdays")
+WeekendDates = DateType(YearDates,"Weekends")
+
+
 PPH.R = readOGR(dir.R, layer = 'OGRGeoJSON')
-PPH.W = readOGR(dir.W, layer = 'OGRGeoJSON')
-PPH.C1 = readOGR(dir.C1f, layer = 'OGRGeoJSON') #PPH.C1s
-PPH.C2 = readOGR(dir.C2f, layer = 'OGRGeoJSON') #PPH.C2s
-
 LocationIDs.R = PersonalLocationToLocationID(PPH.R, CT.SP, 1)
-LocationIDs.W = PersonalLocationToLocationID(PPH.W, CT.SP, 1)
-LocationIDs.C1 = PersonalLocationToLocationID(PPH.C1, CT.SP, 1)
-LocationIDs.C2 = PersonalLocationToLocationID(PPH.C2, CT.SP, 1)
 
-PPH.C1@data$duration = PPH.C1@data$duration * 1.2 # duration correction
-PPH.C2@data$duration = PPH.C2@data$duration * 1.2 # duration correction
-
-Leave.R = 8
-Leave.W = 17
-
-TimeVertex.C1 = LinkPointsToTime.Commuting(PPH.C1, LocationIDs.C1, 2009, Leave.R) # Time of the Commuting routes vertices Outwards
-TimeVertex.C2 = LinkPointsToTime.Commuting(PPH.C2, LocationIDs.C2, 2009, Leave.W) # Time of the Commuting routes vertices Inwards
-
-# HOURVertex.C1 = HourOfTheYear2(2009, TIMEVertex.C1, 0)
-# HOURVertex.C2 = HourOfTheYear2(2009, TIMEVertex.C2, 0)
-
-YearDates = YearDates1(2009)
-BusinesDates = BusinesDates1(YearDates)
-
-PPH.Phases.Times = TimePhaser(Leave.R, Leave.W, TimeVertex.C1, TimeVertex.C2)
-PPH.Phases.DateTimes = PPH.Phases.Times
-
-PHASES = TimePhaserList(BusinesDates, PPH.Phases.DateTimes)
-as.POSIXct(PHASES[[60]][15,2], origin = "1970-01-01", tz = "CET")
-as.POSIXct(PHASES[[70]][15,1], origin = "1970-01-01", tz = "CET")
-as.POSIXct(PHASES[[70]][15,2], origin = "1970-01-01", tz = "CET")
-
-PHASES[[200]][1,1] #[[businesday#]][individual,]
-
-Correct = T
-if (Correct == T) # Summertime correction correction (CET vs. CEST | The S can be ignored after this correction)
+if (Active.Type == "01.OW" | Active.Type == "03.SP")
 {
-  PHASES = TimePhaserListC(PHASES)
+  PPH.S = readOGR(dir.S, layer = 'OGRGeoJSON')
+  
+  if (OSRM.Level == "simplified")
+  {
+    PPH.C1 = readOGR(dir.C1s, layer = 'OGRGeoJSON') #PPH.C1s
+    PPH.C2 = readOGR(dir.C2s, layer = 'OGRGeoJSON') #PPH.C2s
+  }
+  if (OSRM.Level == "full")
+  {
+    PPH.C1 = readOGR(dir.C1f, layer = 'OGRGeoJSON') #PPH.C1s
+    PPH.C2 = readOGR(dir.C2f, layer = 'OGRGeoJSON') #PPH.C2s
+  }
+  
+  LocationIDs.S = PersonalLocationToLocationID(PPH.S, CT.SP, 1)
+  LocationIDs.C1 = PersonalLocationToLocationID(PPH.C1, CT.SP, 1)
+  LocationIDs.C2 = PersonalLocationToLocationID(PPH.C2, CT.SP, 1)
+  
+  PPH.C1@data$duration = PPH.C1@data$duration * 1.2 # duration correction
+  PPH.C2@data$duration = PPH.C2@data$duration * 1.2 # duration correction
+  
+  Leave.R = 8
+  Leave.S = 17
+  
+  TimeVertex.C1 = LinkPointsToTime.Commuting(PPH.C1, LocationIDs.C1, 2009, Leave.R) # Time of the Commuting routes vertices Outwards
+  TimeVertex.C2 = LinkPointsToTime.Commuting(PPH.C2, LocationIDs.C2, 2009, Leave.W) # Time of the Commuting routes vertices Inwards
+  
+  PPH.Phases.Times = TimePhaser(Leave.R, Leave.W, TimeVertex.C1, TimeVertex.C2)
+  PPH.Phases.DateTimes = PPH.Phases.Times
+  
+  PHASES = TimePhaserList(BusinesDates, PPH.Phases.DateTimes)
+  as.POSIXct(PHASES[[60]][15,2], origin = "1970-01-01", tz = "CET")
+  as.POSIXct(PHASES[[70]][15,1], origin = "1970-01-01", tz = "CET")
+  as.POSIXct(PHASES[[70]][15,2], origin = "1970-01-01", tz = "CET")
+  
+  #PHASES[[200]][1,1] #[[businesday#]][individual,]
+  
+  Correct = T
+  if (Correct == T) # Summertime correction correction (CET vs. CEST | The S can be ignored after this correction)
+  {
+    PHASES = TimePhaserListC(PHASES)
+  }
+  as.POSIXct(PHASES[[60]][15,2], origin = "1970-01-01", tz = "CET")
+  as.POSIXct(PHASES[[70]][15,1], origin = "1970-01-01", tz = "CET")
+  as.POSIXct(PHASES[[70]][15,2], origin = "1970-01-01", tz = "CET")
+  
+  TIME.R = AtResidenceOrWork2("Residence", PHASES, BusinesDates, Correct = F)
+  TIME.S = AtResidenceOrWork2("Workplace", PHASES, BusinesDates, Correct = F)
+  
+  TIMEVertex.C1 = LinkPointsToTime.Commuting2("Outwards", PPH.C1, LocationIDs.C1, PHASES) # Time of the Commuting routes vertices Outwards
+  TIMEVertex.C2 = LinkPointsToTime.Commuting2("Inwards", PPH.C2, LocationIDs.C2, PHASES) # Time of the Commuting routes vertices Inwards
+  
+  HOURS.R = HourOfTheYear4(2009, TIME.R, 0)
+  HOURS.S = HourOfTheYear4(2009, TIME.S, 0)
+  HOURS.C1 = HourOfTheYear4(2009, TIMEVertex.C1, 0)
+  HOURS.C2 = HourOfTheYear4(2009, TIMEVertex.C2, 0)
+  HOURS.C1_3d = HourOfTheYear4(2009, TIMEVertex.C1, 3)
+  HOURS.C2_3d = HourOfTheYear4(2009, TIMEVertex.C2, 3)
 }
 
-TIME.R = AtResidenceOrWork2("Residence", PHASES, BusinesDates, Correct = F)
-TIME.W = AtResidenceOrWork2("Workplace", PHASES, BusinesDates, Correct = F)
-TIME.R[[14]][[200]] #[[individual]][[businesday#]]
-TIME.W[[14]][[200]] #[[individual]][[businesday#]]
-
-TIMEVertex.C1 = LinkPointsToTime.Commuting2("Outwards", PPH.C1, LocationIDs.C1, PHASES) # Time of the Commuting routes vertices Outwards
-TIMEVertex.C2 = LinkPointsToTime.Commuting2("Inwards", PPH.C2, LocationIDs.C2, PHASES) # Time of the Commuting routes vertices Inwards
-TIMEVertex.C1[[14]][[200]] #[[individual]][[businesday#]]
-TIMEVertex.C2[[14]][[200]] #[[individual]][[businesday#]]
-
-HOURS.R = HourOfTheYear4(2009, TIME.R, 0)
-HOURS.W = HourOfTheYear4(2009, TIME.W, 0)
-HOURS.C1 = HourOfTheYear4(2009, TIMEVertex.C1, 0)
-HOURS.C2 = HourOfTheYear4(2009, TIMEVertex.C2, 0)
-HOURS.R[[14]][[200]] #[[individual]][[businesday#]]
-HOURS.W[[14]][[200]] #[[individual]][[businesday#]]
-HOURS.C1[[14]][[200]] #[[individual]][[businesday#]]
-HOURS.C2[[14]][[200]] #[[individual]][[businesday#]]
-
-HOURS.C1_3d = HourOfTheYear4(2009, TIMEVertex.C1, 3)
-HOURS.C2_3d = HourOfTheYear4(2009, TIMEVertex.C2, 3)
+if (Active.Type == "02.HO")
+{
+#   TIME.R = seq(YearDates[1], tail((YearDates), 1)+1*60**2*24, by = 1*60**2)
+#   length(TIME.R_test)
+#   tail((TIME.R), 2)
+  
+  Time.R = NULL
+  for (d in seq(2, length(YearDates), 1))
+  {
+    Time.R[[1]] = seq(YearDates[1], YearDates[1]+1*60**2*24, by = 1*60**2)
+    Time.R[[d]] = seq(YearDates[d]+1*60**2, YearDates[d]+1*60**2*24, by = 1*60**2)
+  }
+  
+  TIME.R = list()
+  for (i in seq_along(PPH.R))
+  {
+    TIME.R[[i]] = Time.R
+  }
+  
+  Hours.R = HourOfTheYear5(2009, Time.R, 0)
+  HOURS.R = HourOfTheYear5(2009, TIME.R, 0)
+  
+}
 
 rm(CT, CT.SP, PPH.R_in, PPH.W_in, PPH.Phases.DateTimes, PPH.Phases.Times,
-   YearDates, BusinesDates, Leave.W, Leave.R, PHASES, TIME.R, TIME.W, TimeVertex.C1, TimeVertex.C2,
+   YearDates, BusinesDates, Leave.W, Leave.R, PHASES, TimeVertex.C1, TimeVertex.C2,
  list.of.packages, new.packages)
 
 rm(CRAB_Doel, Correct)
 
 pol = "no2"
 polFile = paste0(pol, "-gzip.hdf5")
-#h5f_dir = file.path("..", "data", "BE", "ATMOSYS", polFile)
-h5f_dir = file.path("F:", "ATMOSYS", polFile)
+h5f_dir = file.path("..", "data", "BE", "ATMOSYS", polFile)
+#h5f_dir = file.path("F:", "ATMOSYS", polFile)
 
-start.time = Sys.time()                    
-ExposureValue.R = ExtractExposureValue.Static(h5f_dir, LocationIDs.R[[1]], HOURS.R)
-end.time = Sys.time()
-time.taken = end.time - start.time
-time.taken # 
+# H5close()
+# start.time = Sys.time()                    
+# ExposureValue.R_ = ExtractExposureValue.Static(h5f_dir, LocationIDs.R, HOURS.R) # LocationIDs.R[1:5]
+# end.time = Sys.time()
+# time.taken = end.time - start.time
+# time.taken # 6.7 min (5,100) # 43.8 min (100) # 47.5 min (100)
+
+# uses a quicker method with hard drive
+                  
+ExposureValue.R = ExtractExposureValue.Static2(h5f_dir, LocationIDs.R, HOURS.R) # LocationIDs.R[1:5]
 
 start.time = Sys.time()
-ExposureValue.W = ExtractExposureValue.Static(h5f_dir, LocationIDs.W[[1]], HOURS.W)
+ExposureValue.W = ExtractExposureValue.Static(h5f_dir, LocationIDs.W, HOURS.W) # LocationIDs.R[1:5]
 end.time = Sys.time()
 time.taken = end.time - start.time
-time.taken # 
-
-
-
+time.taken # 11.5 min (5,100)
+      
+ExposureValue.R[[1]][1]
 ExposureValue.R[[25]][[2]] # [[individual#]][[BusinesDay#]]
 ExposureValue.W[[13]][[200]] # [[individual#]][[BusinesDay#]]
+
 
 # R_path = file.path("..", "output", "R.csv")
 # R_csv = write.csv(ExposureValue.R, R_path)
@@ -229,10 +305,10 @@ ExposureValue.W[[13]][[200]] # [[individual#]][[BusinesDay#]]
 
 # Kan sneller wannneer (R,W,) C1 en C2 tegelijk worden berekend:
 start.time = Sys.time()
-ExposureValue.C12 = ExtractExposureValue.Dynamic3(h5f_dir, LocationIDs.C1[[1]], LocationIDs.C2[[1]], HOURS.C1[[1]], HOURS.C2[[1]])
+ExposureValue.C12 = ExtractExposureValue.Dynamic3(h5f_dir, LocationIDs.C1, LocationIDs.C2, HOURS.C1, HOURS.C2) # LocationIDs.R[1:5]
 end.time = Sys.time()
 time.taken = end.time - start.time
-time.taken # 25 minutes (15) ,33 minutes (30), 7 hours (100)
+time.taken # 25 minutes (15) ,33 minutes (30), 7 hours (100), 1.5 hours (1,100, f), 3.7 hours (5,100,f)
 
 ExposureValue.C1 = ExposureValue.C12[[1]]
 ExposureValue.C2 = ExposureValue.C12[[2]]
@@ -265,6 +341,138 @@ for (i in seq_along(RW))
 {
   ExposureValue.W[[i]] = ExposureValue.W[[RW[i]]]
 }
+
+#Write Exposurevalues to disk
+SaveAsDBF(ExposureValue.R, "ExposureValue_R", Active.Type)
+SaveAsDBF(ExposureValue.R_01.OW, "ExposureValue_R", Active.Type)
+
+#Read DBF file with ExposureValues
+ExpVal.R = list()
+ExpVal.R[[32]] = read.dbf(file.path("..", "output", Active.Type, paste0("ExposureValue_R_31.dbf")))
+ExpVal.R[[32]] = read.dbf(file.path("..", "output", Active.Type, paste0("ExposureValue_R_32.dbf")))
+
+ExpVal.R.tr = transpose(ExpVal.R)
+ExpVal.R[1,2]
+
+#SaveAsFile(HOURS.R, "HOURS.R", "csv", Active.Type)
+#SaveAsFile(ExposureValue.R, "ExposureValue.R", "csv", Active.Type)
+
+# Plotting results
+Plot.PersonalExposureGraph(98, 236, 4) # (Individual, Start(working)Day, Amount of days)
+Plot.PersonalExposureGraph.R(62, 236, 4)
+
+
+## Summary calculations
+
+# Mean per day
+HO.02.mean. = Weighted.Static(ExposureValue.R, "WeightedMean.Day")
+
+# Mean per year (per individual)
+HO.02_1 = mean(HO.02[[1]])
+HO.02_2 = mean(HO.02[[2]])
+
+
+# Mean for all 100 individuals
+ExposureValue.R[[1]][[1]] + ExposureValue.R[[2]][[1]]
+
+HourBasedExposure = ExposureValue.R # use same structure
+for (d in seq_along(ExposureValue.R[[1]]))
+{
+  for (i in seq_along(ExposureValue.R))
+  {
+    for (h in (seq_along(ExposureValue.R[[i]][[d]])))
+    {
+      HourBasedExposure[[d]][[h]][i] = ExposureValue.R[[i]][[d]][h]
+    }
+  }
+}
+
+
+
+#transpose: [[individual]][[day]][hour] -> [[day]][[individual]][hour]
+n <- length(ExposureValue.R[[1]]) # assuming all lists in before have the same length
+ExposureValue.R.tr = lapply(1:n, function(i) lapply(ExposureValue.R, "[[", i))
+
+#transpose2: [[day]][[individual]][hour] -> [[day]][[hour]][individual]
+ExposureValue.R.tr2 = list(list())
+for (d in seq_along(ExposureValue.R.tr))
+{
+  ExposureValue.R.tr2[[d]] = transpose(ExposureValue.R.tr[[d]])
+}
+
+# Mean
+# ExposureValue.R100 = data.frame()
+# for (d in seq_along(ExposureValue.R.tr2))
+# {
+#   for (h in seq_along(ExposureValue.R.tr2[[d]]))
+#   {
+#     ExposureValue.R100[d,h] = mean(ExposureValue.R.tr2[[d]][[h]])
+#   }
+# }
+
+ExposureValue.R100 = ExposureValue.R.tr2
+for (d in seq_along(ExposureValue.R.tr2))
+{
+  for (h in seq_along(ExposureValue.R.tr2[[d]]))
+  {
+    ExposureValue.R100[[d]][h] = mean(ExposureValue.R.tr2[[d]][[h]])
+    #ExposureValue.R100[[d]] = unlist(ExposureValue.R100[[d]])
+  }
+  ExposureValue.R100[[d]] = unlist(ExposureValue.R100[[d]])
+}
+
+TIME.R100 = TIME.R
+
+#Plotting Summary statistics results
+Plot.PersonalExposureGraph.R.summary(1, length(ExposureValue.R100)) # whole year
+Plot.PersonalExposureGraph.R.summary(1, 7) # first week
+
+
+Plot.PersonalExposureGraph.R(76,1,7)
+
+
+# Mean per day
+ExposureValue.R100.DailyMean = NA
+for (d in seq_along(ExposureValue.R100))
+{
+  ExposureValue.R100.DailyMean[d] = mean(ExposureValue.R100[[d]])
+}
+
+# Mean over the year
+ExposureValue.R100.YearlyMean = mean(ExposureValue.R100.DailyMean)
+
+#! Combine the 4 types in OW.01 and calculate mean
+
+#! Include weekends for OW.01 (and SP.03)
+
+## WOON-WERKVERPLAATSING 46.21 km (http://www.mobiliteitsmanagement.be/ndl/woonwerkverkeer/)
+
+
+## CHECK the ExposureValues. Should give 8761 values? Are these values in the right time?
+head(TIME.R[[1]], 2)
+head(HOURS.R[[1]], 2)
+tail(HOURS.R[[1]], 2)
+
+unlist(TIME.R[[1]]) %in% as.POSIXct("2009-03-29 02:00:00", origin = "1970-01-01", tz = "CET") | 
+  unlist(TIME.R[[1]]) %in% as.POSIXct("2009-10-25 02:00:00", origin = "1970-01-01", tz = "CET")
+
+length(unlist(TIME.R[[1]]))
+length(unlist(HOURS.R[[1]]))
+length(unlist(ExposureValue.R[[1]]))
+
+tail(ExposureValue.R[[1]],1)
+head(ExposureValue.R[[1]],2)
+
+tail(ExposureValue.R_01.OW[[1]],1)
+
+H5.active = h5read(h5f_dir, as.character(1))
+H5.active$data[HOURS.R[[1]][[365]][25], 7701]
+H5.active$data[HOURS.R[[1]][[365]][24], 7701]
+H5.active$data[8760, 7701]
+DF = data.frame(H5.active)
+H5close()
+
+tail(H5.active@data,20)
 
 ExposureValue.R.WM = Weighted.Static(ExposureValue.R, "WeightedMean")
 ExposureValue.W.WM = Weighted.Static(ExposureValue.W, "WeightedMean")
@@ -333,40 +541,6 @@ plot(x=c(TIMEVertex.C1[[99]][[70]]), y=ExposureValue.C1[[99]][[70]], ylim=c(0, 1
 plot(x=c(TIME.R[[99]][[70]],TIME.W[[99]][[70]],TIMEVertex.C1[[99]][[70]],TIMEVertex.C2[[99]][[70]]),
      y=c(ExposureValue.R[[99]][[70]],ExposureValue.W[[99]][[70]],ExposureValue.C1[[99]][[70]],ExposureValue.C2[[99]][[70]]),
          ylim=c(0, 100))
-
-IND = 1
-DAY = 250
-
-# Watch for bug when (corrected) Commuting route extends 1 hour.
-#bug = max(TIMEVertex.C1[[IND]][[DAY]])-PHASES[[DAY]][IND,1]
-if (length(TIME.W[[IND]][[DAY]]) == length(ExposureValue.W[[IND]][[DAY]]))
-{
-
-  R.T = TIME.R[[IND]][[DAY]]
-  W.T = TIME.W[[IND]][[DAY]]
-  C1.T = TIMEVertex.C1[[IND]][[DAY]]
-  C2.T = TIMEVertex.C2[[IND]][[DAY]]
-  
-  R.E = ExposureValue.R[[IND]][[DAY]]
-  W.E = ExposureValue.W[[IND]][[DAY]]
-  C1.E = ExposureValue.C1[[IND]][[DAY]]
-  C2.E = ExposureValue.C2[[IND]][[DAY]]
-  
-  E.max = 100
-  E.max = max(c(ExposureValue.R[[IND]][[DAY]],ExposureValue.W[[IND]][[DAY]],ExposureValue.C1[[IND]][[DAY]],ExposureValue.C2[[IND]][[DAY]]))
-  
-  plot(x = R.T, y = R.E, col = "darkgreen", ylim=c(0, E.max+20), xlab = "Time", ylab = paste(pol, "concentration (µ/m³)"))
-  points(x = W.T, y = W.E, col = "orange")
-  points(x = C1.T, y = C1.E, col = "grey")
-  points(x = C2.T, y = C2.E, col = "darkgrey")
-
-} else
-  {
-    stop(paste("Commuting route extends 1 hour: fix bug first."))
-  }
-
-PHASES[[1]][50,]
-
 
 
 
