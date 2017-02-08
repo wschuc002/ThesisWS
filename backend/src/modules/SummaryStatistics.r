@@ -74,20 +74,20 @@ Plot.PersonalExposureGraph <- function(IND, DAY, DAYS, ...)
   
   # Watch for bug when (corrected) Commuting route extends 1 hour.
   #bug = max(TIMEVertex.C1[[IND]][[DAY]])-PHASES[[DAY]][IND,1]
-  if (length(TIME.W[[IND]][[DAY]]) == length(ExposureValue.W[[IND]][[DAY]]))
+  if (length(TIME.S[[IND]][[DAY]]) == length(ExposureValue.S[[IND]][[DAY]]))
   {
     
-    #R.T = c(TIME.R[[IND]][[DAY]], TIME.R[[IND]][[DAY+1]])
-    R.T = as.POSIXct(unlist(TIME.R[[IND]][seq(DAY, DAY+DAYS, by = 1)]), origin = "1970-01-01", tz = "CET")
-    W.T = as.POSIXct(unlist(TIME.W[[IND]][seq(DAY, DAY+DAYS, by = 1)]), origin = "1970-01-01", tz = "CET")
-    C1.T = as.POSIXct(unlist(TIMEVertex.C1[[IND]][seq(DAY, DAY+DAYS, by = 1)]), origin = "1970-01-01", tz = "CET")
-    C2.T = as.POSIXct(unlist(TIMEVertex.C2[[IND]][seq(DAY, DAY+DAYS, by = 1)]), origin = "1970-01-01", tz = "CET")
+    #R.T = c(TIME.P[[IND]][[DAY]], TIME.P[[IND]][[DAY+1]])
+    R.T = as.POSIXct(unlist(TIME.P[[IND]][seq(DAY, DAY+DAYS, by = 1)]), origin = "1970-01-01", tz = "CET")
+    W.T = as.POSIXct(unlist(TIME.S[[IND]][seq(DAY, DAY+DAYS, by = 1)]), origin = "1970-01-01", tz = "CET")
+    C1.T = as.POSIXct(unlist(TIMEVertex.T1[[IND]][seq(DAY, DAY+DAYS, by = 1)]), origin = "1970-01-01", tz = "CET")
+    C2.T = as.POSIXct(unlist(TIMEVertex.T2[[IND]][seq(DAY, DAY+DAYS, by = 1)]), origin = "1970-01-01", tz = "CET")
     
-    #R.E = c(ExposureValue.R[[IND]][[DAY]], ExposureValue.R[[IND]][[DAY+1]])
-    R.E = unlist(ExposureValue.R[[IND]][seq(DAY, DAY+DAYS, by = 1)])
-    W.E = unlist(ExposureValue.W[[IND]][seq(DAY, DAY+DAYS, by = 1)])
-    C1.E = unlist(ExposureValue.C1[[IND]][seq(DAY, DAY+DAYS, by = 1)])
-    C2.E = unlist(ExposureValue.C2[[IND]][seq(DAY, DAY+DAYS, by = 1)])
+    #R.E = c(ExposureValue.P[[IND]][[DAY]], ExposureValue.P[[IND]][[DAY+1]])
+    R.E = unlist(ExposureValue.P[[IND]][seq(DAY, DAY+DAYS, by = 1)])
+    W.E = unlist(ExposureValue.S[[IND]][seq(DAY, DAY+DAYS, by = 1)])
+    C1.E = unlist(ExposureValue.T1[[IND]][seq(DAY, DAY+DAYS, by = 1)])
+    C2.E = unlist(ExposureValue.T2[[IND]][seq(DAY, DAY+DAYS, by = 1)])
     
     E.max = max(c(R.E, W.E, C1.E, C2.E))
     
@@ -106,10 +106,10 @@ Plot.PersonalExposureGraph <- function(IND, DAY, DAYS, ...)
   }
 }
 
-Plot.PersonalExposureGraph.R <- function(IND, DAY, DAYS, ...)
+Plot.PersonalExposureGraph.P <- function(IND, DAY, DAYS, ...)
 {
-  R.T = as.POSIXct(unlist(TIME.R[[IND]][seq(DAY, DAY+DAYS, by = 1)]), origin = "1970-01-01", tz = "CET")
-  R.E = unlist(ExposureValue.R[[IND]][seq(DAY, DAY+DAYS, by = 1)])
+  R.T = as.POSIXct(unlist(TIME.P[[IND]][seq(DAY, DAY+DAYS, by = 1)]), origin = "1970-01-01", tz = "CET")
+  R.E = unlist(ExposureValue.P[[IND]][seq(DAY, DAY+DAYS, by = 1)])
 
   E.max = max(R.E)
   
