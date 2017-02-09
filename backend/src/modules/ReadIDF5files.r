@@ -338,12 +338,6 @@ ExtractExposureValue.Static2 <- function(h5f_dir, locationId.BE, HOURS, ...) # M
   return (EXPWS)
 }
 
-locationId.BE.P = LocationIDs.P
-locationId.BE.S = LocationIDs.S
-locationId.BE.T1 = LocationIDs.T1
-locationId.BE.T2 = LocationIDs.T2
-  
-    
 ExtractExposureValue.Integral <- function(h5f_dir, locationId.BE.P, locationId.BE.S, locationId.BE.T1, locationId.BE.T2,
                                           HOURS.P, HOURS.S, HOURS.T1, HOURS.T2, ...) # INTEGRAL method: possible for all location phases (R,W,C1,C2) (P,S,TI,TO)
 {

@@ -263,8 +263,8 @@ rm(CRAB_Doel, Correct)
 
 pol = "no2"
 polFile = paste0(pol, "-gzip.hdf5")
-h5f_dir = file.path("..", "data", "BE", "ATMOSYS", polFile)
-#h5f_dir = file.path("F:", "ATMOSYS", polFile)
+#h5f_dir = file.path("..", "data", "BE", "ATMOSYS", polFile)
+h5f_dir = file.path("I:", "ATMOSYS", polFile)
 
 # H5close()
 # start.time = Sys.time()                    
@@ -329,7 +329,7 @@ if (Active.Type == "01.OW")
 
 ExposureValue.P[[1]][[200]]
 ExposureValue.T1[[1]][[200]]
-ExposureValue.T2[[2]][[1]]
+ExposureValue.T2[[100]][[250]]
 ExposureValue.S[[2]][[200]]
 
 WEIGHTS.T1 = WeightCommutingRouteVertices(HOURS.T1_3d, HOURS.P, Leave.P)
@@ -364,12 +364,21 @@ for (i in seq_along(RW))
 ExposureValue.S[[80]][[200]]
 #Write Exposurevalues to disk
 SaveAsDBF(ExposureValue.P, "ExposureValue_R", Active.Type)
+SaveAsDBF(ExposureValue.S, "ExposureValue_S", Active.Type)
+SaveAsDBF(ExposureValue.T1, "ExposureValue_T1", Active.Type)
+SaveAsDBF(ExposureValue.T2, "ExposureValue_T2", Active.Type)
+
 SaveAsDBF(ExposureValue.P_01.OW, "ExposureValue_R", Active.Type)
 
 #Read DBF file with ExposureValues
 ExpVal.P = list()
 ExpVal.P[[32]] = read.dbf(file.path("..", "output", Active.Type, paste0("ExposureValue_R_31.dbf")))
 ExpVal.P[[32]] = read.dbf(file.path("..", "output", Active.Type, paste0("ExposureValue_R_32.dbf")))
+
+ExpVal.T1 = list()
+ExpVal.T1[[55]] = read.dbf(file.path("..", "output", Active.Type, paste0("ExposureValue_T1_55.dbf")))
+
+ExpVal.T1[[55]][[1]]
 
 ExpVal.P.tr = transpose(ExpVal.P)
 ExpVal.P[1,2]
