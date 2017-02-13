@@ -68,41 +68,45 @@ Weighted.Static <- function(ExposureValue, CalcType, ...)
   return(EXP)
 }
 
-
 Plot.PersonalExposureGraph <- function(IND, DAY, DAYS, ...)
 {
-  
-  # Watch for bug when (corrected) Commuting route extends 1 hour.
-  #bug = max(TIMEVertex.C1[[IND]][[DAY]])-PHASES[[DAY]][IND,1]
-  if (length(TIME.S[[IND]][[DAY]]) == length(ExposureValue.S[[IND]][[DAY]]))
+  # check for same length of corresponding inputs
+  if (length(TIME.P[[IND]][[DAY]]) == length(ExposureValue.P[[IND]][[DAY]]) &
+      length(TIME.S[[IND]][[DAY]]) == length(ExposureValue.S[[IND]][[DAY]]) &
+      length(TIMEVertex.T1[[IND]][[DAY]]) == length(ExposureValue.T1[[IND]][[DAY]]) &
+      length(TIMEVertex.T2[[IND]][[DAY]]) == length(ExposureValue.T2[[IND]][[DAY]]))
   {
-    
-    #R.T = c(TIME.P[[IND]][[DAY]], TIME.P[[IND]][[DAY+1]])
+
     R.T = as.POSIXct(unlist(TIME.P[[IND]][seq(DAY, DAY+DAYS, by = 1)]), origin = "1970-01-01", tz = "CET")
     W.T = as.POSIXct(unlist(TIME.S[[IND]][seq(DAY, DAY+DAYS, by = 1)]), origin = "1970-01-01", tz = "CET")
     C1.T = as.POSIXct(unlist(TIMEVertex.T1[[IND]][seq(DAY, DAY+DAYS, by = 1)]), origin = "1970-01-01", tz = "CET")
     C2.T = as.POSIXct(unlist(TIMEVertex.T2[[IND]][seq(DAY, DAY+DAYS, by = 1)]), origin = "1970-01-01", tz = "CET")
     
-    #R.E = c(ExposureValue.P[[IND]][[DAY]], ExposureValue.P[[IND]][[DAY+1]])
     R.E = unlist(ExposureValue.P[[IND]][seq(DAY, DAY+DAYS, by = 1)])
     W.E = unlist(ExposureValue.S[[IND]][seq(DAY, DAY+DAYS, by = 1)])
     C1.E = unlist(ExposureValue.T1[[IND]][seq(DAY, DAY+DAYS, by = 1)])
     C2.E = unlist(ExposureValue.T2[[IND]][seq(DAY, DAY+DAYS, by = 1)])
     
-    E.max = max(c(R.E, W.E, C1.E, C2.E))
+    E.max = max(c(R.E, W.E, C1.E, C2.E), na.rm = TRUE)
     
-    plot(main = paste(Active.Type, "Individual", IND), x = R.T, y = R.E, col = "darkgreen", ylim=c(0, E.max+10),
-         xlab = "Time", ylab = paste(pol, "concentration (µ/m³)"), pch = 19)
+    plot(main = paste(Active.Type, "Individual", IND), x = R.T, y = R.E, col = ifelse(R.E == 0,'red','darkgreen'),
+         ylim=c(0, E.max+10), xlab = "Time", ylab = paste(pol, "concentration (µ/m³)"), pch = 19)
     points(x = W.T, y = W.E, col = "orange", pch = 19)
     points(x = C1.T, y = C1.E, col = "darkgrey", pch = 1)
     points(x = C2.T, y = C2.E, col = "darkgrey", pch = 19)
+    mtext(paste(R.T[1]+0.01, "-", tail(R.T,1)+0.01)) # day: Mo.... Th...
     
-    legend("topleft", c("Residence","Workplace", "Commuting Outwards", "Commuting Inwards"), 
-           col=c("darkgreen","orange","darkgrey","darkgrey"), pch = c(19,19,1,19))
+    abline(v=as.POSIXct("2009-03-29 02:00:00", origin = "1970-01-01", tz = "CET"), col = "orange")
+    abline(v=as.POSIXct("2009-10-25 02:00:00", origin = "1970-01-01", tz = "CET"), col = "grey")
     
+    legend("topleft", "Primary (residence)", col="darkgreen", pch = 19, box.lwd = 0, box.col = "transparent", bg="transparent", inset = c(0.00,0.005))
+    legend("topleft", "Secondary", col="orange", pch = 19, box.lwd = 0, box.col = "transparent",bg="transparent", inset = c(0.275,0.005))
+    legend("topright", "Transport Outwards", col="darkgrey", pch = 1, box.lwd = 0, box.col = "transparent", bg="transparent", inset = c(0.25,0.005))
+    legend("topright", "Transport Inwards", col="darkgrey", pch = 19, box.lwd = 0, box.col = "transparent", bg="transparent", inset = c(0.00,0.005))
+   
   } else
   {
-    stop(paste("Commuting route extends 1 hour: fix bug first."))
+    stop(paste("The TIME and ExposureValue data do not match lengths: fix bug first."))
   }
 }
 

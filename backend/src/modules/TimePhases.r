@@ -140,7 +140,7 @@ AtPrimaryOrSecondary <- function(PriOrSec, PHASES, BusinesDates, Correct, ...)
 }
 
 #PriOrSec = "Primary"
-AtPrimaryOrSecondary2 <- function(PriOrSec, PHASES, BusinesDates, ...)
+AtPrimaryOrSecondary2 <- function(PriOrSec, PHASES, Dates, Days.type, ...)
 {
   if (PriOrSec == "Primary")
   {
@@ -151,19 +151,36 @@ AtPrimaryOrSecondary2 <- function(PriOrSec, PHASES, BusinesDates, ...)
     
     for (i in seq_along(PHASES[[1]][,1]))
     {
-      for (d in seq(2, length(BusinesDates), 1))
-      #for (d in seq_along(BusinesDates))
+      if (Days.type == "Workdays")
       {
-        CEI.P2 = ceiling_date(PHASES[[d]][i,4], unit = "hours")
-
-        RESWS1[[1]] = seq(BusinesDates[1], to = PHASES[[1]][i,1], by = 1*60**2)
-        RESWS1[[d]] = seq(BusinesDates[d] + 1*60**2, to = PHASES[[d]][i,1], by = 1*60**2)
-        
-        RESWS2[[1]] = seq(ceiling_date(PHASES[[1]][i,4], unit = "hours"), to = BusinesDates[2]- 1*60**2, by = 1*60**2)
-        RESWS2[[d]] = seq(CEI.P2, to = (BusinesDates[d]+1*60**2*24) - 1*60**2, by = 1*60**2)
-        
-        RESWS[[1]] = c(RESWS1[[1]],RESWS2[[1]])
-        RESWS[[d]] = c(RESWS1[[d]],RESWS2[[d]])
+        if (Dates[1] == YearDates[1])
+        {
+          for (d in seq(2, length(Dates), 1))
+            #for (d in seq_along(Dates))
+          {
+            CEI.P2 = ceiling_date(PHASES[[d]][i,4], unit = "hours")
+            
+            RESWS1[[1]] = seq(Dates[1], to = PHASES[[1]][i,1], by = 1*60**2)
+            RESWS1[[d]] = seq(Dates[d] + 1*60**2, to = PHASES[[d]][i,1], by = 1*60**2)
+            
+            RESWS2[[1]] = seq(ceiling_date(PHASES[[1]][i,4], unit = "hours"), to = Dates[2]- 1*60**2, by = 1*60**2)
+            RESWS2[[d]] = seq(CEI.P2, to = (Dates[d]+1*60**2*24) - 1*60**2, by = 1*60**2)
+            
+            RESWS[[1]] = c(RESWS1[[1]],RESWS2[[1]])
+            RESWS[[d]] = c(RESWS1[[d]],RESWS2[[d]])
+          }
+        }#else
+      }
+      
+      if (Days.type == "Weekends")
+      {
+        if (Dates[1] != YearDates[1])
+        {
+          for (d in seq_along(Dates))
+          {
+            RESWS[[d]] = seq(Dates[d]+1*60**2, Dates[d]+1*60**2*24, by = 1*60**2)
+          }
+        }#else
       }
       
       TIME.P[[i]]= RESWS
@@ -178,7 +195,7 @@ AtPrimaryOrSecondary2 <- function(PriOrSec, PHASES, BusinesDates, ...)
     
     for (i in seq_along(PHASES[[1]][,1]))
     {
-      for (d in seq_along(BusinesDates))
+      for (d in seq_along(Dates))
       {
         CEI.S = ceiling_date(PHASES[[d]][i,2], unit = "hours")
         

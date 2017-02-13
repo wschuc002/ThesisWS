@@ -16,15 +16,16 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-## TESTED ON WINDOWS 7 (64-bit), R v3.3.2, Timezone CET
+## TESTED ON WINDOWS 7 (64-bit), 4GB RAM, R v3.3.2, Timezone CET
 
 ## TODO:  - ...
 ##        - ...
-##        - Download input data from server (Google Drive).
-##        - More residential profiles than "Office worker"
-##        - Simplify "full" OSRM method, based on duration
-##        - ?Introduce "spacetime" package and test is
-##        - ...
+##        - Improve SummaryStatistics for profile and phase type comparison.
+##        - ?More residential profiles than "Office worker", "Home Office" and "School Pupil".
+##        - Simplify "full" OSRM method, based on duration.
+##        - ?Introduce "spacetime" package and test is.
+##        - Download input data from cloud server (Google Drive or Dropbox).
+##        - Documentation
 
 ## Note 1: This script only brings different modules in modules/ together.
 ## No code belonging to one of the modules should go here.
@@ -33,43 +34,61 @@
 
 ## TERMS:
 ## PPH: Personal Place History
-## CT: Conversion Table
+## CT: Conversion Table, which is used for closest measuring point (Location IDs).
 
 #### Import modules ####
 
 #source("modules/input.r")
 source("modules/SaveAsFile.r")
-source("modules/RGBtoSingleBand.r")
 source("modules/DetermineRoutes.r")
-
 source("modules/ConversionTable.r")
 source("modules/PersonalLocationToLocationID.r")
 source("modules/LinkPointsToTime.r")
 source("modules/HourOfTheYear.r")
 source("modules/ReadIDF5files.r")
-
 source("modules/TimePhases.r")
-source("modules/WeightCR.r")
-
+source("modules/IncludeWeekends.r")
+source("modules/SecondaryRelation.r")
+source("modules/DBFreader.r")
 source("modules/SummaryStatistics.r")
 
+#source("modules/WeightCR.r")
+#source("modules/RGBtoSingleBand.r")
 #source("modules/TimeDifferenceCalculation.r")
-
 #source("modules/CumulativeExposure.r")
 
-#library("rgdal")
+rm(list.of.packages, new.packages)
 
-ndownload.AQNL("https://drive.google.com/file/d/0B5dbtjRcWbwiSU9tOUQ0TUxZR0E") # bug in downloading files from Google Drive
-unzip.AQNL("20161108_pm10_no2.zip")
+## Download data from cloud service (Dropbox)
 
-#RGBtoSingleBand("20161108_vandaag_no2_03.tiff")
-RGB.list = list.files(file.path("..", "data", "RIVM"), pattern = ".tiff" )
-for (i in RGB.list)
+install.packages('rdrop2')
+library(rdrop2)
+drop_auth()
+
+Dropbox.dir = file.path("..", "data", "Dropbox")
+if (!dir.exists(Dropbox.dir))
 {
-  RGBtoSingleBand(i)
+  dir.create(Dropbox.dir)
 }
 
-DetermineRoutesNL(c("Utrecht", "Gelderland"), 100, 1000)
+CRAB_Adressenlijst_in = "CRAB_Adressenlijst_DropboxTest.zip"
+
+if (!file.exists(Dropbox.dir) & !file.exists(shp_in))
+{
+  stop(paste("CRAB addresses not found (.shp)"))
+}
+if (!file.exists(shp_in))
+{
+  unzip(zip_in, exdir= file.path("..", "data", "BE_FL"))
+}
+
+drop_get("ThesisWS/data/CRAB_Adressenlijst.zip", file.path(Dropbox.dir, CRAB_Adressenlijst))
+
+https://dl.dropboxusercontent.com/u/56774223/ThesisWS/data/CRAB_Adressenlijst.zip
+
+## Google Drive
+
+https://drive.google.com/open?id=0B5dbtjRcWbwiMFNLTUZRNGhWbWs
 
 #### FLANDERS ####
 
@@ -104,7 +123,7 @@ FL03_SchoolPupil = "03.SP"
 FL04_XXXX = "04.XX"
 FL05_XXXX = "05.XX"
 
-Active.Type = FL01_OfficeWorker
+Active.Type = FL03_SchoolPupil
 
 OSRM.Level = "simplified" # "simplified" or "full" version of vectors in routes (OSRM package)
 
@@ -114,13 +133,10 @@ if (Active.Type != "02.HO")
 {
   dir.T1s = file.path("..", "output", paste0(Active.Type,"_TransportOutwards_",Names,"_s", ".geojson"))
   dir.T2s = file.path("..", "output", paste0(Active.Type,"_TransportInwards_",Names,"_s", ".geojson"))
-
+  
   dir.T1f = file.path("..", "output", paste0(Active.Type,"_TransportOutwards_",Names,"_f", ".geojson"))
   dir.T2f = file.path("..", "output", paste0(Active.Type,"_TransportInwards_",Names,"_f", ".geojson"))
-}
-
-if (Active.Type == "01.OW" | Active.Type == "03.SP")
-{
+  
   dir.S = file.path("..", "output", paste0(Active.Type,"_Secondary_",Names,".geojson"))
 }
 
@@ -146,9 +162,7 @@ if (Active.Type == "02.HO")
 data_in = file.path("..", "data", "BE", "ATMOSYS", "atmosys-timeseries_2.data")
 #data_in = file.path("H:", "ATMOSYS", "atmosys-timeseries_2.data")
 
-#Name = paste("CT", Names, sep = "_")
 Name = "CT"
-
 if (file.exists(file.path("..", "output", paste0(Name,".shp"))))
 {
   CT.SP = readOGR(file.path("..", "output", paste0(Name,".shp")), layer = Name) # Bug in .geojson, read .shp
@@ -159,12 +173,13 @@ if (file.exists(file.path("..", "output", paste0(Name,".shp"))))
   SaveAsFile(CT.SP, Name, "Shapefile", TRUE) #"GeoJSON"
 }
 
+# Set year of pollutant dataset, determine dates and date types (Workdays~Weekends)
 year.active = 2009
 YearDates = YearDates1(year.active)
 BusinesDates = DateType(YearDates,"Workdays")
 WeekendDates = DateType(YearDates,"Weekends")
 
-
+# Read PPH and determine the Location ID corresponding to the pollutant dataset (Spatial ConversionTable = CT.SP)
 PPH.P = readOGR(dir.P, layer = 'OGRGeoJSON')
 LocationIDs.P = PersonalLocationToLocationID(PPH.P, CT.SP, 1)
 
@@ -215,28 +230,36 @@ if (Active.Type == "01.OW" | Active.Type == "03.SP")
   as.POSIXct(PHASES[[70]][15,1], origin = "1970-01-01", tz = "CET")
   as.POSIXct(PHASES[[70]][15,2], origin = "1970-01-01", tz = "CET")
   
-  TIME.P = AtPrimaryOrSecondary2("Primary", PHASES, BusinesDates)
+  TIME.P = AtPrimaryOrSecondary2("Primary", PHASES, BusinesDates, "Workdays")
   TIME.S = AtPrimaryOrSecondary2("Secondary", PHASES, BusinesDates)
   
   TIMEVertex.T1 = LinkPointsToTime.Commuting2("Outwards", PPH.T1, LocationIDs.T1, PHASES) # Time of the Transport routes vertices Outwards
   TIMEVertex.T2 = LinkPointsToTime.Commuting2("Inwards", PPH.T2, LocationIDs.T2, PHASES) # Time of the Transport routes vertices Inwards
   
+  # Weekends
+  Include.Weekends = TRUE
+  if (Include.Weekends == TRUE)
+  {
+    TIME.P = IncludeWeekends("Primary", TIME.P, YearDates, BusinesDates, WeekendDates)
+    TIME.S = IncludeWeekends("Secondary", TIME.S, YearDates, BusinesDates, WeekendDates)
+    TIMEVertex.T1 = IncludeWeekends("T1", TIMEVertex.T1, YearDates, BusinesDates, WeekendDates)
+    TIMEVertex.T2 = IncludeWeekends("T2", TIMEVertex.T2, YearDates, BusinesDates, WeekendDates)
+  }
+  
+  # Hours of the year
   HOURS.P = HourOfTheYear4(2009, TIME.P, 0)
   HOURS.S = HourOfTheYear4(2009, TIME.S, 0)
   HOURS.T1 = HourOfTheYear4(2009, TIMEVertex.T1, 0)
   HOURS.T2 = HourOfTheYear4(2009, TIMEVertex.T2, 0)
   HOURS.T1_3d = HourOfTheYear4(2009, TIMEVertex.T1, 3)
   HOURS.T2_3d = HourOfTheYear4(2009, TIMEVertex.T2, 3)
-  
-  # Weekends
-  
 }
 
 if (Active.Type == "02.HO")
 {
-#   TIME.P = seq(YearDates[1], tail((YearDates), 1)+1*60**2*24, by = 1*60**2)
-#   length(TIME.P_test)
-#   tail((TIME.P), 2)
+  #   TIME.P = seq(YearDates[1], tail((YearDates), 1)+1*60**2*24, by = 1*60**2)
+  #   length(TIME.P_test)
+  #   tail((TIME.P), 2)
   
   Time.P = NULL
   for (d in seq(2, length(YearDates), 1))
@@ -255,68 +278,24 @@ if (Active.Type == "02.HO")
   HOURS.P = HourOfTheYear5(2009, TIME.P, 0)
 }
 
-rm(CT, CT.SP, PPH.P_in, PPH.S_in, PPH.Phases.DateTimes, PPH.Phases.Times,
-   YearDates, BusinesDates, Leave.S, Leave.P, PHASES, TimeVertex.T1, TimeVertex.T2,
- list.of.packages, new.packages)
+# Write TIME to disk
+WriteToDisk = TRUE
+if (WriteToDisk == TRUE)
+{
+  SaveAsDBF(TIME.P, "TIME_P", Active.Type)
+  SaveAsDBF(TIME.S, "TIME_S", Active.Type)
+  SaveAsDBF(TIMEVertex.T1, "TIME_T1", Active.Type)
+  SaveAsDBF(TIMEVertex.T2, "TIME_T2", Active.Type)
+}
 
-rm(CRAB_Doel, Correct)
+rm(dir.P, dir.S, dir.T1f, dir.T1s, dir.T2f, dir.T2s)
 
 pol = "no2"
 polFile = paste0(pol, "-gzip.hdf5")
-#h5f_dir = file.path("..", "data", "BE", "ATMOSYS", polFile)
-h5f_dir = file.path("I:", "ATMOSYS", polFile)
+h5f_dir = file.path("..", "data", "BE", "ATMOSYS", polFile)
+#h5f_dir = file.path("I:", "ATMOSYS", polFile)
 
-# H5close()
-# start.time = Sys.time()                    
-# ExposureValue.P_ = ExtractExposureValue.Static(h5f_dir, LocationIDs.P, HOURS.P) # LocationIDs.P[1:5]
-# end.time = Sys.time()
-# time.taken = end.time - start.time
-# time.taken # 6.7 min (5,100) # 43.8 min (100) # 47.5 min (100)
-
-# uses a quicker method with hard drive
-                  
-ExposureValue.P = ExtractExposureValue.Static2(h5f_dir, LocationIDs.P, HOURS.P) # LocationIDs.P[1:5]
-
-start.time = Sys.time()
-ExposureValue.S = ExtractExposureValue.Static(h5f_dir, LocationIDs.S, HOURS.S)
-end.time = Sys.time()
-time.taken = end.time - start.time
-time.taken # 11.5 min (5,100)
-      
-ExposureValue.P[[1]][1]
-ExposureValue.P[[25]][[2]] # [[individual#]][[BusinesDay#]]
-ExposureValue.S[[13]][[200]] # [[individual#]][[BusinesDay#]]
-
-
-# R_path = file.path("..", "output", "R.csv")
-# R_csv = write.csv(ExposureValue.P, R_path)
-
-# start.time = Sys.time()
-# ExposureValue.T1 = ExtractExposureValue.Dynamic2(h5f_dir, LocationIDs.T1, HOURS.T1)
-# end.time = Sys.time()
-# time.taken = end.time - start.time
-# time.taken # 40-50 minutes
-# 
-# ExposureValue.T1[[1]][[1]]
-# LocationIDs.T1[[1]][2]
-# 
-# start.time = Sys.time()
-# ExposureValue.T2 = ExtractExposureValue.Dynamic2(h5f_dir, LocationIDs.T2, HOURS.T2)
-# end.time = Sys.time()
-# time.taken = end.time - start.time
-# time.taken # 1 hour # 25.6 mins
-
-# Kan sneller wannneer (R,W,) C1 en C2 tegelijk worden berekend:
-start.time = Sys.time()
-ExposureValue.T12 = ExtractExposureValue.Dynamic3(h5f_dir, LocationIDs.T1, LocationIDs.T2, HOURS.T1, HOURS.T2) # LocationIDs.P[1:5]
-end.time = Sys.time()
-time.taken = end.time - start.time
-time.taken # 25 minutes (15) ,33 minutes (30), 7 hours (100), 1.5 hours (1,100, f), 3.7 hours (5,100,f)
-
-ExposureValue.T1 = ExposureValue.T12[[1]]
-ExposureValue.T2 = ExposureValue.T12[[2]]
-
-#! Test first with 1 individual only (simplified OSRM.mode)
+## Where the magic happens
 ExposureValue.All = ExtractExposureValue.Integral(h5f_dir, LocationIDs.P, LocationIDs.S, LocationIDs.T1, LocationIDs.T2,
                                                   HOURS.P, HOURS.S, HOURS.T1, HOURS.T2)
 if (Active.Type == "01.OW")
@@ -327,11 +306,79 @@ if (Active.Type == "01.OW")
   ExposureValue.T2 = ExposureValue.All[[4]]
 }
 
-ExposureValue.P[[1]][[200]]
+ExposureValue.P[[5]][[200]]
 ExposureValue.T1[[1]][[200]]
 ExposureValue.T2[[100]][[250]]
-ExposureValue.S[[2]][[200]]
+ExposureValue.S[[100]][[200]]
 
+# # TOEVOEGEN: Koppeling W aan R, zodat lenght(W)=lenght(R) | When there is a many:1 relation
+ExposureValue.S = SecondaryRelation(PPH.P, PPH.S, ExposureValue.S)
+ExposureValue.S[[80]][[203]]
+
+## num [1:v] NA -> num NA or logi NA for Transport (T1&T2)
+ExposureValue.T1 = NAWeekends(ExposureValue.T1, YearDates, BusinesDates, WeekendDates)
+ExposureValue.T2 = NAWeekends(ExposureValue.T2, YearDates, BusinesDates, WeekendDates)
+
+# Write Exposurevalues to disk
+SaveAsDBF(ExposureValue.P, "ExposureValue_P", Active.Type)
+SaveAsDBF(ExposureValue.S, "ExposureValue_S", Active.Type)
+SaveAsDBF(ExposureValue.T1, "ExposureValue_T1", Active.Type)
+SaveAsDBF(ExposureValue.T2, "ExposureValue_T2", Active.Type)
+
+ExposureValue.P_backup = ExposureValue.P
+rm(ExposureValue.P)
+
+TIME.P.backup = TIME.P
+rm(TIME.P)
+
+TIME.S.backup = TIME.S
+rm(TIME.S)
+
+#test
+test = unlist(unlist(TIME.P)) == unlist(unlist(TIME.P.backup))
+FALSE %in% test
+
+#Read DBF file with TIME 
+TIME.P = DBFreader("Time", "Primary", PPH.P, YearDates, Active.Type)
+TIME.S = DBFreader("Time", "Secondary", PPH.P, YearDates, Active.Type)
+TIMEVertex.T1 = DBFreader("Time", "T1", PPH.P, YearDates, Active.Type)
+TIMEVertex.T2 = DBFreader("Time", "T2", PPH.P, YearDates, Active.Type)
+
+ExposureValue.P = DBFreader("Exposure", "Primary", PPH.P, YearDates, Active.Type)
+ExposureValue.S = DBFreader("Exposure", "Secondary", PPH.P, YearDates, Active.Type)
+ExposureValue.T1 = DBFreader("Exposure", "T1", PPH.P, YearDates, Active.Type)
+ExposureValue.T2 = DBFreader("Exposure", "T2", PPH.P, YearDates, Active.Type)
+
+#test
+test = unlist(unlist(ExposureValue.P)) == unlist(unlist(ExposureValue.P_backup))
+test = unlist(unlist(TIME.P)) == unlist(unlist(TIME.P_backup))
+FALSE %in% test
+
+# Plotting results
+Ind = 86
+Plot.PersonalExposureGraph(Ind, 5, 5) # (Individual, Start(working)Day, Amount of days)
+Plot.PersonalExposureGraph.P(38, 6, 6)
+
+# Saving plots on hard rive
+Plot_dir = file.path("..", "output", "plots")
+if (!dir.exists(Plot_dir)) 
+{
+  dir.create(Plot_dir)
+}
+
+png(filename = file.path(Plot_dir, paste(Active.Type, "ExposureValues", "Individual", paste0(Ind, ".png"), sep = "_")),
+    width = 1208, height = 720, units = "px", pointsize = 12)
+
+#Remove all, exept...
+rm(list=setdiff(ls(), "ExposureValue.All, TIME.P, TIME.S, TIMEVertex.T1, TIMEVertex.T2,
+                HOURS.P, HOURS.S, HOURS.T1, HOURS.T2"))
+
+
+
+
+## Summary calculations
+
+# Place weights on Transport vertices
 WEIGHTS.T1 = WeightCommutingRouteVertices(HOURS.T1_3d, HOURS.P, Leave.P)
 WEIGHTS.T2 = WeightCommutingRouteVertices(HOURS.T2_3d, HOURS.S, Leave.S)
 
@@ -339,59 +386,7 @@ WEIGHTS.T1[[1]]
 sum(WEIGHTS.T1[[1]])
 tail(HOURS.T1_3d[[1]][[1]], n=1) - HOURS.T1_3d[[1]][[1]][1]
 
-# TOEVOEGEN: Koppeling W aan R, zodat lenght(W)=lenght(R) | When there is a many:1 relation
-PPH.P@data$RWlink = PPH.P@data$koppeling
-PPH.S@data$RWlink = PPH.S@data$NR
-PPH.S@data$WNR = seq_along(PPH.S)
 
-RW = NA
-for (k in seq_along(PPH.P))
-{
-  for (f in seq_along(PPH.S))
-  {
-    if (PPH.S@data$RWlink[f] == PPH.P@data$RWlink[k])
-    {
-      RW[k] = PPH.S@data$WNR[f]
-    }
-  }
-}
-
-for (i in seq_along(RW))
-{
-  ExposureValue.S[[i]] = ExposureValue.S[[RW[i]]]
-}
-
-ExposureValue.S[[80]][[200]]
-#Write Exposurevalues to disk
-SaveAsDBF(ExposureValue.P, "ExposureValue_R", Active.Type)
-SaveAsDBF(ExposureValue.S, "ExposureValue_S", Active.Type)
-SaveAsDBF(ExposureValue.T1, "ExposureValue_T1", Active.Type)
-SaveAsDBF(ExposureValue.T2, "ExposureValue_T2", Active.Type)
-
-SaveAsDBF(ExposureValue.P_01.OW, "ExposureValue_R", Active.Type)
-
-#Read DBF file with ExposureValues
-ExpVal.P = list()
-ExpVal.P[[32]] = read.dbf(file.path("..", "output", Active.Type, paste0("ExposureValue_R_31.dbf")))
-ExpVal.P[[32]] = read.dbf(file.path("..", "output", Active.Type, paste0("ExposureValue_R_32.dbf")))
-
-ExpVal.T1 = list()
-ExpVal.T1[[55]] = read.dbf(file.path("..", "output", Active.Type, paste0("ExposureValue_T1_55.dbf")))
-
-ExpVal.T1[[55]][[1]]
-
-ExpVal.P.tr = transpose(ExpVal.P)
-ExpVal.P[1,2]
-
-#SaveAsFile(HOURS.P, "HOURS.P", "csv", Active.Type)
-#SaveAsFile(ExposureValue.P, "ExposureValue.P", "csv", Active.Type)
-
-# Plotting results
-Plot.PersonalExposureGraph(1, 1, 1) # (Individual, Start(working)Day, Amount of days)
-Plot.PersonalExposureGraph.P(3, 1, 3)
-
-
-## Summary calculations
 
 # Mean per day
 HO.02.mean. = Weighted.Static(ExposureValue.P, "WeightedMean.Day")
@@ -541,8 +536,8 @@ for (i in seq_along(ExposureValue.T1)) # per individual
   #EXP.P.mean[[i]] = Exp.P.mean
   EXP.P.sum[[i]] = Exp.P.sum[[d]]
   
-#   EXP.S[[i]] = 
-#   EXP.C[[i]] = 
+  #   EXP.S[[i]] = 
+  #   EXP.C[[i]] = 
   
 }
 sum(Exp.P.sum)
@@ -569,7 +564,7 @@ plot(x=c(TIMEVertex.T1[[99]][[70]]), y=ExposureValue.T1[[99]][[70]], ylim=c(0, 1
 
 plot(x=c(TIME.P[[99]][[70]],TIME.S[[99]][[70]],TIMEVertex.T1[[99]][[70]],TIMEVertex.T2[[99]][[70]]),
      y=c(ExposureValue.P[[99]][[70]],ExposureValue.S[[99]][[70]],ExposureValue.T1[[99]][[70]],ExposureValue.T2[[99]][[70]]),
-         ylim=c(0, 100))
+     ylim=c(0, 100))
 
 
 
@@ -603,6 +598,52 @@ set.seed(12345)
 mclapply(1:30, rnorm, mc.preschedule=FALSE, mc.set.seed=FALSE)
 # something a bit bigger - albeit still useless :P
 unlist(mclapply(1:32, function(x) sum(rnorm(1e7))))
+
+
+
+
+
+#### The Netherlands ####
+
+## Convert RGB images to single band GeoTIFF
+
+#RGBtoSingleBand("20161108_vandaag_no2_03.tiff")
+RGB.list = list.files(file.path("..", "data", "RIVM"), pattern = ".tiff" )
+for (i in RGB.list)
+{
+  RGBtoSingleBand(i)
+}
+
+## Determine routes
+DetermineRoutesNL(c("Utrecht", "Gelderland"), 100, 1000)
+
+
+# H5close()
+# start.time = Sys.time()                    
+# ExposureValue.P_ = ExtractExposureValue.Static(h5f_dir, LocationIDs.P, HOURS.P) # LocationIDs.P[1:5]
+# end.time = Sys.time()
+# time.taken = end.time - start.time
+# time.taken # 6.7 min (5,100) # 43.8 min (100) # 47.5 min (100)
+
+# uses a quicker method with hard drive
+ExposureValue.P = ExtractExposureValue.Static2(h5f_dir, LocationIDs.P, HOURS.P) # LocationIDs.P[1:5]
+
+start.time = Sys.time()
+ExposureValue.S = ExtractExposureValue.Static(h5f_dir, LocationIDs.S, HOURS.S)
+end.time = Sys.time()
+time.taken = end.time - start.time
+time.taken # 11.5 min (5,100)
+
+# Kan sneller wannneer (R,W,) C1 en C2 tegelijk worden berekend:
+start.time = Sys.time()
+ExposureValue.T12 = ExtractExposureValue.Dynamic3(h5f_dir, LocationIDs.T1, LocationIDs.T2, HOURS.T1, HOURS.T2) # LocationIDs.P[1:5]
+end.time = Sys.time()
+time.taken = end.time - start.time
+time.taken # 25 minutes (15) ,33 minutes (30), 7 hours (100), 1.5 hours (1,100, f), 3.7 hours (5,100,f)
+
+ExposureValue.T1 = ExposureValue.T12[[1]]
+ExposureValue.T2 = ExposureValue.T12[[2]]
+
 
 
 
