@@ -52,20 +52,41 @@ SaveAsFile <- function(INput, Filename, Format, Active.Type, OverwriteLayer, ...
 
 SaveAsDBF <- function(INput, Filename, Active.Type, OverwriteLayer, ...)
 {
-  for (i in seq_along(INput))
-  #for (i in seq(1,5,1))  
+  if (class(INput) == "list")
   {
-    ExposureValue.R.DF = data.frame(transpose(INput[[i]]))
-    COLNAMES = c(1:length(ExposureValue.R.DF))
-    colnames(ExposureValue.R.DF) = paste0("C",COLNAMES)
-    
     Folder = file.path("..", "output", Active.Type)
     if (!dir.exists(Folder))
     {
       dir.create(file.path("..", "output", Active.Type))
     }
+    
+    for (i in seq_along(INput))
+      #for (i in seq(1,5,1))  
+    {
+      DF = data.frame(transpose(INput[[i]]))
+      
+      COLNAMES = c(1:length(DF))
+      colnames(DF) = paste0("C",COLNAMES)
+      
+      dbf_out = file.path("..", "output", Active.Type, paste(Filename, i, sep = "_"))
+      write.dbf(DF, dbf_out, factor2char = TRUE, max_nchar = 254)
+    }
+  }
   
-    dbf_out = file.path("..", "output", Active.Type, paste(Filename, i, sep = "_"))
-    write.dbf(ExposureValue.R.DF, dbf_out, factor2char = TRUE, max_nchar = 254)
-  }  
+  if (class(INput) == "data.frame")
+  {
+    Temp_dir = file.path("..", "output", "temp")
+    if (!dir.exists(Temp_dir)) 
+    {
+      dir.create(Temp_dir)
+    }
+    
+    DF = INput
+    
+    COLNAMES = c(1:length(DF))
+    colnames(DF) = paste0("C",COLNAMES)
+    
+    dbf_out = file.path(Temp_dir, Filename)
+    write.dbf(DF, dbf_out, factor2char = TRUE, max_nchar = 254)
+  }
 }

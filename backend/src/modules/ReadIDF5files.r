@@ -445,7 +445,7 @@ ExtractExposureValue.Integral <- function(h5f_dir, locationId.BE.P, locationId.B
           h5f.active = h5read(h5f_dir, as.character(a))
           
           DF = data.frame(h5f.active$data[,activeLocation_P[i]])
-          SaveAsDBF2(DF, paste("DF", activeName_P[i], activeLocation_P[i], sep = "-"))
+          SaveAsDBF(DF, paste("DF", activeName_P[i], activeLocation_P[i], sep = "-"))
         }
         
         EXP = HOURS.P[[i]] # use same structure
@@ -476,7 +476,7 @@ ExtractExposureValue.Integral <- function(h5f_dir, locationId.BE.P, locationId.B
             h5f.active = h5read(h5f_dir, as.character(a))
             
             DF = data.frame(h5f.active$data[,activeLocation_T1[[i]][v]])
-            SaveAsDBF2(DF, paste("DF", activeName_T1[[i]][v], activeLocation_T1[[i]][v], sep = "-"))
+            SaveAsDBF(DF, paste("DF", activeName_T1[[i]][v], activeLocation_T1[[i]][v], sep = "-"))
           }
           
           for (d in seq_along(HOURS.T1[[i]])) # per day
@@ -506,7 +506,7 @@ ExtractExposureValue.Integral <- function(h5f_dir, locationId.BE.P, locationId.B
             h5f.active = h5read(h5f_dir, as.character(a))
             
             DF = data.frame(h5f.active$data[,activeLocation_T2[[i]][v]])
-            SaveAsDBF2(DF, paste("DF", activeName_T2[[i]][v], activeLocation_T2[[i]][v], sep = "-"))
+            SaveAsDBF(DF, paste("DF", activeName_T2[[i]][v], activeLocation_T2[[i]][v], sep = "-"))
           }
           
           for (d in seq_along(HOURS.T2[[i]])) # per day
@@ -539,7 +539,7 @@ ExtractExposureValue.Integral <- function(h5f_dir, locationId.BE.P, locationId.B
           h5f.active = h5read(h5f_dir, as.character(a))
           
           DF = data.frame(h5f.active$data[,activeLocation_S[s]])
-          SaveAsDBF2(DF, paste("DF", activeName_S[s], activeLocation_S[s], sep = "-"))
+          SaveAsDBF(DF, paste("DF", activeName_S[s], activeLocation_S[s], sep = "-"))
         }
         
         EXP = HOURS.S[[s]] # use same structure

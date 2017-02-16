@@ -29,6 +29,8 @@ library(osrm)
 
 library(SearchTrees)
 
+
+
 DetermineAddressGoals_FL <- function(FL.Gemeente, Method.nr, ... )
 {
   ## Read the input data
@@ -109,6 +111,29 @@ DetermineAddressGoals_FL <- function(FL.Gemeente, Method.nr, ... )
   
   #CRAB_Doel[CRAB_Doel@data$DOEL %in% "Agrarische functie",]
   
+  # Companies
+  zip_in = file.path("..", "data", "BE_FL", "KboOpenData_0036_2017_01_Full.zip")
+  csv.companies_in = file.path("..", "data", "BE_FL", "address.csv")
+  
+  # Check if input data is available
+  if (!file.exists(zip_in) & !file.exists(csv.companies_in))
+  {
+    stop(paste("CRAB addresses not found (.shp)"))
+  }
+  if (!file.exists(csv.companies_in))
+  {
+    unzip(zip_in, "address.csv", exdir= file.path("..", "data", "BE_FL")) #! Select only addresses.csv instead of unpacking all csv files
+  }
+  
+  Companies = fread(csv.companies_in, sep="auto", header=TRUE, #integer64 = "numeric",
+                    select = c("Zipcode", "MunicipalityFR", "StreetFR", "HouseNumber")) # 64-bit only.  This will take about x minutes.
+  
+  CRAB_Doel@data$DOEL[tolower(paste0(CRAB_Doel@data$POSTCODE, CRAB_Doel@data$STRAATNM, CRAB_Doel@data$HUISNR)) %in% 
+                        tolower(paste0(Companies$Zipcode, Companies$StreetFR, Companies$HouseNumber))] = "Company"
+  
+  CRAB_Doel@data[CRAB_Doel@data$DOEL %in% "Company",] # VIEW
+  
+  
   csv.onderwijs.basis_in = file.path("..", "data", "BE_FL", "FL_onderwijs_basis.csv")
   Onderwijs.Basis = fread(csv.onderwijs.basis_in, sep="auto", header=TRUE, #integer64 = "numeric",
                           select = c("crab-code", "straat", "crab-huisnr", "crab-busnr", "gemeente", "Lx", "Ly", "postcode")) # 64-bit only.  This will take about x minutes.
@@ -170,15 +195,23 @@ DetermineAddressGoals_FL <- function(FL.Gemeente, Method.nr, ... )
     Onderwijs.Basis$NUMMERTJE = paste0(Onderwijs.Basis[["crab-huisnr"]],Onderwijs.Basis[["crab-busnr"]])
     head(Onderwijs.Basis$NUMMERTJE, 100)
     
-    CRAB_Doel@data$DOEL[tolower(paste0(CRAB_Doel@data$POSTCODE, CRAB_Doel@data$STRAATNM, CRAB_Doel@data$HUISNR)) %in% 
-                          tolower(paste0(Onderwijs.Basis$postcode,Onderwijs.Basis$straat, Onderwijs.Basis$NUMMERTJE))] = "Basisonderwijs"
+    sub.Basis = tolower(paste0(CRAB_Doel@data$GEMEENTE, CRAB_Doel@data$STRAATNM, CRAB_Doel@data$HUISNR)) %in%
+      tolower(paste0(Onderwijs.Basis$gemeente, Onderwijs.Basis$straat, Onderwijs.Basis$NUMMERTJE))
+    summary(sub.Basis)
     
-    CRAB_Doel[CRAB_Doel@data$DOEL %in% "Basisonderwijs",] # VIEW
+    CRAB_Doel@data$DOEL[sub.Basis] = "Basisonderwijs"
+    CRAB_Doel@data[CRAB_Doel@data$DOEL %in% "Basisonderwijs",] # VIEW
     
     # check on numbers (total Flanders only)
     length(Onderwijs.Basis[[1]]) == length(CRAB_Doel[CRAB_Doel@data$DOEL %in% "Basisonderwijs",])
     delta = length(Onderwijs.Basis[[1]]) - length(CRAB_Doel[CRAB_Doel@data$DOEL %in% "Basisonderwijs",])
     paste("Missing",delta, "features.")
+    
+    # for subset
+    nrow(Onderwijs.Basis[Onderwijs.Basis$gemeente == toupper(FL.Gemeente)])
+    nrow(CRAB_Doel@data[CRAB_Doel@data$DOEL %in% "Basisonderwijs",])
+
+    
     
     ## Secondary schools
     
@@ -186,11 +219,20 @@ DetermineAddressGoals_FL <- function(FL.Gemeente, Method.nr, ... )
     Onderwijs.Secundair$NUMMERTJE = paste0(Onderwijs.Secundair[["crab-huisnr"]],Onderwijs.Secundair[["crab-busnr"]])
     head(Onderwijs.Secundair$NUMMERTJE, 100)
     
-    CRAB_Doel@data$DOEL[tolower(paste0(CRAB_Doel@data$POSTCODE, CRAB_Doel@data$STRAATNM, CRAB_Doel@data$HUISNR)) %in% 
-                          tolower(paste0(Onderwijs.Secundair$postcode,Onderwijs.Secundair$straat, Onderwijs.Secundair$NUMMERTJE))] = "Secundair onderwijs"
+#     CRAB_Doel@data$DOEL[tolower(paste0(CRAB_Doel@data$POSTCODE, CRAB_Doel@data$STRAATNM, CRAB_Doel@data$HUISNR)) %in% 
+#                           tolower(paste0(Onderwijs.Secundair$postcode,Onderwijs.Secundair$straat, Onderwijs.Secundair$NUMMERTJE))] = "Secundair onderwijs"
+#     
+#     CRAB_Doel[CRAB_Doel@data$DOEL %in% "Secundair onderwijs",] # VIEW
     
-    CRAB_Doel[CRAB_Doel@data$DOEL %in% "Secundair onderwijs",] # VIEW
+    sub.Secundair = tolower(paste0(CRAB_Doel@data$GEMEENTE, CRAB_Doel@data$STRAATNM, CRAB_Doel@data$HUISNR)) %in%
+      tolower(paste0(Onderwijs.Secundair$gemeente, Onderwijs.Secundair$straat, Onderwijs.Secundair$NUMMERTJE))
+    summary(sub.Secundair)
     
+    CRAB_Doel@data$DOEL[sub.Secundair] = "Secundair onderwijs"
+    CRAB_Doel@data[CRAB_Doel@data$DOEL %in% "Secundair onderwijs",] # VIEW
+  
+    CRAB_Doel@data[CRAB_Doel@data$DOEL %in% c("Basisonderwijs", "Secundair onderwijs"),] # VIEW Basis and Secundair
+  
     #     # check on numbers
     #     length(Onderwijs.Secundair[[1]]) == length(CRAB_Doel[CRAB_Doel@data$DOEL %in% "Secundair onderwijs",])
     #     delta = length(Onderwijs.Secundair[[1]]) - length(CRAB_Doel[CRAB_Doel@data$DOEL %in% "Secundair onderwijs",])
@@ -276,28 +318,6 @@ DetermineAddressGoals_FL <- function(FL.Gemeente, Method.nr, ... )
   #   CRAB_Doel[5000:7000,]
   
   
-  # Companies
-  zip_in = file.path("..", "data", "BE_FL", "KboOpenData_0036_2017_01_Full.zip")
-  csv.companies_in = file.path("..", "data", "BE_FL", "address.csv")
-  
-  # Check if input data is available
-  if (!file.exists(zip_in) & !file.exists(csv.companies_in))
-  {
-    stop(paste("CRAB addresses not found (.shp)"))
-  }
-  if (!file.exists(csv.companies_in))
-  {
-    unzip(zip_in, "address.csv", exdir= file.path("..", "data", "BE_FL")) #! Select only addresses.csv instead of unpacking all csv files
-  }
-  
-  Companies = fread(csv.companies_in, sep="auto", header=TRUE, #integer64 = "numeric",
-                    select = c("Zipcode", "MunicipalityFR", "StreetFR", "HouseNumber")) # 64-bit only.  This will take about x minutes.
-  
-  CRAB_Doel@data$DOEL[tolower(paste0(CRAB_Doel@data$POSTCODE, CRAB_Doel@data$STRAATNM, CRAB_Doel@data$HUISNR)) %in% 
-                        tolower(paste0(Companies$Zipcode, Companies$StreetFR, Companies$HouseNumber))] = "Company"
-  
-  CRAB_Doel[CRAB_Doel@data$DOEL %in% "Company",] # VIEW
-  
   
   # Replace all NA with "Woonfunctie" (assuming all other addresses are Residence)
   CRAB_Doel@data$DOEL[is.na(CRAB_Doel@data$DOEL)] = "Woonfunctie"
@@ -306,36 +326,41 @@ DetermineAddressGoals_FL <- function(FL.Gemeente, Method.nr, ... )
   #tail(CRAB_Doel@data[!duplicated(CRAB_Doel@data[ , 2:4 ]), ])
   #tail(CRAB_Doel)
   
-  CRAB.unique = CRAB_Doel[!duplicated(CRAB_Doel@data[ , 2:4 ]), ]
+  CRAB.unique = CRAB_Doel[!duplicated(CRAB_Doel@data[ , 2:6 ]), ]
   #tail(CRAB.unique)
+  CRAB.unique@data[CRAB.unique@data$DOEL %in% "Basisonderwijs",] # VIEW
+
+  CRAB.unique@proj4string = BE_crs
   
   return(CRAB.unique)
 }
 
 
 #Names.sub = Names
-#FL.residence = 10
+#FL.primary = 100
 #FL.secondary = 100
-#OSRM.level = OSRM.Level
+#OSRM.level = "full"
 
-DeterminePPH_FL <- function(CRAB_Doel, Names.sub, FL.residence, FL.secondary, OSRM.level, Active.Type, ... )
+DeterminePPH_FL <- function(CRAB_Doel, Names.sub, FL.primary, FL.secondary, OSRM.level, Active.Type, ... )
 {
+  BE_epsg = "+init=epsg:31370"
+  BE_crs = CRS(BE_epsg)
   
   # Create the attribute "object_id" (verplaatsen naar andere functie)
   CRAB_Doel@data["object_id"] = seq.int(nrow(CRAB_Doel@data))
   
-  ## Subset: only Residence
-  Residence = subset(CRAB_Doel, CRAB_Doel@data$DOEL == "Woonfunctie")
+  ## Subset: only Primary
+  Primary = subset(CRAB_Doel, CRAB_Doel@data$DOEL == "Woonfunctie")
   
   ## Pick x random redidence object_id and make a subset
-  RandObj_Re = sample(Residence@data$object_id, FL.residence)
+  RandObj_Re = sample(Primary@data$object_id, FL.primary)
   keeps_RS_Re = RandObj_Re
-  Residence_KEEPS = Residence@data$object_id %in% keeps_RS_Re
-  Residence_random = subset(Residence, Residence_KEEPS)
+  Primary_KEEPS = Primary@data$object_id %in% keeps_RS_Re
+  Primary_random = subset(Primary, Primary_KEEPS)
   
   if (Active.Type == "02.HO")
   {
-    SaveAsFile(Residence_random, paste0(Active.Type,"_Residence_", Names.sub), "GeoJSON", TRUE)
+    SaveAsFile(Primary_random, paste0(Active.Type,"_Primary_", Names.sub), "GeoJSON", TRUE)
   }
   
   #Subset: only Offices
@@ -351,15 +376,15 @@ DeterminePPH_FL <- function(CRAB_Doel, Names.sub, FL.residence, FL.secondary, OS
   if (Active.Type == "03.SP")
   {
     #Secondary = subset(CRAB_Doel, CRAB_Doel@data$DOEL == "Basisonderwijs")
-    Secondary = CRAB_Doel[CRAB_Doel@data$DOEL %in% "Basisonderwijs" | CRAB_Doel@data$DOEL %in% "Secundair onderwijs" ,]
-    Mean.distance = 0.001 #closest school
+    Secondary = CRAB_Doel[CRAB_Doel@data$DOEL %in% "Basisonderwijs",] # CRAB_Doel@data$DOEL %in% "Secundair onderwijs" 
+    Mean.distance = 1 #closest school
     SD.distance = 10
   }
   
   if (Active.Type != "02.HO")
   {
     ## Pick x random Secondary object_id and make a subset
-    RandObj_Se = sample(Secondary@data$object_id, FL.secondary)
+    RandObj_Se = sample(Secondary@data$object_id, nrow(Secondary))
     keeps_RS_Se = RandObj_Se
     Secondary_KEEPS = Secondary@data$object_id %in% keeps_RS_Se
     Secondary_random = subset(Secondary, Secondary_KEEPS)
@@ -368,90 +393,91 @@ DeterminePPH_FL <- function(CRAB_Doel, Names.sub, FL.residence, FL.secondary, OS
     Secondary_random = Secondary_random[!duplicated(Secondary_random@data$object_id),]
     
     ## Create distance matrix
-    DIST_GEO = matrix(data=NA, nrow=length(Residence_random), ncol=length(Secondary_random)) # empty/NA matrix
-    for (z in seq(1, length(Residence_random), by=1))
+    DIST_GEO = matrix(data=NA, nrow=length(Primary_random), ncol=length(Secondary_random)) # empty/NA matrix
+    for (z in seq(1, length(Primary_random), by=1))
     {
       for (w in seq(1, length(Secondary_random), by=1))
       {
-        DIST_GEO[z,w] = gDistance(Residence_random[z,],Secondary_random[w,]) #[Residence,Secondary]
+        DIST_GEO[z,w] = gDistance(Primary_random[z,],Secondary_random[w,]) #[Primary,Secondary]
       }
     }
     
     ## Select pair, based on prob distribution of commuting distance (CD)
     
     # prob distribution of CD
-    prob_CD = rnorm(1000, mean = Mean.distance, sd = SD.distance) 
-    prob_CD = prob_CD[prob_CD > 200] # remove the large distances
+    prob_CD = abs(rnorm(1000, mean = Mean.distance, sd = SD.distance))
+    prob_CD = prob_CD[prob_CD < 200] # remove the large distances
     #hist(prob_CD, probability=TRUE)
     #CD = seq(min(prob_CD), max(prob_CD), length=28)
     #lines(CD, dnorm(CD, mean=28000, sd=10000))
     
-    # Extract the pair numbers Residence~Secondary (ex: 1~24, 2~35) (test group can be collegues)
+    # Extract the pair numbers Primary~Secondary (ex: 1~24, 2~35) (test group can be collegues)
     ResWor=0
-    for (z in seq(1, length(Residence_random), by=1))
+    for (z in seq(1, length(Primary_random), by=1))
     {
       RV = sample(prob_CD, size=1)
       ResWor[z] = which.min(abs(RV-DIST_GEO[z,]))
     }
     
     # Giving the pairs to the datasets
-    Residence_random_kopp = Residence_random
-    Residence_random_kopp@data$koppeling = ResWor
+    Primary_random_kopp = Primary_random
+    Primary_random_kopp@data$koppeling = ResWor
     
     # Give the WSResID
-    Residence_random_kopp@data$WSResID = 1:length(Residence_random_kopp)
+    Primary_random_kopp@data$WSResID = 1:length(Primary_random_kopp)
     
     # Delete the Workplaces in SPDF that are not paires (these residuals are not used)
     Secondary_random@data$NR = seq(length(Secondary_random))
     
-    keeps_WP = Residence_random_kopp@data$koppeling
+    keeps_WP = Primary_random_kopp@data$koppeling
     Secondary_KEEPS2 = Secondary_random@data$NR %in% keeps_WP
     Secondary_random_NR = subset(Secondary_random, Secondary_KEEPS2)
     
-    SaveAsFile(Residence_random_kopp, paste0(Active.Type,"_Residence_", Names.sub), "GeoJSON", TRUE)
+    Primary_random_kopp@proj4string = BE_crs
+    Secondary_random_NR@proj4string = BE_crs
+    
+    SaveAsFile(Primary_random_kopp, paste0(Active.Type,"_Primary_", Names.sub), "GeoJSON", TRUE)
     SaveAsFile(Secondary_random_NR, paste0(Active.Type,"_Secondary_", Names.sub), "GeoJSON", TRUE)
     
     # Transform RD new -> WGS84 for the route calculation (OSRM)
     WGS84 = "+init=epsg:4326"
-    Residence_random_kopp_WGS84 = Residence_random_kopp
-    Residence_random_kopp_WGS84_T <- spTransform(Residence_random_kopp, WGS84)
+    Primary_random_kopp_WGS84 = Primary_random_kopp
+    Primary_random_kopp_WGS84_T <- spTransform(Primary_random_kopp, WGS84)
     
     Secondary_random_NR_WGS84 = Secondary_random_NR
     Secondary_random_NR_WGS84_T <- spTransform(Secondary_random_NR, WGS84)
     
     # Copy @data and add the coordinates to the new dataframe (...2)
-    Residence_random_kopp_WGS84_T2 = Residence_random_kopp_WGS84_T@data
-    Residence_random_kopp_WGS84_T2$lon1 = Residence_random_kopp_WGS84_T@coords[,1]
-    Residence_random_kopp_WGS84_T2$lat1 = Residence_random_kopp_WGS84_T@coords[,2]
+    Primary_random_kopp_WGS84_T2 = Primary_random_kopp_WGS84_T@data
+    Primary_random_kopp_WGS84_T2$lon1 = Primary_random_kopp_WGS84_T@coords[,1]
+    Primary_random_kopp_WGS84_T2$lat1 = Primary_random_kopp_WGS84_T@coords[,2]
     
     Secondary_random_NR_WGS84_T2 = Secondary_random_NR_WGS84_T@data
     Secondary_random_NR_WGS84_T2$lon2 = Secondary_random_NR_WGS84_T@coords[,1]
     Secondary_random_NR_WGS84_T2$lat2 = Secondary_random_NR_WGS84_T@coords[,2]
     
-    ## Merge Residence with Workplace and order on Residence (WSResID)
-    RESWOR = merge(Residence_random_kopp_WGS84_T2,Secondary_random_NR_WGS84_T2, by.x= "koppeling", by.y="NR")
+    ## Merge Primary with Workplace and order on Primary (WSResID)
+    RESWOR = merge(Primary_random_kopp_WGS84_T2,Secondary_random_NR_WGS84_T2, by.x= "koppeling", by.y="NR")
     RESWOR = setorder(RESWOR, cols=WSResID)
     
-    BE_crs = "+init=epsg:31370"
-    
     ## Generate Commuting Routes (CR)
-    # Outwards (Residence -> Secondary)
+    # Outwards (Primary -> Secondary)
     CommutingRoutes1 = list()
     CommutingRoutes2 = list()
-    for (i in seq_along(Residence_random_kopp_WGS84_T))
+    for (i in seq_along(Primary_random_kopp_WGS84_T))
     {
       RES = c(paste("RES",i,sep="_"), RESWOR["lon1"][i,], RESWOR["lat1"][i,])
       WOR = c(paste("WOR",RESWOR["koppeling"][i,],sep="_"), RESWOR["lon2"][i,], RESWOR["lat2"][i,])
       
       CommutingRoutes1[i] = osrmRoute(src= RES, dst = WOR, overview = OSRM.level, # "full"/"simplified"
                                       sp = TRUE)
-      CommutingRoutes1[[i]] = spTransform(CommutingRoutes1[[i]], BE_crs)
+      CommutingRoutes1[[i]] = spTransform(CommutingRoutes1[[i]], BE_epsg)
       CommutingRoutes1[[i]]@lines[[1]]@ID = paste(CommutingRoutes1[[i]]@lines[[1]]@ID,i)
       row.names(CommutingRoutes1[[i]]) = as.character(i)
       
       CommutingRoutes2[i] = osrmRoute(src= WOR, dst = RES, overview = OSRM.level, # "full"/"simplified"
                                       sp = TRUE)
-      CommutingRoutes2[[i]] = spTransform(CommutingRoutes2[[i]], BE_crs)
+      CommutingRoutes2[[i]] = spTransform(CommutingRoutes2[[i]], BE_epsg)
       CommutingRoutes2[[i]]@lines[[1]]@ID = paste(CommutingRoutes2[[i]]@lines[[1]]@ID,i)
       row.names(CommutingRoutes2[[i]]) = as.character(i)
     }
@@ -459,7 +485,7 @@ DeterminePPH_FL <- function(CRAB_Doel, Names.sub, FL.residence, FL.secondary, OS
     # Convert large list to a SpatialLinesDataFrame with all the Commuting Routes
     CommutingRoutes1_SLDF = CommutingRoutes1[[1]]
     CommutingRoutes2_SLDF = CommutingRoutes2[[1]]
-    for (i in seq(2, length(Residence_random_kopp_WGS84_T), by=1))
+    for (i in seq(2, length(Primary_random_kopp_WGS84_T), by=1))
     {
       CommutingRoutes1_SLDF = rbind(CommutingRoutes1_SLDF, CommutingRoutes1[[i]])
       CommutingRoutes2_SLDF = rbind(CommutingRoutes2_SLDF, CommutingRoutes2[[i]])
@@ -468,8 +494,11 @@ DeterminePPH_FL <- function(CRAB_Doel, Names.sub, FL.residence, FL.secondary, OS
     CommutingRoutes1_SLDF@data["PersonID"] = seq.int(CommutingRoutes1_SLDF)
     CommutingRoutes2_SLDF@data["PersonID"] = seq.int(CommutingRoutes2_SLDF)
     
-    SaveAsFile(CommutingRoutes1_SLDF, paste0(Active.Type,"_CommutingRoutesOutwards_", Names.sub, "_", substr(OSRM.level, 1, 1)), "GeoJSON", TRUE)
-    SaveAsFile(CommutingRoutes2_SLDF, paste0(Active.Type,"_CommutingRoutesInwards_", Names.sub, "_", substr(OSRM.level, 1, 1)), "GeoJSON", TRUE)
+    #CommutingRoutes1_SLDF@proj4string = BE_crs
+    #CommutingRoutes2_SLDF@proj4string = BE_crs
+    
+    SaveAsFile(CommutingRoutes1_SLDF, paste0(Active.Type,"_TransportOutwards_", Names.sub, "_", substr(OSRM.level, 1, 1)), "GeoJSON", TRUE)
+    SaveAsFile(CommutingRoutes2_SLDF, paste0(Active.Type,"_TransportInwards_", Names.sub, "_", substr(OSRM.level, 1, 1)), "GeoJSON", TRUE)
     
   }
   

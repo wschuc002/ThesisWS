@@ -61,34 +61,34 @@ rm(list.of.packages, new.packages)
 
 ## Download data from cloud service (Dropbox)
 
-install.packages('rdrop2')
-library(rdrop2)
-drop_auth()
-
-Dropbox.dir = file.path("..", "data", "Dropbox")
-if (!dir.exists(Dropbox.dir))
-{
-  dir.create(Dropbox.dir)
-}
-
-CRAB_Adressenlijst_in = "CRAB_Adressenlijst_DropboxTest.zip"
-
-if (!file.exists(Dropbox.dir) & !file.exists(shp_in))
-{
-  stop(paste("CRAB addresses not found (.shp)"))
-}
-if (!file.exists(shp_in))
-{
-  unzip(zip_in, exdir= file.path("..", "data", "BE_FL"))
-}
-
-drop_get("ThesisWS/data/CRAB_Adressenlijst.zip", file.path(Dropbox.dir, CRAB_Adressenlijst))
-
-https://dl.dropboxusercontent.com/u/56774223/ThesisWS/data/CRAB_Adressenlijst.zip
-
-## Google Drive
-
-https://drive.google.com/open?id=0B5dbtjRcWbwiMFNLTUZRNGhWbWs
+# install.packages('rdrop2')
+# library(rdrop2)
+# drop_auth()
+# 
+# Dropbox.dir = file.path("..", "data", "Dropbox")
+# if (!dir.exists(Dropbox.dir))
+# {
+#   dir.create(Dropbox.dir)
+# }
+# 
+# CRAB_Adressenlijst_in = "CRAB_Adressenlijst_DropboxTest.zip"
+# 
+# if (!file.exists(Dropbox.dir) & !file.exists(shp_in))
+# {
+#   stop(paste("CRAB addresses not found (.shp)"))
+# }
+# if (!file.exists(shp_in))
+# {
+#   unzip(zip_in, exdir= file.path("..", "data", "BE_FL"))
+# }
+# 
+# drop_get("ThesisWS/data/CRAB_Adressenlijst.zip", file.path(Dropbox.dir, CRAB_Adressenlijst))
+# 
+# https://dl.dropboxusercontent.com/u/56774223/ThesisWS/data/CRAB_Adressenlijst.zip
+# 
+# ## Google Drive
+# 
+# https://drive.google.com/open?id=0B5dbtjRcWbwiMFNLTUZRNGhWbWs
 
 #### FLANDERS ####
 
@@ -145,7 +145,7 @@ if (OSRM.Level != "full" & OSRM.Level != "simplified")
   stop(paste("OSRM.Level should be 'full' or 'simplified'."))
 }
 
-if (Active.Type == "02.HO")
+if (Active.Type != "02.HO")
 {
   if (!file.exists(dir.P))
   {
@@ -178,6 +178,7 @@ year.active = 2009
 YearDates = YearDates1(year.active)
 BusinesDates = DateType(YearDates,"Workdays")
 WeekendDates = DateType(YearDates,"Weekends")
+#HolidayDates = DateType(YearDates,"Holidays")
 
 # Read PPH and determine the Location ID corresponding to the pollutant dataset (Spatial ConversionTable = CT.SP)
 PPH.P = readOGR(dir.P, layer = 'OGRGeoJSON')
@@ -298,7 +299,7 @@ h5f_dir = file.path("..", "data", "BE", "ATMOSYS", polFile)
 ## Where the magic happens
 ExposureValue.All = ExtractExposureValue.Integral(h5f_dir, LocationIDs.P, LocationIDs.S, LocationIDs.T1, LocationIDs.T2,
                                                   HOURS.P, HOURS.S, HOURS.T1, HOURS.T2)
-if (Active.Type == "01.OW")
+if (Active.Type != "02.HO")
 {
   ExposureValue.P = ExposureValue.All[[1]]
   ExposureValue.S = ExposureValue.All[[2]]
@@ -307,7 +308,7 @@ if (Active.Type == "01.OW")
 }
 
 ExposureValue.P[[5]][[200]]
-ExposureValue.T1[[1]][[200]]
+ExposureValue.T1[[1]][[204]]
 ExposureValue.T2[[100]][[250]]
 ExposureValue.S[[100]][[200]]
 
@@ -355,8 +356,8 @@ test = unlist(unlist(TIME.P)) == unlist(unlist(TIME.P_backup))
 FALSE %in% test
 
 # Plotting results
-Ind = 86
-Plot.PersonalExposureGraph(Ind, 5, 5) # (Individual, Start(working)Day, Amount of days)
+Ind = 72
+Plot.PersonalExposureGraph(Ind, 47, 5) # (Individual, Start(working)Day, Amount of days)
 Plot.PersonalExposureGraph.P(38, 6, 6)
 
 # Saving plots on hard rive
