@@ -84,13 +84,49 @@ MakeCTSpatial <- function(CT, ...)
   CT.SP = CT
   coordinates(CT.SP)<-~x_31370+y_31370
   
-  BE_crs = CRS("+init=epsg:31370")
   CT.SP@proj4string = BE_crs
-  #plot(CT.SP)
-  #with(CT.SP[CT.SP@data$id < 100], plot(CT.SP))
   
-  ## rasterize the data-file (make spatial)
-  #raster_CT.SP = raster(CT.SP)
-  #raster_CT.SP@data@values = CT.SP@data$id
-  return(CT.SP)
+  #return(CT.SP)
+  
+  CT.SPDF = SpatialPointsDataFrame(CT[,c("x_31370", "y_31370")], CT[,c("id", "location")])
+  CT.SPDF@proj4string = BE_crs
+  
+  return(CT.SPDF)
+}
+
+SubsetCTSpatial <- function(CT.SPDF, Subset.Gemeente, ...)
+{
+  BE_crs = CRS("+init=epsg:31370")
+  
+  ## CT subset
+  zip_in = file.path("..", "data", "BE_FL", "gismonitor2015.zip")
+  shp_in = file.path("..", "data", "BE_FL", "monitor2015.shp")
+  
+  # Check if input data is available
+  if (!file.exists(zip_in) & !file.exists(shp_in))
+  {
+    stop(paste("File(s) not found (.shp)"))
+  }
+  if (!file.exists(shp_in))
+  {
+    unzip(zip_in, file = c("monitor2015.shp","monitor2015.prj", "monitor2015.dbf", "monitor2015.shx"),
+          exdir= file.path("..", "data", "BE_FL"))
+  }
+  
+  Municipalities = readOGR(shp_in, layer = "monitor2015")
+  Municipalities = Municipalities[Municipalities@data$NAAM %in% Subset.Gemeente,] # filter columns
+  
+  Municipalities@proj4string = BE_crs
+  CT.SP = gIntersection(CT.SPDF, Municipalities, byid = T)
+  #return(CT.SPDF)
+  
+  #o = over(CT.SP, Municipalities)
+  #CT.SPDF = CT.SPDF[!is.na(o$NAAM),] # subset
+  CT.SPDF = CT.SPDF[CT.SP,] # subset
+  #plot(CT.SPDF)
+  
+  #CT.SPDF@data$naam = NA
+  #CT.SPDF@data$naam = o$NAAM
+  #CT.SPDF[o$NAAM %in% Subset.Gemeente,] # subset
+  return(CT.SPDF)
 }

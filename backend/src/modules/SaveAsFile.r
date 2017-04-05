@@ -48,6 +48,12 @@ SaveAsFile <- function(INput, Filename, Format, Active.Type, OverwriteLayer, ...
     write.csv(INput, csv_out, eol = "\n")
   }
   
+  if (Format == "GeoTIFF")
+  {
+    GTiff_out = file.path("..", "output", Filename)
+    writeRaster(INput, GTiff_out, "GTiff", overwrite = OverwriteLayer)
+  }
+  
 }
 
 SaveAsDBF <- function(INput, Filename, Active.Type, OverwriteLayer, ...)

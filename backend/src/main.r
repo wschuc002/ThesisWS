@@ -52,6 +52,8 @@ source("modules/SecondaryRelation.r")
 source("modules/DBFreader.r")
 source("modules/SummaryStatistics.r")
 
+source("modules/Interpolate.r")
+
 #source("modules/WeightCR.r")
 #source("modules/RGBtoSingleBand.r")
 #source("modules/TimeDifferenceCalculation.r")
@@ -95,41 +97,45 @@ rm(list.of.packages, new.packages)
 ### General ###
 # Use the official address database of Flanders and add the correct attribute 'Goal of use'
 
-Subset.Gemeente = c("Gent","Antwerpen") # empty = "" = no subset = all municipalities | c("Gent","Antwerpen")
-Names = paste(Subset.Gemeente, collapse="_")
-Name = paste("CRAB_Doel", Names, sep = "_")
+Subset.Gemeente = NULL # empty = NULL = no subset = all municipalities |  example subset: c("Gent","Antwerpen")
+Subset.Gemeente = "Antwerpen"
 
-if (file.exists(file.path("..", "output", paste0("CRAB_Doel_",Names,".shp"))))
+BE_crs = CRS("+init=epsg:31370")
+
+if (is.null(Subset.Gemeente))
 {
-  CRAB_Doel = readOGR(file.path("..", "output", paste0(Name,".shp")), layer = Name) # Bug in .geojson, read .shp
+  Names = paste("")
+  Name = paste("CRAB_Doel")
 } else
 {
-  if (Subset.Gemeente == "")
-  {
-    CRAB_Doel = DetermineAddressGoals_FL(2)
-  } else
-  {
-    CRAB_Doel = DetermineAddressGoals_FL(Subset.Gemeente,2)
-  }
+  Names = paste(Subset.Gemeente, collapse="_")
+  Name = paste("CRAB_Doel", Names, sep = "_")
+}
+
+if (file.exists(file.path("..", "output", paste0(Name,".shp"))))
+{
+  CRAB_Doel = readOGR(file.path("..", "output", paste0(Name,".shp")), layer = Name, p4s = BE_crs) # Bug in .geojson, read .shp
+} else
+{
+  CRAB_Doel = DetermineAddressGoals_FL(Subset.Gemeente,2)
   SaveAsFile(CRAB_Doel, Name, "Shapefile", TRUE) #"GeoJSON"
 }
 
-## 
+# read Residential profile CSV
+csv.ResidentialProfiles_in = file.path("..", "data", "ResidentialProfiles.csv")
+ResidentialProfiles = fread(csv.ResidentialProfiles_in, sep=",", header=TRUE)
 
-# Residential-Behavourial types
-FL01_OfficeWorker = "01.OW"
-FL02_HomeOffice = "02.HO"
-FL03_SchoolPupil = "03.SP"
-FL04_XXXX = "04.XX"
-FL05_XXXX = "05.XX"
-
-Active.Type = FL03_SchoolPupil
+# Select active Residential Profile
+Active.Type = "02.HO"
+Active.Profile = ResidentialProfiles[ResidentialProfiles$Abbreviation == Active.Type,]
 
 OSRM.Level = "simplified" # "simplified" or "full" version of vectors in routes (OSRM package)
 
-dir.P = file.path("..", "output", paste0(Active.Type,"_Primary_",Names,".geojson"))
+# dir.P = file.path("..", "output", paste0(Active.Type,"_Primary_",Names,".geojson"))
+# dir.P = file.path("..", "output", paste0(paste(Active.Type,"Primary",Names, sep = "_"),".geojson"))
+dir.P = file.path("..", "output", paste(Active.Type, paste0("Primary", Names,".geojson"), sep = "_"))
 
-if (Active.Type != "02.HO")
+if (Active.Profile$Dynamics == "dynamic")
 {
   dir.T1s = file.path("..", "output", paste0(Active.Type,"_TransportOutwards_",Names,"_s", ".geojson"))
   dir.T2s = file.path("..", "output", paste0(Active.Type,"_TransportInwards_",Names,"_s", ".geojson"))
@@ -145,33 +151,35 @@ if (OSRM.Level != "full" & OSRM.Level != "simplified")
   stop(paste("OSRM.Level should be 'full' or 'simplified'."))
 }
 
-if (Active.Type != "02.HO")
-{
-  if (!file.exists(dir.P))
-  {
-    DeterminePPH_FL(CRAB_Doel, Names, 100, 1000, OSRM.Level, Active.Type)
-  }
-}else{
-  # Check if data already exists. If so, it will not run.
-  if (!file.exists(dir.P)&!file.exists(dir.S)&(!file.exists(dir.T1s)|!file.exists(dir.T1f))&(!file.exists(dir.T2s)|!file.exists(dir.T2f)))
-  {
-    DeterminePPH_FL(CRAB_Doel, Names, 100, 1000, OSRM.Level, Active.Type)
-  }
-}
+# Determine PPH for the active profile.
+# Check if data already exists. If so, it will not run.
+#if (!file.exists(dir.P)&!file.exists(dir.S)&(!file.exists(dir.T1s)|!file.exists(dir.T1f))&(!file.exists(dir.T2s)|!file.exists(dir.T2f)))
+DeterminePPH_FL(CRAB_Doel, Names, 1000, 1000, OSRM.Level, Active.Type)
 
-data_in = file.path("..", "data", "BE", "ATMOSYS", "atmosys-timeseries_2.data")
-#data_in = file.path("H:", "ATMOSYS", "atmosys-timeseries_2.data")
 
 Name = "CT"
 if (file.exists(file.path("..", "output", paste0(Name,".shp"))))
 {
-  CT.SP = readOGR(file.path("..", "output", paste0(Name,".shp")), layer = Name) # Bug in .geojson, read .shp
+  CT.SPDF = readOGR(file.path("..", "output", paste0(Name,".shp")), layer = Name) # Bug in .geojson, read .shp
+  CT.SPDF@proj4string = BE_crs
 } else
 {
+  data_in = file.path("..", "data", "BE", "ATMOSYS", "atmosys-timeseries_2.data")
+  #data_in = file.path("H:", "ATMOSYS", "atmosys-timeseries_2.data")
+  
   CT = CreateConversionTable(data_in)
-  CT.SP = MakeCTSpatial(CT)
-  SaveAsFile(CT.SP, Name, "Shapefile", TRUE) #"GeoJSON"
+  #CT.SP = MakeCTSpatial(CT)
+  CT.SPDF = MakeCTSpatial(CT)
+  
+  SaveAsFile(CT.SPDF, Name, "Shapefile", TRUE) #"GeoJSON"
 }
+
+if (!is.null(Subset.Gemeente))
+{
+  CT.SPDF = SubsetCTSpatial(CT.SPDF, Subset.Gemeente)
+}
+
+
 
 # Set year of pollutant dataset, determine dates and date types (Workdays~Weekends)
 year.active = 2009
@@ -182,9 +190,10 @@ WeekendDates = DateType(YearDates,"Weekends")
 
 # Read PPH and determine the Location ID corresponding to the pollutant dataset (Spatial ConversionTable = CT.SP)
 PPH.P = readOGR(dir.P, layer = 'OGRGeoJSON')
+PPH.P@proj4string = BE_crs
 LocationIDs.P = PersonalLocationToLocationID(PPH.P, CT.SP, 1)
 
-if (Active.Type == "01.OW" | Active.Type == "03.SP")
+if (Active.Profile$Dynamics == "dynamic")
 {
   PPH.S = readOGR(dir.S, layer = 'OGRGeoJSON')
   
@@ -256,7 +265,7 @@ if (Active.Type == "01.OW" | Active.Type == "03.SP")
   HOURS.T2_3d = HourOfTheYear4(2009, TIMEVertex.T2, 3)
 }
 
-if (Active.Type == "02.HO")
+if (Active.Profile$Dynamics == "static")
 {
   #   TIME.P = seq(YearDates[1], tail((YearDates), 1)+1*60**2*24, by = 1*60**2)
   #   length(TIME.P_test)
@@ -284,12 +293,16 @@ WriteToDisk = TRUE
 if (WriteToDisk == TRUE)
 {
   SaveAsDBF(TIME.P, "TIME_P", Active.Type)
-  SaveAsDBF(TIME.S, "TIME_S", Active.Type)
-  SaveAsDBF(TIMEVertex.T1, "TIME_T1", Active.Type)
-  SaveAsDBF(TIMEVertex.T2, "TIME_T2", Active.Type)
+  
+  if (Active.Profile$Dynamics == "dynamic")
+  {
+    SaveAsDBF(TIME.S, "TIME_S", Active.Type)
+    SaveAsDBF(TIMEVertex.T1, "TIME_T1", Active.Type)
+    SaveAsDBF(TIMEVertex.T2, "TIME_T2", Active.Type)
+  }
 }
 
-rm(dir.P, dir.S, dir.T1f, dir.T1s, dir.T2f, dir.T2s)
+#rm(dir.P, dir.S, dir.T1f, dir.T1s, dir.T2f, dir.T2s)
 
 pol = "no2"
 polFile = paste0(pol, "-gzip.hdf5")
@@ -299,13 +312,11 @@ h5f_dir = file.path("..", "data", "BE", "ATMOSYS", polFile)
 ## Where the magic happens
 ExposureValue.All = ExtractExposureValue.Integral(h5f_dir, LocationIDs.P, LocationIDs.S, LocationIDs.T1, LocationIDs.T2,
                                                   HOURS.P, HOURS.S, HOURS.T1, HOURS.T2)
-if (Active.Type != "02.HO")
-{
-  ExposureValue.P = ExposureValue.All[[1]]
-  ExposureValue.S = ExposureValue.All[[2]]
-  ExposureValue.T1 = ExposureValue.All[[3]]
-  ExposureValue.T2 = ExposureValue.All[[4]]
-}
+ExposureValue.P = ExposureValue.All[[1]]
+ExposureValue.S = ExposureValue.All[[2]]
+ExposureValue.T1 = ExposureValue.All[[3]]
+ExposureValue.T2 = ExposureValue.All[[4]]
+
 
 ExposureValue.P[[5]][[200]]
 ExposureValue.T1[[1]][[204]]
@@ -321,44 +332,47 @@ ExposureValue.T1 = NAWeekends(ExposureValue.T1, YearDates, BusinesDates, Weekend
 ExposureValue.T2 = NAWeekends(ExposureValue.T2, YearDates, BusinesDates, WeekendDates)
 
 # Write Exposurevalues to disk
-SaveAsDBF(ExposureValue.P, "ExposureValue_P", Active.Type)
-SaveAsDBF(ExposureValue.S, "ExposureValue_S", Active.Type)
-SaveAsDBF(ExposureValue.T1, "ExposureValue_T1", Active.Type)
-SaveAsDBF(ExposureValue.T2, "ExposureValue_T2", Active.Type)
+WriteToDisk = TRUE
+if (WriteToDisk == TRUE)
+{
+  SaveAsDBF(ExposureValue.P, "ExposureValue_P", Active.Type)
+  
+  if (Active.Profile$Dynamics == "dynamic")
+  {
+    SaveAsDBF(ExposureValue.S, "ExposureValue_S", Active.Type)
+    SaveAsDBF(ExposureValue.T1, "ExposureValue_T1", Active.Type)
+    SaveAsDBF(ExposureValue.T2, "ExposureValue_T2", Active.Type)
+  }
+}
 
-ExposureValue.P_backup = ExposureValue.P
-rm(ExposureValue.P)
 
-TIME.P.backup = TIME.P
-rm(TIME.P)
 
-TIME.S.backup = TIME.S
-rm(TIME.S)
-
-#test
-test = unlist(unlist(TIME.P)) == unlist(unlist(TIME.P.backup))
-FALSE %in% test
 
 #Read DBF file with TIME 
 TIME.P = DBFreader("Time", "Primary", PPH.P, YearDates, Active.Type)
-TIME.S = DBFreader("Time", "Secondary", PPH.P, YearDates, Active.Type)
-TIMEVertex.T1 = DBFreader("Time", "T1", PPH.P, YearDates, Active.Type)
-TIMEVertex.T2 = DBFreader("Time", "T2", PPH.P, YearDates, Active.Type)
+if (Active.Profile$Dynamics == "dynamic")
+{
+  TIME.S = DBFreader("Time", "Secondary", PPH.P, YearDates, Active.Type)
+  TIMEVertex.T1 = DBFreader("Time", "T1", PPH.P, YearDates, Active.Type)
+  TIMEVertex.T2 = DBFreader("Time", "T2", PPH.P, YearDates, Active.Type)
+}
 
+#Read DBF file with ExposureValues
 ExposureValue.P = DBFreader("Exposure", "Primary", PPH.P, YearDates, Active.Type)
-ExposureValue.S = DBFreader("Exposure", "Secondary", PPH.P, YearDates, Active.Type)
-ExposureValue.T1 = DBFreader("Exposure", "T1", PPH.P, YearDates, Active.Type)
-ExposureValue.T2 = DBFreader("Exposure", "T2", PPH.P, YearDates, Active.Type)
+if (Active.Profile$Dynamics == "dynamic")
+{
+  ExposureValue.S = DBFreader("Exposure", "Secondary", PPH.P, YearDates, Active.Type)
+  ExposureValue.T1 = DBFreader("Exposure", "T1", PPH.P, YearDates, Active.Type)
+  ExposureValue.T2 = DBFreader("Exposure", "T2", PPH.P, YearDates, Active.Type)
+}
 
-#test
-test = unlist(unlist(ExposureValue.P)) == unlist(unlist(ExposureValue.P_backup))
-test = unlist(unlist(TIME.P)) == unlist(unlist(TIME.P_backup))
-FALSE %in% test
 
 # Plotting results
-Ind = 72
-Plot.PersonalExposureGraph(Ind, 47, 5) # (Individual, Start(working)Day, Amount of days)
-Plot.PersonalExposureGraph.P(38, 6, 6)
+Ind = 265
+Plot.PersonalExposureGraph(Ind, 70, 6) # (Individual, Start(working)Day, Amount of days)
+
+Plot.Group(Active.Type, 1, 7, 100, TRUE)
+
 
 # Saving plots on hard rive
 Plot_dir = file.path("..", "output", "plots")
@@ -369,6 +383,76 @@ if (!dir.exists(Plot_dir))
 
 png(filename = file.path(Plot_dir, paste(Active.Type, "ExposureValues", "Individual", paste0(Ind, ".png"), sep = "_")),
     width = 1208, height = 720, units = "px", pointsize = 12)
+
+
+
+## Air Quality Health Standards
+
+# read Air Quality Health Standards CSV
+csv.HealthStandards_in = file.path("..", "data", "AirQualityHealthStandards.csv")
+HealthStandards = fread(csv.HealthStandards_in, sep=",", header=TRUE)
+
+
+# query
+ExposureValue.P[[1]] > HealthStandards$Concentration[2]
+
+EXC.P = ExposureValue.P # use same structure
+TIME2.P = TIME.P
+
+# pick random date
+rdm.ind = sample(seq_along(TIME.P),1)
+rdm.day = sample(seq_along(TIME.P[[rdm.ind]]),1)
+rdm.hour = sample(seq_along(TIME.P[[rdm.ind]][[rdm.day]]),1)
+rdm.TIME = TIME.P[[rdm.ind]][[rdm.day]][rdm.hour]
+rdm.EXP = ExposureValue.P[[rdm.ind]][[rdm.day]][rdm.hour]
+
+DF.EXC = data.frame(rdm.TIME,rdm.EXP)
+colnames(DF.EXC) = c("TIME", "EXC")
+
+for (i in seq_along(ExposureValue.P))
+  #for (i in seq(1,10))
+{
+  for (d in seq_along(ExposureValue.P[[i]]))
+    #for (d in seq(1,30))
+  {
+    EXC.P[[i]][[d]] = ExposureValue.P[[i]][[d]][ExposureValue.P[[i]][[d]] > HealthStandards$Concentration[2]]
+    TIME2.P[[i]][[d]] = TIME.P[[i]][[d]][ExposureValue.P[[i]][[d]] > HealthStandards$Concentration[2]]
+    
+    
+    #     if (ExposureValue.P[[i]][[d]] > HealthStandards$Concentration[2])
+    #     {
+    #       #DF.EXC$TIME[r] = TIME.P[[i]][[d]][ExposureValue.P[[i]][[d]][h] > HealthStandards$Concentration[2]]
+    #       #DF.EXC$EXC[r] = ExposureValue.P[[i]][[d]][ExposureValue.P[[i]][[d]][h] > HealthStandards$Concentration[2]]
+    #       #r = r+1
+    #       
+    #       print(ExposureValue.P[[i]][[d]])
+    #     }
+  }
+  TIME2.P[[i]][lapply(TIME2.P[[i]],length)>0]
+}
+
+for (i in seq_along(ExposureValue.P))
+{
+  print(paste("Individual:", i, "with", length(which(unlist(ExposureValue.P[[i]]) > HealthStandards$Concentration[2])),
+              "exceedances", "CRAB ID:", PPH.P@data$ID[i], "in", PPH.P@data$GEMEENTE[i])) # x times exposed over the year
+}
+
+length(which(unlist(ExposureValue.P[[2]]) > HealthStandards$Concentration[2])) # x times exposed over the year
+
+which(unlist(ExposureValue.P[[2]]) > 200)
+which(unlist(TIME.P[[2]]) > 200)
+
+TIME2.P[lengths(TIME2.P[[2]]) > 0]
+
+unlist(ExposureValue.P[[1]])
+unlist(TIME.P[[1]])
+
+unlist(TIME.P[[2]])[unlist(TEST.P[[2]]) == TRUE]
+
+test = as.POSIXct(unlist(TIME.P[[2]])[unlist(TEST.P[[2]]) == TRUE], origin = "1970-01-01", tz = "CET")
+
+
+
 
 #Remove all, exept...
 rm(list=setdiff(ls(), "ExposureValue.All, TIME.P, TIME.S, TIMEVertex.T1, TIMEVertex.T2,
@@ -395,7 +479,95 @@ HO.02.mean. = Weighted.Static(ExposureValue.P, "WeightedMean.Day")
 # Mean per year (per individual)
 HO.02_1 = mean(HO.02[[1]])
 HO.02_2 = mean(HO.02[[2]])
+HO.02_281 = mean(HO.02.mean.[[281]])
 
+# Cummulative sum per day
+HO.02.CumSum.Day = Weighted.Static(ExposureValue.P, "CumSum.Day")
+
+TIME.unlisted.P = TIME.P
+ExposureValueCum.P = ExposureValue.P # use same structure
+ExposureValueCumYear.P = NA
+ExposureValue.unlisted.P = ExposureValue.P # use same structure
+
+
+for (i in seq_along(ExposureValue.P)) # per individual
+{
+  ExposureValueCum.P[[i]] = cumsum(unlist(ExposureValue.P[[i]]))
+  TIME.unlisted.P[[i]] = unlist(TIME.P[[i]])
+  
+  ExposureValueCumYear.P[i] = tail(ExposureValueCum.P[[i]],1)
+  
+  ExposureValue.unlisted.P[[i]] = unlist(ExposureValue.P[[i]])
+}
+
+hist(ExposureValueCumYear.P,100)
+
+Plot.CumExposureGraph(1:300)
+Plot.CumExposureGraph(1:length(ExposureValue.P))
+
+
+# daily average (24h)
+for (i in seq_along(ExposureValue.unlisted.P))
+{
+  
+}
+
+# slope method (using cumulative)
+Standard.24h = 35
+Hours = 24
+norm = Standard.24h * Hours
+
+ExposureValueDiff = ExposureValueCum.P # use same structure
+ExposureValueDiff2 = ExposureValueDiff
+
+#for (i in seq_along(ExposureValueCum.P))
+for (i in seq(1,3))
+{
+  ExposureValueDiff[[i]] = NA
+  ExposureValueDiff2[[i]] = NA
+  for (h in seq_along(ExposureValueCum.P[[i]]))
+  {
+    diff = ExposureValueCum.P[[i]][h+Hours-1]-ExposureValueCum.P[[i]][h]
+    ExposureValueDiff[[i]][h] = diff > norm # only first hour of serie
+    
+    #ExposureValueDiff2[[i]][h:(h+Hours-1)] = ExposureValueDiff[[i]][h] # for complete serie
+
+  }
+}
+
+for (o in seq(1, length(ExposureValueCum.P[[3]])-(Hours-1)))
+{
+  ExposureValueDiff2[[3]][o:(o+Hours-1)] = ExposureValueDiff[[3]][o] # for complete serie
+}
+
+ExposureValueDiff[[3]][50:100]
+ExposureValueDiff2[[3]][50:100]
+
+ExposureValueCum.P[[3]][64]
+ExposureValueCum.P[[3]][64+24-1]
+
+ExposureValueCum.P[[3]][64+24-1] - ExposureValueCum.P[[3]][64]
+
+ExposureValueDiff[[3]][65]
+ExposureValueDiff2[[3]][65]
+
+ExposureValueDiff[[3]][64:(64+Hours-1)]
+ExposureValueDiff2[[3]][64:(64+Hours-1)] = ExposureValueDiff[[3]][64]
+
+ExposureValueDiff2[[3]][64:(64+Hours-1+10)]
+
+Plot.CumExposureGraph(1:10, "monthly")
+
+length(which(ExposureValueDiff[[3]] == T))
+
+NumericWS = 1:10
+
+
+  
+  
+  
+  
+  
 
 # Mean for all 100 individuals
 ExposureValue.P[[1]][[1]] + ExposureValue.P[[2]][[1]]
@@ -411,7 +583,6 @@ for (d in seq_along(ExposureValue.P[[1]]))
     }
   }
 }
-
 
 
 #transpose: [[individual]][[day]][hour] -> [[day]][[individual]][hour]

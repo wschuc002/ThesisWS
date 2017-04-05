@@ -29,8 +29,6 @@ library(osrm)
 
 library(SearchTrees)
 
-
-
 DetermineAddressGoals_FL <- function(FL.Gemeente, Method.nr, ... )
 {
   ## Read the input data
@@ -69,7 +67,7 @@ DetermineAddressGoals_FL <- function(FL.Gemeente, Method.nr, ... )
   }
   
   
-  # OLD METHOD FOR CRAB CLASSIFICATION  
+  # Use Company terrain datasets for CRAB CLASSIFICATION (partial)
   zip_in = file.path("..", "data", "BE_FL", "Bedrijventerreinen_Toestand_01_06_2016.zip")
   shp_in = file.path("..", "data", "BE_FL", "Gebrprc.shp")
   
@@ -111,7 +109,7 @@ DetermineAddressGoals_FL <- function(FL.Gemeente, Method.nr, ... )
   
   #CRAB_Doel[CRAB_Doel@data$DOEL %in% "Agrarische functie",]
   
-  # Companies
+  ## Companies
   zip_in = file.path("..", "data", "BE_FL", "KboOpenData_0036_2017_01_Full.zip")
   csv.companies_in = file.path("..", "data", "BE_FL", "address.csv")
   
@@ -184,13 +182,9 @@ DetermineAddressGoals_FL <- function(FL.Gemeente, Method.nr, ... )
   
   if (Method.nr == 2)
   {
-    # METHOD 2: join on "street+number+zipcode" combination
+    # METHOD 2: join on "municipality+street+number" combination
     
     ## Primary schools
-    
-    # create (empty) DOEL object
-    #CRAB_Doel@data$DOEL = NA
-    
     Onderwijs.Basis$NUMMERTJE = NA
     Onderwijs.Basis$NUMMERTJE = paste0(Onderwijs.Basis[["crab-huisnr"]],Onderwijs.Basis[["crab-busnr"]])
     head(Onderwijs.Basis$NUMMERTJE, 100)
@@ -210,7 +204,6 @@ DetermineAddressGoals_FL <- function(FL.Gemeente, Method.nr, ... )
     # for subset
     nrow(Onderwijs.Basis[Onderwijs.Basis$gemeente == toupper(FL.Gemeente)])
     nrow(CRAB_Doel@data[CRAB_Doel@data$DOEL %in% "Basisonderwijs",])
-
     
     
     ## Secondary schools
@@ -219,20 +212,16 @@ DetermineAddressGoals_FL <- function(FL.Gemeente, Method.nr, ... )
     Onderwijs.Secundair$NUMMERTJE = paste0(Onderwijs.Secundair[["crab-huisnr"]],Onderwijs.Secundair[["crab-busnr"]])
     head(Onderwijs.Secundair$NUMMERTJE, 100)
     
-#     CRAB_Doel@data$DOEL[tolower(paste0(CRAB_Doel@data$POSTCODE, CRAB_Doel@data$STRAATNM, CRAB_Doel@data$HUISNR)) %in% 
-#                           tolower(paste0(Onderwijs.Secundair$postcode,Onderwijs.Secundair$straat, Onderwijs.Secundair$NUMMERTJE))] = "Secundair onderwijs"
-#     
-#     CRAB_Doel[CRAB_Doel@data$DOEL %in% "Secundair onderwijs",] # VIEW
-    
     sub.Secundair = tolower(paste0(CRAB_Doel@data$GEMEENTE, CRAB_Doel@data$STRAATNM, CRAB_Doel@data$HUISNR)) %in%
       tolower(paste0(Onderwijs.Secundair$gemeente, Onderwijs.Secundair$straat, Onderwijs.Secundair$NUMMERTJE))
     summary(sub.Secundair)
     
     CRAB_Doel@data$DOEL[sub.Secundair] = "Secundair onderwijs"
     CRAB_Doel@data[CRAB_Doel@data$DOEL %in% "Secundair onderwijs",] # VIEW
-  
+    
+    
     CRAB_Doel@data[CRAB_Doel@data$DOEL %in% c("Basisonderwijs", "Secundair onderwijs"),] # VIEW Basis and Secundair
-  
+    
     #     # check on numbers
     #     length(Onderwijs.Secundair[[1]]) == length(CRAB_Doel[CRAB_Doel@data$DOEL %in% "Secundair onderwijs",])
     #     delta = length(Onderwijs.Secundair[[1]]) - length(CRAB_Doel[CRAB_Doel@data$DOEL %in% "Secundair onderwijs",])
@@ -245,9 +234,6 @@ DetermineAddressGoals_FL <- function(FL.Gemeente, Method.nr, ... )
     # METHOD 3: Spatial join, based on closest point
     
     ## Primary schools
-    
-    # create (empty) DOEL object
-    #CRAB_Doel@data$DOEL = NA
     
     # make NA coordinates -99,-99
     Onderwijs.Basis$Lx[is.na(Onderwijs.Basis$Lx)] = -99
@@ -317,19 +303,59 @@ DetermineAddressGoals_FL <- function(FL.Gemeente, Method.nr, ... )
   #   summary(CRAB_Doel)
   #   CRAB_Doel[5000:7000,]
   
-  
+#   ## Agriculture extra
+#   zip_in = file.path("..", "data", "BE_FL", "Landbouwgebruikspercelen_ALV_2015_GewVLA_Shapefile.zip")
+#   shp_in = file.path("..", "data", "BE_FL", "Lbgebrperc2015", "Lbgebrperc2015.shp")
+#   
+#   # Check if input data is available
+#   if (!file.exists(zip_in) & !file.exists(shp_in))
+#   {
+#     stop(paste("Landbouwgebruikspercelen not found (.shp)"))
+#   }
+#   if (!file.exists(shp_in))
+#   {
+#     unzip(zip_in, file = file.path("Shapefile", c("Lbgebrperc2015.shp","Lbgebrperc2015.prj", "Lbgebrperc2015.dbf", "Lbgebrperc2015.shx")), exdir= file.path("..", "data", "BE_FL"))
+#     file.copy(file.path("..", "data", "BE_FL", "Shapefile", "Lbgebrperc2015.shp"), file.path("..", "data", "BE_FL"),
+#               overwrite = TRUE, recursive = TRUE, copy.mode = TRUE, copy.date = FALSE)
+#     file.rename(file.path("..", "data", "BE_FL", "Shapefile"),file.path("..", "data", "BE_FL", "Lbgebrperc2015"))
+#     #file.remove(file.path("..", "data", "BE_FL", "Shapefile"))
+#     #unlink(file.path("..", "data", "BE_FL", "Shapefile"), recursive=TRUE)
+#   }
+#   
+#   LBGebrprc = readOGR(shp_in, layer = "Lbgebrperc2015")
+#   LBGebrprc@proj4string = BE_crs
+#   
+#   # Keep the attributes that will be used
+#   keeps = c("GEWASGROEP")
+#   LBGebrprc_filtered = LBGebrprc[ , (names(LBGebrprc) %in% keeps)]
+#   
+#   # Make the over(lay)
+#   o = over(CRAB_Doel, LBGebrprc_filtered)
+#   
+#   o$FUNCT.ch = o$FUNCT
+#   o$FUNCT.ch = as.character(o$FUNCT)
+#   o$DOEL.ch = o$FUNCT.ch # copy
+#   #o$DOEL.ch[o$DOEL.ch] = ""
+#   
+#   CRAB_Doel@data$DOEL[!is.na(o$FUNCT.ch)] = "Agrarische functie"
+#   #CRAB_Doel@data$DOEL[o$DOEL.ch] = "Agrarische functie"
+#   
+#   #head(o,500)
+#   #tail(o,250)
+#   
+#   #CRAB_Doel@data$DOEL = o$FUNCT.ch
+#   CRAB_Doel@data$DOEL = o$FUNCT.ch
+#   
+#   
+#   #CRAB_Doel[CRAB_Doel@data$DOEL %in% "Agrarische functie",]
   
   # Replace all NA with "Woonfunctie" (assuming all other addresses are Residence)
   CRAB_Doel@data$DOEL[is.na(CRAB_Doel@data$DOEL)] = "Woonfunctie"
   
   # Remove duplicates
-  #tail(CRAB_Doel@data[!duplicated(CRAB_Doel@data[ , 2:4 ]), ])
-  #tail(CRAB_Doel)
-  
   CRAB.unique = CRAB_Doel[!duplicated(CRAB_Doel@data[ , 2:6 ]), ]
-  #tail(CRAB.unique)
   CRAB.unique@data[CRAB.unique@data$DOEL %in% "Basisonderwijs",] # VIEW
-
+  
   CRAB.unique@proj4string = BE_crs
   
   return(CRAB.unique)
@@ -349,8 +375,20 @@ DeterminePPH_FL <- function(CRAB_Doel, Names.sub, FL.primary, FL.secondary, OSRM
   # Create the attribute "object_id" (verplaatsen naar andere functie)
   CRAB_Doel@data["object_id"] = seq.int(nrow(CRAB_Doel@data))
   
-  ## Subset: only Primary
-  Primary = subset(CRAB_Doel, CRAB_Doel@data$DOEL == "Woonfunctie")
+  if (Active.Type == "04.FA")
+  {
+    Primary = subset(CRAB_Doel, CRAB_Doel@data$DOEL == "Agrarische functie")
+  } else{
+    ## Subset: only Primary
+    Primary = subset(CRAB_Doel, CRAB_Doel@data$DOEL == "Woonfunctie")
+  }
+  PrimaryAmount = nrow(Primary)
+  
+  if (PrimaryAmount < FL.primary)
+  {
+    FL.primary = PrimaryAmount
+    print(paste("Cannot take a sample larger than the population. Sample size is set to population size", PrimaryAmount))
+  }
   
   ## Pick x random redidence object_id and make a subset
   RandObj_Re = sample(Primary@data$object_id, FL.primary)
@@ -358,31 +396,29 @@ DeterminePPH_FL <- function(CRAB_Doel, Names.sub, FL.primary, FL.secondary, OSRM
   Primary_KEEPS = Primary@data$object_id %in% keeps_RS_Re
   Primary_random = subset(Primary, Primary_KEEPS)
   
-  if (Active.Type == "02.HO")
+  if (Active.Type == "02.HO" | Active.Type == "04.FA")
   {
-    SaveAsFile(Primary_random, paste0(Active.Type,"_Primary_", Names.sub), "GeoJSON", TRUE)
+    #SaveAsFile(Primary_random, paste0(Active.Type,"_Primary_", Names.sub), "GeoJSON", TRUE)
+    SaveAsFile(Primary_random, paste(Active.Type, paste0("Primary", Names.sub), sep = "_"), "GeoJSON", TRUE)
+    
   }
   
-  #Subset: only Offices
-  if (Active.Type == "01.OW")
+  if (Active.Profile$Dynamics == "dynamic")
   {
-    #Secondary = subset(CRAB_Doel, CRAB_Doel@data$DOEL == "Economische functie")
-    Secondary = CRAB_Doel[CRAB_Doel@data$DOEL %in% "Economische functie" | CRAB_Doel@data$DOEL %in% "Company" ,]
-    Mean.distance = 46210
-    SD.distance = 10000
-  }
-  
-  #Subset: only schools
-  if (Active.Type == "03.SP")
-  {
-    #Secondary = subset(CRAB_Doel, CRAB_Doel@data$DOEL == "Basisonderwijs")
-    Secondary = CRAB_Doel[CRAB_Doel@data$DOEL %in% "Basisonderwijs",] # CRAB_Doel@data$DOEL %in% "Secundair onderwijs" 
-    Mean.distance = 1 #closest school
-    SD.distance = 10
-  }
-  
-  if (Active.Type != "02.HO")
-  {
+    #Subset: only Offices
+    if (Active.Type == "01.OW")
+    {
+      Secondary = CRAB_Doel[CRAB_Doel@data$DOEL %in% "Economische functie" | CRAB_Doel@data$DOEL %in% "Company" ,]
+    }
+    #Subset: only schools
+    if (Active.Type == "03.SP")
+    {
+      #Secondary = subset(CRAB_Doel, CRAB_Doel@data$DOEL == "Basisonderwijs")
+      Secondary = CRAB_Doel[CRAB_Doel@data$DOEL %in% "Basisonderwijs",] # CRAB_Doel@data$DOEL %in% "Secundair onderwijs" 
+    }
+    Mean.distance = Active.Profile$MeanDistance
+    SD.distance = Active.Profile$SDdistance
+    
     ## Pick x random Secondary object_id and make a subset
     RandObj_Se = sample(Secondary@data$object_id, nrow(Secondary))
     keeps_RS_Se = RandObj_Se
@@ -499,9 +535,7 @@ DeterminePPH_FL <- function(CRAB_Doel, Names.sub, FL.primary, FL.secondary, OSRM
     
     SaveAsFile(CommutingRoutes1_SLDF, paste0(Active.Type,"_TransportOutwards_", Names.sub, "_", substr(OSRM.level, 1, 1)), "GeoJSON", TRUE)
     SaveAsFile(CommutingRoutes2_SLDF, paste0(Active.Type,"_TransportInwards_", Names.sub, "_", substr(OSRM.level, 1, 1)), "GeoJSON", TRUE)
-    
   }
-  
 }
 
 
