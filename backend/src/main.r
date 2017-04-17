@@ -52,6 +52,7 @@ source("modules/SecondaryRelation.r")
 source("modules/DBFreader.r")
 source("modules/SummaryStatistics.r")
 
+source("modules/util.r")
 source("modules/Interpolate.r")
 
 #source("modules/WeightCR.r")
@@ -98,27 +99,29 @@ rm(list.of.packages, new.packages)
 # Use the official address database of Flanders and add the correct attribute 'Goal of use'
 
 Subset.Gemeente = NULL # empty = NULL = no subset = all municipalities |  example subset: c("Gent","Antwerpen")
-Subset.Gemeente = "Antwerpen"
+Subset.Gemeente = "Antwerpen" # c("Antwerpen", "Gent")
 
 BE_crs = CRS("+init=epsg:31370")
 
 if (is.null(Subset.Gemeente))
 {
   Names = paste("")
-  Name = paste("CRAB_Doel")
+  CRAB.Name = paste("CRAB_Doel")
 } else
 {
   Names = paste(Subset.Gemeente, collapse="_")
-  Name = paste("CRAB_Doel", Names, sep = "_")
+  CRAB.Name = paste("CRAB_Doel", Names, sep = "_")
 }
 
-if (file.exists(file.path("..", "output", paste0(Name,".shp"))))
+if (file.exists(file.path("..", "output", paste0(CRAB.Name,".shp"))))
 {
-  CRAB_Doel = readOGR(file.path("..", "output", paste0(Name,".shp")), layer = Name, p4s = BE_crs) # Bug in .geojson, read .shp
+  CRAB_Doel = readOGR(file.path("..", "output", paste0(CRAB.Name,".shp")), layer = CRAB.Name) # Bug in .geojson, read .shp
+  CRAB_Doel@proj4string = BE_crs
 } else
 {
   CRAB_Doel = DetermineAddressGoals_FL(Subset.Gemeente,2)
-  SaveAsFile(CRAB_Doel, Name, "Shapefile", TRUE) #"GeoJSON"
+  CRAB_Doel@proj4string = BE_crs
+  SaveAsFile(CRAB_Doel, CRAB.Name, "Shapefile", TRUE) #"GeoJSON"
 }
 
 # read Residential profile CSV
@@ -126,24 +129,21 @@ csv.ResidentialProfiles_in = file.path("..", "data", "ResidentialProfiles.csv")
 ResidentialProfiles = fread(csv.ResidentialProfiles_in, sep=",", header=TRUE)
 
 # Select active Residential Profile
-Active.Type = "02.HO"
+Active.Type = "01.OW"
 Active.Profile = ResidentialProfiles[ResidentialProfiles$Abbreviation == Active.Type,]
 
-OSRM.Level = "simplified" # "simplified" or "full" version of vectors in routes (OSRM package)
+OSRM.Level = "full" # "simplified" or "full" version of vectors in routes (OSRM package)
 
-# dir.P = file.path("..", "output", paste0(Active.Type,"_Primary_",Names,".geojson"))
-# dir.P = file.path("..", "output", paste0(paste(Active.Type,"Primary",Names, sep = "_"),".geojson"))
 dir.P = file.path("..", "output", paste(Active.Type, paste0("Primary", Names,".geojson"), sep = "_"))
-
 if (Active.Profile$Dynamics == "dynamic")
 {
-  dir.T1s = file.path("..", "output", paste0(Active.Type,"_TransportOutwards_",Names,"_s", ".geojson"))
-  dir.T2s = file.path("..", "output", paste0(Active.Type,"_TransportInwards_",Names,"_s", ".geojson"))
+  dir.T1s = file.path("..", "output", paste(Active.Type, paste0("TransportOutwards", Names,".geojson"), sep = "_"))
+  dir.T2s = file.path("..", "output", paste(Active.Type, paste0("_TransportInwards", Names,".geojson"), sep = "_"))
   
-  dir.T1f = file.path("..", "output", paste0(Active.Type,"_TransportOutwards_",Names,"_f", ".geojson"))
-  dir.T2f = file.path("..", "output", paste0(Active.Type,"_TransportInwards_",Names,"_f", ".geojson"))
+  dir.T1f = file.path("..", "output", paste(Active.Type, paste0("TransportOutwards", Names,".geojson"), sep = "_"))
+  dir.T2f = file.path("..", "output", paste(Active.Type, paste0("TransportInwards", Names,".geojson"), sep = "_"))
   
-  dir.S = file.path("..", "output", paste0(Active.Type,"_Secondary_",Names,".geojson"))
+  dir.S = file.path("..", "output", paste(Active.Type, paste0("Secondary", Names,".geojson"), sep = "_"))
 }
 
 if (OSRM.Level != "full" & OSRM.Level != "simplified")
@@ -151,10 +151,14 @@ if (OSRM.Level != "full" & OSRM.Level != "simplified")
   stop(paste("OSRM.Level should be 'full' or 'simplified'."))
 }
 
+# new statistics on Commuting (Office Worker only)
+csv.Commuting_in = file.path("..", "data", "BE_FL", "CommutingStats.csv")
+Commuting = fread(csv.Commuting_in, sep=",", header=TRUE)
+
 # Determine PPH for the active profile.
 # Check if data already exists. If so, it will not run.
 #if (!file.exists(dir.P)&!file.exists(dir.S)&(!file.exists(dir.T1s)|!file.exists(dir.T1f))&(!file.exists(dir.T2s)|!file.exists(dir.T2f)))
-DeterminePPH_FL(CRAB_Doel, Names, 1000, 1000, OSRM.Level, Active.Type)
+DeterminePPH_FL(CRAB_Doel, Names, 10, OSRM.Level, Active.Type)
 
 
 Name = "CT"
@@ -178,11 +182,11 @@ if (!is.null(Subset.Gemeente))
 {
   CT.SPDF = SubsetCTSpatial(CT.SPDF, Subset.Gemeente)
 }
-
+SaveAsFile(CT.SPDF, paste(Name, Subset.Gemeente, sep = "_"), "Shapefile", TRUE)
 
 
 # Set year of pollutant dataset, determine dates and date types (Workdays~Weekends)
-year.active = 2009
+year.active = 2015
 YearDates = YearDates1(year.active)
 BusinesDates = DateType(YearDates,"Workdays")
 WeekendDates = DateType(YearDates,"Weekends")
@@ -304,6 +308,106 @@ if (WriteToDisk == TRUE)
 
 #rm(dir.P, dir.S, dir.T1f, dir.T1s, dir.T2f, dir.T2s)
 
+## Read Air Quality data
+
+# Create buffer of AoI (=Location history)
+m = 500
+AoI_buff1 = gBuffer(merge(PRI,SEC), byid = F, id = NULL, width = m)
+plot(AoI_buff1)
+AoI_buff2 = gBuffer(merge(CommutingRoutes1_SLDF,CommutingRoutes2_SLDF), byid = F, id = NULL, width = m)
+lines(AoI_buff2, col = "red")
+AoI = AoI_buff1+AoI_buff2
+plot(AoI)
+AoI_SPDF = SpatialPolygonsDataFrame(AoI, data = data.frame(1:length(AoI)))
+SaveAsFile(AoI_SPDF, paste("AreaOfInterest", paste0(m,"m"), sep = "_"), "GeoJSON", TRUE)
+
+
+## TXT structure RIO-IFDM
+txt.Points_in = file.path("..", "data", "BE", "IRCELINE", "NO2", "20150101_1_NO2.txt")
+Points = fread(txt.Points_in, sep=";", header=TRUE)
+
+# bz2.Points_in = file.path("T:", "RIO-IFDM", "20150101_1_NO2.txt.bz2")
+# Points2 = fread(sprintf(bz2.Points_in))
+
+coordinates(Points) = ~x+y
+Points@proj4string = BE_crs
+
+# Make subset (of Flanders)
+
+
+
+# Read Flanders polygon (improve unzip)
+gml.Flanders_in = file.path("..", "data", "BE_FL", "Refgew.gml")
+Flanders = readOGR(gml.Flanders_in, layer = "Refgew")
+Flanders@proj4string = BE_crs
+
+# Create buffer of Flanders
+Flanders_buff = gBuffer(Flanders, byid = F, id = NULL, width = 1000)
+AoI_SPDF = Flanders_buff
+
+# Sample = sample(1:length(Points), 1000)
+# plot(Points[Sample,])
+# Flanders.RIO_IFDM = gIntersection(Points[Sample,], Flanders_buff)
+# plot(Flanders.RIO_IFDM)
+
+# Gemeente.RIO_IFDM_TF = gIntersects(Points[Sample,],
+#                                   Municipalities[Municipalities@data$NAAM %in% "Antwerpen",],
+#                                   byid = TRUE)
+# Gemeente.RIO_IFDM = Points[Sample,][as.logical(Gemeente.RIO_IFDM_TF),]
+
+# 
+Gemeente.RIO_IFDM_TF = gIntersects(Points,
+                                   Municipalities[Municipalities@data$NAAM %in% "Antwerpen",],
+                                   byid = TRUE)
+Gemeente.RIO_IFDM_TF_logi = as.logical(Gemeente.RIO_IFDM_TF)
+Gemeente.RIO_IFDM = Points[Gemeente.RIO_IFDM_TF_logi,]
+
+AoI.RIO_IFDM_TF = gIntersects(Points, AoI_SPDF, byid = TRUE)
+#AoI.RIO_IFDM_TF_logi = as.logical(AoI.RIO_IFDM_TF)
+
+
+# Now we only need the data from the area of interest
+txt.Points_in = file.path("T:" ,"RIO-IFDM", "NO2", "20150101_19_NO2.txt")
+Gemeente.Points = fread(txt.Points_in, sep=";", header=TRUE)
+Gemeente.Points = Gemeente.Points[Gemeente.RIO_IFDM_TF_logi,]
+
+SaveAsFile(Gemeente.Points, "Gemeente_points", "GeoJSON", TRUE)
+
+
+coordinates(Gemeente.Points) = ~x+y
+Gemeente.Points@proj4string = BE_crs
+SaveAsFile(Gemeente.Points, paste("Hour19_2015test", "Antwerpen", sep = "_"), "Shapefile", TRUE)
+SaveAsFile(Gemeente.Points, paste("Hour19_2015test", "Antwerpen", sep = "_"), "GeoJSON", TRUE)
+
+
+
+
+plot(Gemeente.RIO_IFDM)
+spplot(Gemeente.RIO_IFDM, "values")
+class(Gemeente.RIO_IFDM)
+
+
+
+
+
+## Interpolating the points
+
+# Remove duplicates
+Gemeente.Points.Dups = Gemeente.Points[duplicated(Gemeente.Points@coords), ]
+Gemeente.Points.NoDup = Gemeente.Points[!duplicated(Gemeente.Points@coords), ]
+
+# Calculate a raster from RIO-IFDM points with the Triangulation method
+res = 100
+Gemeente.Raster = PointsToRasterTIN(SPDF = Gemeente.Points.NoDup, dmax = 0, mpp = res)
+#plot(Gemeente.Raster)
+SaveAsFile(Gemeente.Raster, paste("Raster", paste0(res,"x",res), "Antwerpen", sep = "_"), "GeoTIFF", TRUE)
+
+Gemeente.Raster.Cut = gIntersects(Gemeente.Raster, Municipalities[Municipalities@data$NAAM %in% "Antwerpen",])
+
+SaveAsFile(Gemeente.Raster, paste("Raster", "Antwerpen", sep = "_"), "Shapefile", TRUE)
+
+
+## Reading the HDF5 structure
 pol = "no2"
 polFile = paste0(pol, "-gzip.hdf5")
 h5f_dir = file.path("..", "data", "BE", "ATMOSYS", polFile)
@@ -531,7 +635,7 @@ for (i in seq(1,3))
     ExposureValueDiff[[i]][h] = diff > norm # only first hour of serie
     
     #ExposureValueDiff2[[i]][h:(h+Hours-1)] = ExposureValueDiff[[i]][h] # for complete serie
-
+    
   }
 }
 
@@ -563,11 +667,11 @@ length(which(ExposureValueDiff[[3]] == T))
 NumericWS = 1:10
 
 
-  
-  
-  
-  
-  
+
+
+
+
+
 
 # Mean for all 100 individuals
 ExposureValue.P[[1]][[1]] + ExposureValue.P[[2]][[1]]

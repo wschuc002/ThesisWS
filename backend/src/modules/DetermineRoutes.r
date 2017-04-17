@@ -15,7 +15,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 ## Check for required packages and install them (incl dependencies) if they are not installed yet.
-list.of.packages <- c("data.table","sp","rgdal","foreign","rgeos","osrm")
+list.of.packages <- c("data.table","sp","rgdal","foreign","rgeos","osrm","SearchTrees")
 new.packages <- list.of.packages[!(list.of.packages %in% installed.packages()[,"Package"])]
 if(length(new.packages)) install.packages(new.packages)
 
@@ -46,8 +46,6 @@ DetermineAddressGoals_FL <- function(FL.Gemeente, Method.nr, ... )
   }
   
   CRAB = readOGR(shp_in, layer = "CrabAdr") #! Make subset with Gemeente(n) in this stage?
-  
-  BE_crs = CRS("+init=epsg:31370")
   CRAB@proj4string = BE_crs
   CRAB_backup = CRAB
   
@@ -303,51 +301,6 @@ DetermineAddressGoals_FL <- function(FL.Gemeente, Method.nr, ... )
   #   summary(CRAB_Doel)
   #   CRAB_Doel[5000:7000,]
   
-#   ## Agriculture extra
-#   zip_in = file.path("..", "data", "BE_FL", "Landbouwgebruikspercelen_ALV_2015_GewVLA_Shapefile.zip")
-#   shp_in = file.path("..", "data", "BE_FL", "Lbgebrperc2015", "Lbgebrperc2015.shp")
-#   
-#   # Check if input data is available
-#   if (!file.exists(zip_in) & !file.exists(shp_in))
-#   {
-#     stop(paste("Landbouwgebruikspercelen not found (.shp)"))
-#   }
-#   if (!file.exists(shp_in))
-#   {
-#     unzip(zip_in, file = file.path("Shapefile", c("Lbgebrperc2015.shp","Lbgebrperc2015.prj", "Lbgebrperc2015.dbf", "Lbgebrperc2015.shx")), exdir= file.path("..", "data", "BE_FL"))
-#     file.copy(file.path("..", "data", "BE_FL", "Shapefile", "Lbgebrperc2015.shp"), file.path("..", "data", "BE_FL"),
-#               overwrite = TRUE, recursive = TRUE, copy.mode = TRUE, copy.date = FALSE)
-#     file.rename(file.path("..", "data", "BE_FL", "Shapefile"),file.path("..", "data", "BE_FL", "Lbgebrperc2015"))
-#     #file.remove(file.path("..", "data", "BE_FL", "Shapefile"))
-#     #unlink(file.path("..", "data", "BE_FL", "Shapefile"), recursive=TRUE)
-#   }
-#   
-#   LBGebrprc = readOGR(shp_in, layer = "Lbgebrperc2015")
-#   LBGebrprc@proj4string = BE_crs
-#   
-#   # Keep the attributes that will be used
-#   keeps = c("GEWASGROEP")
-#   LBGebrprc_filtered = LBGebrprc[ , (names(LBGebrprc) %in% keeps)]
-#   
-#   # Make the over(lay)
-#   o = over(CRAB_Doel, LBGebrprc_filtered)
-#   
-#   o$FUNCT.ch = o$FUNCT
-#   o$FUNCT.ch = as.character(o$FUNCT)
-#   o$DOEL.ch = o$FUNCT.ch # copy
-#   #o$DOEL.ch[o$DOEL.ch] = ""
-#   
-#   CRAB_Doel@data$DOEL[!is.na(o$FUNCT.ch)] = "Agrarische functie"
-#   #CRAB_Doel@data$DOEL[o$DOEL.ch] = "Agrarische functie"
-#   
-#   #head(o,500)
-#   #tail(o,250)
-#   
-#   #CRAB_Doel@data$DOEL = o$FUNCT.ch
-#   CRAB_Doel@data$DOEL = o$FUNCT.ch
-#   
-#   
-#   #CRAB_Doel[CRAB_Doel@data$DOEL %in% "Agrarische functie",]
   
   # Replace all NA with "Woonfunctie" (assuming all other addresses are Residence)
   CRAB_Doel@data$DOEL[is.na(CRAB_Doel@data$DOEL)] = "Woonfunctie"
@@ -362,16 +315,13 @@ DetermineAddressGoals_FL <- function(FL.Gemeente, Method.nr, ... )
 }
 
 
-#Names.sub = Names
-#FL.primary = 100
-#FL.secondary = 100
-#OSRM.level = "full"
+# Names.sub = Names
+# FL.primary = 250
+# OSRM.level = "full"
+# Prob.Method = "detailed" # "simplified"
 
-DeterminePPH_FL <- function(CRAB_Doel, Names.sub, FL.primary, FL.secondary, OSRM.level, Active.Type, ... )
+DeterminePPH_FL <- function(CRAB_Doel, Names.sub, FL.primary, OSRM.level, Active.Type, Prob.Method, ... )
 {
-  BE_epsg = "+init=epsg:31370"
-  BE_crs = CRS(BE_epsg)
-  
   # Create the attribute "object_id" (verplaatsen naar andere functie)
   CRAB_Doel@data["object_id"] = seq.int(nrow(CRAB_Doel@data))
   
@@ -396,11 +346,15 @@ DeterminePPH_FL <- function(CRAB_Doel, Names.sub, FL.primary, FL.secondary, OSRM
   Primary_KEEPS = Primary@data$object_id %in% keeps_RS_Re
   Primary_random = subset(Primary, Primary_KEEPS)
   
-  if (Active.Type == "02.HO" | Active.Type == "04.FA")
+  if (Active.Profile$Dynamics == "static")
   {
-    #SaveAsFile(Primary_random, paste0(Active.Type,"_Primary_", Names.sub), "GeoJSON", TRUE)
-    SaveAsFile(Primary_random, paste(Active.Type, paste0("Primary", Names.sub), sep = "_"), "GeoJSON", TRUE)
-    
+    if (is.null(Subset.Gemeente))
+    {
+      SaveAsFile(Primary_random, paste(Active.Type, "Primary", sep = "_"), "GeoJSON", TRUE)
+    } else
+    {
+      SaveAsFile(Primary_random, paste0(Active.Type, "_Primary_", Names.sub), "GeoJSON", TRUE)
+    }
   }
   
   if (Active.Profile$Dynamics == "dynamic")
@@ -416,11 +370,19 @@ DeterminePPH_FL <- function(CRAB_Doel, Names.sub, FL.primary, FL.secondary, OSRM
       #Secondary = subset(CRAB_Doel, CRAB_Doel@data$DOEL == "Basisonderwijs")
       Secondary = CRAB_Doel[CRAB_Doel@data$DOEL %in% "Basisonderwijs",] # CRAB_Doel@data$DOEL %in% "Secundair onderwijs" 
     }
-    Mean.distance = Active.Profile$MeanDistance
-    SD.distance = Active.Profile$SDdistance
+    Mean.distance = as.numeric(Active.Profile$MeanDistance)
+    SD.distance = as.numeric(Active.Profile$SDdistance)
     
     ## Pick x random Secondary object_id and make a subset
-    RandObj_Se = sample(Secondary@data$object_id, nrow(Secondary))
+    if (nrow(Primary_random) < 500)
+    {
+      Secondary.SampleSize = round(nrow(Secondary) / 1000, digits = 0)
+    } else
+      {
+        Secondary.SampleSize = nrow(Secondary)
+      }
+      
+    RandObj_Se = sample(Secondary@data$object_id, Secondary.SampleSize)
     keeps_RS_Se = RandObj_Se
     Secondary_KEEPS = Secondary@data$object_id %in% keeps_RS_Se
     Secondary_random = subset(Secondary, Secondary_KEEPS)
@@ -428,31 +390,74 @@ DeterminePPH_FL <- function(CRAB_Doel, Names.sub, FL.primary, FL.secondary, OSRM
     ## Remove duplicates in object_id
     Secondary_random = Secondary_random[!duplicated(Secondary_random@data$object_id),]
     
-    ## Create distance matrix
-    DIST_GEO = matrix(data=NA, nrow=length(Primary_random), ncol=length(Secondary_random)) # empty/NA matrix
-    for (z in seq(1, length(Primary_random), by=1))
+
+    ## Create distances matrix
+    if (Prob.Method == "simplified")
     {
-      for (w in seq(1, length(Secondary_random), by=1))
+      DIST_GEO = matrix(data=NA, nrow=length(Primary_random), ncol=length(Secondary_random)) # empty/NA matrix
+      for (z in seq(1, length(Primary_random), by=1))
       {
-        DIST_GEO[z,w] = gDistance(Primary_random[z,],Secondary_random[w,]) #[Primary,Secondary]
+        for (w in seq(1, length(Secondary_random), by=1))
+        {
+          DIST_GEO[z,w] = gDistance(Primary_random[z,],Secondary_random[w,]) #[Primary,Secondary]
+        }
+      }
+    } else
+    {
+      #DIST_GEO = Matrix.distance
+      MATRICES = CommutingDistanceMatrixer(Primary_random, Secondary_random, 75)
+      DIST_GEO = MATRICES[[1]]
+    }
+    
+
+    
+    ## Select pair, based on prob distribution of commuting distance (CD)
+    ResWor=0
+    
+    if (Prob.Method == "simplified") # based on simplified/aggregated statistics (more assumptions)
+    {
+      # prob distribution of Commuting Distances (CD)
+      #prob_CD = abs(rnorm(FL.primary, mean = Mean.distance, sd = SD.distance))
+      #prob_CD = prob_CD[prob_CD < 2000000] # remove the large distances
+      #hist(prob_CD, probability=TRUE)
+      #CD = seq(min(prob_CD), max(prob_CD), length=28)
+      #lines(CD, dnorm(CD, mean=Mean.distance, sd=SD.distance))
+      
+      prob_CD = rnorm(FL.primary, mean = Mean.distance, sd = SD.distance)
+      
+      # Extract the pair numbers Primary~Secondary (ex: 1~24, 2~35) (test group can be collegues)
+      for (z in seq_along(Primary_random))
+      {
+        RV = sample(prob_CD, size=1)
+        ResWor[z] = which.min(abs(RV-DIST_GEO[z,]))
       }
     }
     
-    ## Select pair, based on prob distribution of commuting distance (CD)
-    
-    # prob distribution of CD
-    prob_CD = abs(rnorm(1000, mean = Mean.distance, sd = SD.distance))
-    prob_CD = prob_CD[prob_CD < 200] # remove the large distances
-    #hist(prob_CD, probability=TRUE)
-    #CD = seq(min(prob_CD), max(prob_CD), length=28)
-    #lines(CD, dnorm(CD, mean=28000, sd=10000))
-    
-    # Extract the pair numbers Primary~Secondary (ex: 1~24, 2~35) (test group can be collegues)
-    ResWor=0
-    for (z in seq(1, length(Primary_random), by=1))
+    if (Prob.Method == "detailed") # based on detailed statistics (less assumptions)
     {
-      RV = sample(prob_CD, size=1)
-      ResWor[z] = which.min(abs(RV-DIST_GEO[z,]))
+      #for (z in seq_along(Primary_random))
+      for (z in 1:20)
+      {
+        Dist = DIST_GEO[z,]
+        Prob = Dist # use same structure
+        for (l in (1:nrow(Commuting)))
+        {
+          Prob[Dist > Commuting$km_min[l]*1000 & Dist < Commuting$km_max[l]*1000] = Commuting$percentage[l]/100
+        }
+
+        Selected = matrix(sample(na.omit(as.numeric(Dist)), prob = na.omit(as.numeric(Prob)), size = 1))
+        ResWor[z] = which(Dist %in% Selected)
+      }
+    }
+    
+    #OSRM profile
+    if (Active.Type == "01.OW")
+      {
+        options(osrm.profile = "driving")
+      }
+    if (Active.Type == "03.SP")
+    {
+      options(osrm.profile = "cycling")
     }
     
     # Giving the pairs to the datasets
@@ -472,8 +477,15 @@ DeterminePPH_FL <- function(CRAB_Doel, Names.sub, FL.primary, FL.secondary, OSRM
     Primary_random_kopp@proj4string = BE_crs
     Secondary_random_NR@proj4string = BE_crs
     
-    SaveAsFile(Primary_random_kopp, paste0(Active.Type,"_Primary_", Names.sub), "GeoJSON", TRUE)
-    SaveAsFile(Secondary_random_NR, paste0(Active.Type,"_Secondary_", Names.sub), "GeoJSON", TRUE)
+    if (is.null(Subset.Gemeente))
+    {
+      SaveAsFile(Primary_random_kopp, paste(Active.Type, "Primary", sep = "_"), "GeoJSON", TRUE)
+      SaveAsFile(Secondary_random_NR, paste(Active.Type, "Secondary", sep = "_"), "GeoJSON", TRUE)
+    } else
+      {
+        SaveAsFile(Primary_random_kopp, paste0(Active.Type, "_Primary_", Names.sub), "GeoJSON", TRUE)
+        SaveAsFile(Secondary_random_NR, paste0(Active.Type, "_Secondary_", Names.sub), "GeoJSON", TRUE)
+      }
     
     # Transform RD new -> WGS84 for the route calculation (OSRM)
     WGS84 = "+init=epsg:4326"
@@ -507,13 +519,13 @@ DeterminePPH_FL <- function(CRAB_Doel, Names.sub, FL.primary, FL.secondary, OSRM
       
       CommutingRoutes1[i] = osrmRoute(src= RES, dst = WOR, overview = OSRM.level, # "full"/"simplified"
                                       sp = TRUE)
-      CommutingRoutes1[[i]] = spTransform(CommutingRoutes1[[i]], BE_epsg)
+      CommutingRoutes1[[i]] = spTransform(CommutingRoutes1[[i]], BE_crs)
       CommutingRoutes1[[i]]@lines[[1]]@ID = paste(CommutingRoutes1[[i]]@lines[[1]]@ID,i)
       row.names(CommutingRoutes1[[i]]) = as.character(i)
       
       CommutingRoutes2[i] = osrmRoute(src= WOR, dst = RES, overview = OSRM.level, # "full"/"simplified"
                                       sp = TRUE)
-      CommutingRoutes2[[i]] = spTransform(CommutingRoutes2[[i]], BE_epsg)
+      CommutingRoutes2[[i]] = spTransform(CommutingRoutes2[[i]], BE_crs)
       CommutingRoutes2[[i]]@lines[[1]]@ID = paste(CommutingRoutes2[[i]]@lines[[1]]@ID,i)
       row.names(CommutingRoutes2[[i]]) = as.character(i)
     }
@@ -530,14 +542,126 @@ DeterminePPH_FL <- function(CRAB_Doel, Names.sub, FL.primary, FL.secondary, OSRM
     CommutingRoutes1_SLDF@data["PersonID"] = seq.int(CommutingRoutes1_SLDF)
     CommutingRoutes2_SLDF@data["PersonID"] = seq.int(CommutingRoutes2_SLDF)
     
-    #CommutingRoutes1_SLDF@proj4string = BE_crs
-    #CommutingRoutes2_SLDF@proj4string = BE_crs
-    
-    SaveAsFile(CommutingRoutes1_SLDF, paste0(Active.Type,"_TransportOutwards_", Names.sub, "_", substr(OSRM.level, 1, 1)), "GeoJSON", TRUE)
-    SaveAsFile(CommutingRoutes2_SLDF, paste0(Active.Type,"_TransportInwards_", Names.sub, "_", substr(OSRM.level, 1, 1)), "GeoJSON", TRUE)
+    if (is.null(Subset.Gemeente))
+    {
+      SaveAsFile(CommutingRoutes1_SLDF, paste(Active.Type, paste0("TransportOutwards", Names.sub),substr(OSRM.level, 1, 1), sep = "_"), "GeoJSON", TRUE)
+      SaveAsFile(CommutingRoutes2_SLDF, paste(Active.Type, paste0("TransportInwards", Names.sub),substr(OSRM.level, 1, 1), sep = "_"), "GeoJSON", TRUE)
+    } else
+    {
+      SaveAsFile(CommutingRoutes1_SLDF, paste0(Active.Type,"_TransportOutwards_", Names.sub, "_", substr(OSRM.level, 1, 1)), "GeoJSON", TRUE)
+      SaveAsFile(CommutingRoutes2_SLDF, paste0(Active.Type,"_TransportInwards_", Names.sub, "_", substr(OSRM.level, 1, 1)), "GeoJSON", TRUE)
+      
+    }
   }
 }
 
+
+
+# Check difference in route distance and linear distance to perform a category specific distance correction
+CommutingRoutes1_SLDF@data$distance.linear = NA
+CommutingRoutes1_SLDF@data$distance_diff = NA
+CommutingRoutes1_SLDF@data$distance_diff.ra = NA
+
+for (i in seq_along(CommutingRoutes1_SLDF))
+{
+  CommutingRoutes1_SLDF@data$distance.linear[i] = gDistance(Primary_random_kopp[i,],
+          Secondary_random_NR[Secondary_random_NR@data$NR == Primary_random_kopp@data$koppeling[i],]) / 1000
+  
+  CommutingRoutes1_SLDF@data$distance_diff[i] = CommutingRoutes1_SLDF@data$distance[i] - CommutingRoutes1_SLDF@data$distance.linear[i]
+  CommutingRoutes1_SLDF@data$distance_diff.ra[i] = CommutingRoutes1_SLDF@data$distance.linear[i] / CommutingRoutes1_SLDF@data$distance[i]
+}
+mean(CommutingRoutes1_SLDF@data$distance_diff) # 15.5805 #14.7509
+mean(CommutingRoutes1_SLDF@data$distance_diff.ra) # 15.5805 #14.7509
+
+# classify in same groups as Commuting (csv) and give group specific correction
+Commuting$km_min.corr = NA
+Commuting$km_max.corr = NA
+Commuting$km_min.corr = Commuting$km_min * mean(CommutingRoutes1_SLDF@data$distance_diff.ra)
+Commuting$km_max.corr = Commuting$km_max * mean(CommutingRoutes1_SLDF@data$distance_diff.ra)
+
+plot((Commuting$km_min+Commuting$km_max)/ 2, Commuting$percentage, col = "red")
+points((Commuting$km_min.corr+Commuting$km_max.corr)/ 2, Commuting$percentage, col = "green")
+
+
+#Isochrones
+
+data("com")
+
+# Map
+if(require("cartography")){
+  osm <- getTiles(spdf = iso, crop = TRUE, type = "osmgrayscale")
+  tilesLayer(osm)
+  breaks <- sort(c(unique(iso$min), max(iso$max)))
+  cartography::choroLayer(spdf = iso, df = iso@data,
+                          var = "center", breaks = breaks,
+                          border = NA,
+                          legend.pos = "topleft",legend.frame = TRUE, 
+                          legend.title.txt = "Isochrones\n(min)", 
+                          add = TRUE)
+}
+
+# Get isochones with a SpatialPointsDataFrame, custom breaks
+iso2 <- osrmIsochrone(loc = src[7,], breaks = seq(from = 0,to = 30, by = 5))
+
+plot(iso2)
+spplot(iso2, "center")
+
+isoWS = osrmIsochrone(Primary_random_kopp[1:2,], breaks = Commuting$km_min)
+plot(isoWS)
+points(Secondary_random_NR)
+
+
+ComTime.breaks = c(1,10,20,30,40,50,100,200,250)
+ComTime.percentage = c(5.49,8.52,7.1,5.06,3.39,8.72,3.82,0.81,0)
+
+isolist = list()
+#for (i in seq_along(Primary_random_kopp))
+for (i in (1))
+{
+  isolist[[i]] = osrmIsochrone.WS(Primary_random_kopp[i,], breaks = ComTime.breaks, res = 100)
+  isolist[[1]]@data$prob = rev(ComTime.percentage[2:length(ComTime.percentage)])
+}
+plot(isolist[[1]])
+points(Primary_random_kopp[1,], col = "green")
+points(Secondary_random_NR, col = "orange")
+spplot(isolist[[1]], "prob")
+
+
+# PRI = Primary_random
+# SEC = Secondary_random
+# MaxLinKM = 75
+CommutingDistanceMatrixer <- function(PRI, SEC, MaxLinKM, ...)
+{
+  # Transform RD new -> WGS84 for the route calculation (OSRM)
+  WGS84 = "+init=epsg:4326"
+  
+  Primary_WGS84 <- spTransform(PRI, WGS84)
+  Secondary_WGS84 <- spTransform(SEC, WGS84)
+  
+  # create matrix for all possible pairs
+  Matrix.distance = matrix(NA, nrow = nrow(PRI), ncol = nrow(SEC)) # driven distances (quickest route)
+  #Matrix.duration = matrix(NA, nrow = nrow(PRI), ncol = nrow(SEC))
+  Matrix.distance.lin = matrix(NA, nrow = nrow(PRI), ncol = nrow(SEC)) # linear distances
+  
+  for (p in seq_along(PRI))
+  #for (p in 1:20)  
+  {
+    for (s in seq_along(SEC))
+    #for (s in 1:20)
+    {
+      if (is.na(Matrix.distance[p,s]))
+      {
+        Matrix.distance.lin[p,s] = gDistance(PRI[p,],SEC[s,])
+        if (Matrix.distance.lin[p,s] < MaxLinKM*1000)
+        {
+          Matrix.distance[p,s] = try((osrmRoute(Primary_WGS84[p,], Secondary_WGS84[s,], "simplified", sp = TRUE))@data$distance)
+        }
+      }
+    }
+    #Sys.sleep(1)
+  }
+  return(list(Matrix.distance, Matrix.distance.lin))
+}
 
 # DetermineRoutesNL <- function(NL.Provincie, NL.offices, NL.workplaces, ... )
 #   {

@@ -15,12 +15,69 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 ## Check for required packages and install them (incl dependencies) if they are not installed yet.
-list.of.packages <- c("sp","rgdal", "tmap", "gstat")
+list.of.packages <- c("sp","rgdal", "tmap", "gstat", "akima", "geometry", "Matrix")
 new.packages <- list.of.packages[!(list.of.packages %in% installed.packages()[,"Package"])]
 if(length(new.packages)) install.packages(new.packages)
 
 ## Load the packages
 library(sp)
+library(akima)
+
+# SPDF = Gemeente.Points.NoDup
+# dmax = 10
+# mpp = 100
+PointsToRasterTIN <- function(SPDF, dmax, mpp, ...)
+{
+  boxCoordX <- seq(from = bbox(SPDF)[1,1] - dmax,
+                   to = bbox(SPDF)[1,2] + dmax,
+                   by = mpp)
+  boxCoordY <- seq(from = bbox(SPDF)[2,1] - dmax,
+                   to = bbox(SPDF)[2,2] + dmax,
+                   by = mpp)
+  sgrid <- expand.grid(boxCoordX, boxCoordY)
+  idSeq <- seq(1, nrow(sgrid), 1)
+  WS = interp(x = SPDF@coords[,1], y = SPDF@coords[,2], z = SPDF@data$values,
+              xo = boxCoordX, yo = boxCoordY)
+  sgrid <- data.frame(ID = idSeq,
+                      COORDX = sgrid[, 1],
+                      COORDY = sgrid[, 2],
+                      NO2 = as.numeric(WS$z))
+  sgrid <- sp::SpatialPointsDataFrame(coords = sgrid[ , c(2, 3)],
+                                      data = sgrid,
+                                      proj4string = BE_crs)
+  Sub = as.logical(gIntersects(sgrid, Municipalities[Municipalities@data$NAAM %in% "Antwerpen",], byid = T))
+  #sgrid = sgrid[Sub,]
+  #plot(sgrid)
+  #plot(sgrid[Sub,])
+  #return(sgrid)
+  sp::gridded(sgrid) <- TRUE
+  sgrid = sgrid[Sub,]
+  #plot(sgrid)
+  r <- raster::raster(sgrid)
+  r <- raster::rasterize(sgrid, r, field = sgrid@data$NO2, na.rm=TRUE, fun = mean)
+  #plot(r)
+  return(r)
+  
+  #SaveAsFile(sgrid, paste("sgrid", "Antwerpen", paste0(mpp, "x", mpp), sep = "_"), "GeoJSON", TRUE)
+  
+}  
+  
+
+#   ## Source: https://dahtah.wordpress.com/2013/03/06/barycentric-interpolation-fast-interpolation-on-arbitrary-grids/
+#   #2D barycentric interpolation at points Xi for a function with values f measured at locations X
+#   #For N-D interpolation simply replace tsearch with tsearchn and modify the sparse matrix definition to have non-zero values in the right spots.
+#   interp.barycentric <- function(X,f,Xi)
+#   {
+#     require(geometry)
+#     require(Matrix)
+#     dn <- delaunayn(X)
+#     tri <- tsearch(X[,1],X[,2],dn,Xi[,1],Xi[,2],bary=T)
+#     #For each line in Xi, defines which points in X contribute to the interpolation
+#     active <- dn[tri$idx,]
+#     #Define the interpolation as a sparse matrix operation. Faster than using apply, probably slower than a C implementation
+#     M <- sparseMatrix(i=rep(1:nrow(Xi),each=3),j=as.numeric(t(active)),x=as.numeric(t(tri$p)),dims=c(nrow(Xi),length(f)))
+#     as.numeric(M%*%f)
+#   }
 
 PointsToRaster <- function(CT.SPDF, ...)
 {
@@ -75,7 +132,8 @@ PointsToRaster <- function(CT.SPDF, ...)
   
   }
   
-  BE_crs = CRS("+init=epsg:31370")
+  SaveAsFile(EXP, paste("Hour19test", Subset.Gemeente, sep = "_"), "Shapefile", TRUE)
+  
   
   ## CT subset
   zip_in = file.path("..", "data", "BE_FL", "gismonitor2015.zip")
@@ -105,7 +163,7 @@ PointsToRaster <- function(CT.SPDF, ...)
   library(tmap)
   
   # Create an empty grid where n is the total number of cells
-  grd              <- as.data.frame(spsample(EXP, "regular", n=50000))
+  grd              <- as.data.frame(spsample(EXP, "regular", n=10000))
   names(grd)       <- c("X", "Y")
   coordinates(grd) <- c("X", "Y")
   gridded(grd)     <- TRUE  # Create SpatialPixel object
@@ -154,6 +212,46 @@ spplot(EXP, "hour2", col.regions = rainbow(100, start = 4/6, end = 1),
 spplot(EXP, "hour2", col.regions = rainbow(100, start = 4/6, end = 1))
 }
 
+DigitalSurfaceModel <- function(...)
+{
+  Antwerpen = Municipalities[Municipalities@data$NAAM %in% "Antwerpen",]
+  Antwerpen@proj4string = BE_crs
+  
+  # read height raster (still little sloppy)
+  nummers = c("07", "15")
+  raster_in = file.path("..", "data", "BE_FL", "DSM", paste0("DHMVIIDSMRAS1m_k", nummers, ".tif"))
+  K07 = raster(raster_in[1], ext = Antwerpen)
+  K15 = raster(raster_in[2], ext = Antwerpen)
+  projection(K07) = BE_crs
+  projection(K15) = BE_crs
+  
+  DSM.K07.cr.ma = mask(crop(K07, Antwerpen), Antwerpen)
+  plot(DSM.K07.cr.ma)
+  DSM.K15.cr.ma = mask(crop(K15, Antwerpen), Antwerpen)
+  plot(DSM.K15.cr.ma)
+  
+  DSM.Antwerpen = raster::merge(DSM.K07.cr.ma, DSM.K15.cr.ma)
+  plot(DSM.Antwerpen)
+  
+  rm(DSM.K07.cr.ma, DSM.K15.cr.ma)
+  
+  rast_name = paste("DSM", Subset.Gemeente, sep = "_")
+  SaveAsFile(DSM.Antwerpen, rast_name, "GeoTIFF")
+  
+  
+  raster_in = file.path("..", "output", paste0(rast_name, ".tif"))
+  DSM.Antwerp = raster(raster_in)
+  projection(DSM.Antwerp) = BE_crs
+  plot(DSM.Antwerp)
+  
+  
+}
+
+TriangulationFromPoints <- function(...)
+{
+  
+  
+}
 
 RegressionKriging <- function(...)
 {
@@ -209,60 +307,118 @@ RegressionKriging <- function(...)
   
   spplot(Roads_Antwerpen, "RoadPullutor")
   
-  
-  # read hight raster
-  nummers = c("07", "15")
-  raster_in = file.path("..", "data", "BE_FL", "DSM", paste0("DHMVIIDSMRAS1m_k", nummers, ".tif"))
-  K15 = raster(raster_in[2], ext = Antwerpen)
-  K07 = raster(raster_in[1], ext = Antwerpen)
-  projection(K15) = BE_crs
-  projection(K07) = BE_crs
-  
-  DSM.K15.cr = crop(K15, Antwerpen)
-  plot(DSM.K15.cr)
-  
-  DSM.K15.cr.ma = mask(crop(K15, Antwerpen), Antwerpen)
-  plot(DSM.K15.cr.ma)
-  
-  K15.msk = mask(K15, Antwerpen)
-  K07.msk = mask(K07, Antwerpen)
+}
+
+
   
   
-  WS.merged = raster::merge(K15.msk,K07.msk)
+# source: http://r-sig-geo.2731867.n2.nabble.com/DEM-interpolation-with-Delaunay-triangulation-td7013856.html
+maybetin <- function(X, nx, ny, x=NULL, y=NULL, na.v=0)
+{
+  require(spatstat)
+  lltes<-delaunay(X)
   
-  plot(K15.msk)
-  plot(WS.merged)
+  if(is.null(x)){
+    gri <-  gridcentres(X$window, nx=nx, ny=ny)
+    gri.ppp <- ppp(gri$x,gri$y, window=X$window,
+                   marks=rep(na.v,length(gri$x)))
+  }
+  if(!is.null(x)){
+    gri.ppp<- ppp(x=x, y=y, window=X$window,
+                  marks=rep(na.v, length(x)))
+  }
   
-  head(K15@data@values)
-  head(K15.msk@data@values)
+  cat("\n","number of triangles =",
+      length(lltes[[3]]),"\n\n")
+  for(i in 1:length(lltes[[3]])){
+    progressreport(i, length(lltes[[3]]))
+    
+    #grid points within the triangulation
+    xoyo <- unmark(gri.ppp[lltes[[3]][[i]]])
+    
+    # original points defining the triangle
+    xyz <- X[lltes[[3]][[i]]]
+    # z values of the three points
+    z<-xyz$marks
+    mtrend <-with(xyz, lm(marks~x+y))
+    
+    grim <- predict(mtrend,
+                    newdata=data.frame(x = xoyo$x, y=xoyo$y))
+    
+    #assign interpolated values
+    gri.ppp[lltes[[3]][[i]]]$marks <- grim
+  }
+  return(gri.ppp)
+} 
   
-  DSM.Antwerpen = merge(K15, K07)
+TestCode <- function(...)
+{
   
-  rm(K15,K07,K15.msk,K07.msk)
+  require(gstat)
+  loadMeuse()
+  require(spatstat)
+  spatstat.options(gpclib=TRUE)
   
-  projection(DSM.Antwerpen) = BE_crs
-  plot(DSM.Antwerpen)
-  lines(Antwerpen, col = "red")
+  #data pre-processing
+  library(maptools) # for the "as" method
+  meuse.ppp <- as(meuse,"ppp")
+  meusegrid.ppp <- as(meuse.grid,"ppp")
   
-  DSM.Antwerpen2 = mask(DSM.Antwerpen, Antwerpen)
+  #readjust the window for not missing points of meusegrid
+  meuse.ppp$window <- meusegrid.ppp$window
   
-  ndv = DSM.Antwerpen2@file@nodatavalue
-  DSM.Antwerpen2@file@nodatavalue = NA
+  # use only log(zinc) as mark
+  meuse.ppp$marks <-log( meuse@data$zinc)
   
-  DSM.Antwerpen.cr = crop(DSM.Antwerpen, Antwerpen)#, file.path("..", "output", "")
-  plot(DSM.Antwerpen.cr)
+  #compute (maybe) TIN
+  xgrid <-maybetin(meuse.ppp,x=meusegrid.ppp$x,y=meusegrid.ppp$y)
   
-  # memory safe approach
-  filename <- system.file(raster_in[2], package="raster")
-  r <- raster(filename)
-  rna <- reclassify(r, cbind(NA, 250))
+  #A very brute force kind of representation
+  meuse.grid@data$tin<-xgrid$marks
   
-  K15.msk@extent[1] = Antwerpen@bbox[1,1]
-  K15.msk@extent[2] = Antwerpen@bbox[1,2]
-  K15.msk@extent[3] = Antwerpen@bbox[2,1]
-  K15.msk@extent[4] = Antwerpen@bbox[2,2]
-  plot(K15.msk)
+  spplot(meuse.grid["tin"],col.regions=bpy.colors(),
+         sp.layout=list("sp.points", meuse))
   
-  extent(K15.msk)
+  meuse.grid@data$tine<-exp(xgrid$marks)
+  spplot(meuse.grid["tine"],col.regions=bpy.colors(),
+         sp.layout=list("sp.points", meuse))
+  
+  
+  Dens <- stats::density(WS.ppp, adjust = 0.2)  # create density object
+
+  
+  #data pre-processing
+  library(maptools) # for the "as" method
+  WS.ppp <- as(EXP,"ppp")
+  WSgrid.ppp <- as(Dens,"ppp")
+  
+  #readjust the window for not missing points of meusegrid
+  meuse.ppp$window <- meusegrid.ppp$window
+  
+  # use only log(zinc) as mark
+  meuse.ppp$marks <-log( meuse@data$zinc)
+  
+  #compute (maybe) TIN
+  xgrid <-maybetin(meuse.ppp,x=meusegrid.ppp$x,y=meusegrid.ppp$y)
+  
+  #A very brute force kind of representation
+  meuse.grid@data$tin<-xgrid$marks
+  
+  spplot(meuse.grid["tin"],col.regions=bpy.colors(),
+         sp.layout=list("sp.points", meuse))
+  
+  meuse.grid@data$tine<-exp(xgrid$marks)
+  spplot(meuse.grid["tine"],col.regions=bpy.colors(),
+         sp.layout=list("sp.points", meuse))
+  
+  
+  
+  
+  require(gstat)
+  loadMeuse()
+  x = krige(log(zinc)~x+y, meuse, meuse.grid, nmax=3)
+  spplot(x[1],col.regions=bpy.colors(),
+         sp.layout=list("sp.points", meuse)) 
+
   
 }
