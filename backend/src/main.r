@@ -316,9 +316,9 @@ AoI_buff1 = gBuffer(merge(PRI,SEC), byid = F, id = NULL, width = m)
 plot(AoI_buff1)
 AoI_buff2 = gBuffer(merge(CommutingRoutes1_SLDF,CommutingRoutes2_SLDF), byid = F, id = NULL, width = m)
 lines(AoI_buff2, col = "red")
-AoI = AoI_buff1+AoI_buff2
+AoI = merge(AoI_buff1, AoI_buff2)
 plot(AoI)
-AoI_SPDF = SpatialPolygonsDataFrame(AoI, data = data.frame(1:length(AoI)))
+AoI_SPDF = SpatialPolygonsDataFrame(AoI, data = data.frame(1:3), match.ID = T)
 SaveAsFile(AoI_SPDF, paste("AreaOfInterest", paste0(m,"m"), sep = "_"), "GeoJSON", TRUE)
 
 
@@ -362,9 +362,19 @@ Gemeente.RIO_IFDM_TF = gIntersects(Points,
 Gemeente.RIO_IFDM_TF_logi = as.logical(Gemeente.RIO_IFDM_TF)
 Gemeente.RIO_IFDM = Points[Gemeente.RIO_IFDM_TF_logi,]
 
-AoI.RIO_IFDM_TF = gIntersects(Points, AoI_SPDF, byid = TRUE)
-#AoI.RIO_IFDM_TF_logi = as.logical(AoI.RIO_IFDM_TF)
+AoI.RIO_IFDM_TF = gIntersects(Points, AoI_SPDF, byid = T)
+TF = NA
+for (c in 1:ncol(AoI.RIO_IFDM_TF))
+{
+  TF[c] = any(AoI.RIO_IFDM_TF[,c]==T)
+}
+AoI.RIO_IFDM = Points[TF,]
+spplot(AoI.RIO_IFDM, "values")
+SaveAsFile(AoI.RIO_IFDM, "AoI-RIO_IFDM", "GeoJSON", TRUE)
 
+AoI.path_in = file.path("..", "output", "AoI-RIO_IFDM.geojson")
+AoI.RIO_IFDM = readOGR(AoI.path_in, layer = 'OGRGeoJSON')
+AoI.RIO_IFDM@proj4string = BE_crs
 
 # Now we only need the data from the area of interest
 txt.Points_in = file.path("T:" ,"RIO-IFDM", "NO2", "20150101_19_NO2.txt")
@@ -393,13 +403,13 @@ class(Gemeente.RIO_IFDM)
 ## Interpolating the points
 
 # Remove duplicates
-Gemeente.Points.Dups = Gemeente.Points[duplicated(Gemeente.Points@coords), ]
-Gemeente.Points.NoDup = Gemeente.Points[!duplicated(Gemeente.Points@coords), ]
+AoI.RIO_IFDM.Dups = AoI.RIO_IFDM[duplicated(AoI.RIO_IFDM@coords), ]
+AoI.RIO_IFDM.NoDup = AoI.RIO_IFDM[!duplicated(AoI.RIO_IFDM@coords), ]
 
 # Calculate a raster from RIO-IFDM points with the Triangulation method
 res = 100
-Gemeente.Raster = PointsToRasterTIN(SPDF = Gemeente.Points.NoDup, dmax = 0, mpp = res)
-#plot(Gemeente.Raster)
+AoI.Raster = PointsToRasterTIN(SPDF = AoI.RIO_IFDM, dmax = 0, mpp = res, dup = "strip")
+plot(AoI.Raster)
 SaveAsFile(Gemeente.Raster, paste("Raster", paste0(res,"x",res), "Antwerpen", sep = "_"), "GeoTIFF", TRUE)
 
 Gemeente.Raster.Cut = gIntersects(Gemeente.Raster, Municipalities[Municipalities@data$NAAM %in% "Antwerpen",])
