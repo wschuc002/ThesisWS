@@ -401,8 +401,11 @@ lines(PPH.T1, col = "red")
 lines(Belgium, col = "blue")
 lines(Belgium_buff, col = "pink")
 
-o = over(coordinates(PPH.T1[1,]@lines[[1]]), Belgium_buff)
-inter = gIntersects(PPH.T1, Belgium_buff, byid = TRUE)
+PPH.T1.co = coordinates(PPH.T1)
+
+o = over(PPH.T1.co, Belgium_buff)
+inter = gIntersects(PPH.T1[1:20,], Belgium_buff, byid = TRUE)
+inter = gIntersection(PPH.T1[1:20,], Belgium_buff, byid = TRUE)
 
 coordinates(PPH.T1[1,]@lines[[1]])
 
