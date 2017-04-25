@@ -52,9 +52,9 @@
 #' }
 #' }
 #' 
-#' loc = Primary_random_kopp[1,]
-#' breaks = ComTime.breaks
-#' res = 100
+# loc = Primary_random[1,]
+# breaks = ComTime.breaks
+# res = 100
 osrmIsochrone.WS <- function(loc, breaks, res, ...){
   oprj <- NA
   if(testSp(loc)){
@@ -118,7 +118,9 @@ osrmIsochrone.WS <- function(loc, breaks, res, ...){
                        dmatl[[5]]$destinations, dmatl[[6]]$destinations, dmatl[[7]]$destinations, dmatl[[8]]$destinations,
                        dmatl[[9]]$destinations, dmatl[[10]]$destinations, dmatl[[11]]$destinations, dmatl[[12]]$destinations,
                        dmatl[[13]]$destinations, dmatl[[14]]$destinations, dmatl[[15]]$destinations, dmatl[[16]]$destinations)
-#rm(durations, destinations)
+    
+    
+    #rm(durations, destinations)
   }
   
   rpt <- sp::SpatialPointsDataFrame(coords = destinations[ , c(1, 2)],
@@ -144,6 +146,90 @@ osrmIsochrone.WS <- function(loc, breaks, res, ...){
     isolines <- sp::spTransform(x = isolines, CRSobj = "+init=epsg:4326")
   }
   return(isolines)
+}
+
+# src = Primary_random[1,] src = PRI[1,]
+# dst = SecondarySample[1,] dst = SecondaryPaired
+# src = sp::spTransform(Primary_random[1,], WGS84)
+# dst = sp::spTransform(SecondarySample[1,], WGS84)
+# overview = "full"
+# sp = TRUE
+
+osrmRoute.WS <- function(src, dst, overview = "simplified", sp = FALSE){
+  tryCatch({
+    
+    # src = com[1, c("comm_id", "lon","lat")]
+    # dst = com[2, c("comm_id", "lon","lat")]
+    # sp=TRUE
+    # overview = "simplified"
+    
+    oprj <- NA
+    if(testSp(src)){
+      oprj <- sp::proj4string(src)
+      src <- src[1,]
+      x <- spToDf(x = src)
+      src <- c(x[1,1],x[1,2], x[1,3])
+    }
+    if(testSp(dst)){
+      dst <- dst[1,]
+      x <- spToDf(x = dst)
+      dst <- c(x[1,1],x[1,2], x[1,3])
+    }
+    
+    # build the query
+    req <- paste(getOption("osrm.server"),
+                 "route/v1/", getOption("osrm.profile"), "/", 
+                 src[2], ",", src[3],
+                 ";",
+                 dst[2],",",dst[3], 
+                 "?alternatives=false&geometries=polyline&steps=false&overview=",
+                 tolower(overview),
+                 sep="")
+    
+    # Sending the query
+    resRaw <- RCurl::getURL(utils::URLencode(req), 
+                            useragent = "'osrm' R package")
+    # Deal with \\u stuff
+    vres <- jsonlite::validate(resRaw)[1]
+    if(!vres){
+      resRaw <- gsub(pattern = "[\\]", replacement = "zorglub", x = resRaw)
+    }
+    # Parse the results
+    res <- jsonlite::fromJSON(resRaw)
+    
+    # Error handling
+    e <- simpleError(res$message)
+    if(res$code != "Ok"){stop(e)}
+    
+    if (overview == FALSE){
+      return(round(c(duration = res$routes$duration/60, 
+                     distance = res$routes$distance/1000), 2))
+    }
+    if(!vres){
+      res$routes$geometry <- gsub(pattern = "zorglub", replacement = "\\\\", 
+                                  x = res$routes$geometry)
+    }
+    # Coordinates of the line
+    geodf <- gepaf::decodePolyline(res$routes$geometry)[,c(2,1)]
+    
+    # Convert to SpatialLinesDataFrame
+    if (sp == TRUE){
+      routeLines <- sp::Lines(slinelist = sp::Line(geodf[,1:2]), 
+                              ID = "x")
+      routeSL <- sp::SpatialLines(LinesList = list(routeLines), 
+                                  proj4string = sp::CRS("+init=epsg:4326"))
+      df <- data.frame(src = src[1], dst = dst[1], 
+                       duration = res$routes$legs[[1]]$duration/60,
+                       distance = res$routes$legs[[1]]$distance/1000)
+      geodf <- sp::SpatialLinesDataFrame(routeSL, data = df, match.ID = FALSE)   
+      row.names(geodf) <- paste(src[1], dst[1],sep="_")
+      if (!is.na(oprj)){
+        geodf <- sp::spTransform(geodf, oprj)
+      }
+    }
+    return(geodf)
+  }, error=function(e) {message("osrmRoute function returns an error: \n", e)})
+  return(NULL)
 }
 
 ## All Functions Utils
@@ -410,4 +496,114 @@ osrmLimit <- function(nSrc, nDst){
   if(getOption("osrm.server") == "http://router.project-osrm.org/" & (nSrc*nDst) > 10000){
     stop(e)
   }
+}
+
+
+# options(osrm.profile = "driving")
+# options(osrm.profile = "biking")
+# getOption("osrm.profile")
+
+# data("com")
+# 
+#  loc = com[1:20, c(1,3,4)]
+# overview = "simplified"
+
+osrmTrip.WS <- function(loc, overview = "simplified"){
+  tryCatch({
+
+    # check if inpout is sp, transform and name columns
+    oprj <- NA
+    if (testSp(loc)) {
+      oprj <- sp::proj4string(loc)
+      loc <- spToDf(x = loc)
+    }else{
+      names(loc) <- c("id", "lon", "lat")
+    }
+    
+    # Build the query
+    req <- paste(getOption("osrm.server"),
+                 "trip/v1/", getOption("osrm.profile"), "/polyline(", 
+                 gepaf::encodePolyline(loc[,c("lat","lon")]),
+                 ")?steps=false&geometries=geojson&overview=",
+                 tolower(overview), sep = "")
+    # Send the query
+    ua <- "'osrm' R package"
+    resRaw <- RCurl::getURL(utils::URLencode(req), useragent = ua)
+    
+    if (resRaw=="") {
+      stop("OSRM returned an empty string.", call. = FALSE)
+    }
+    
+    # Parse the results
+    res <- jsonlite::fromJSON(resRaw)
+    
+    # Error handling
+    e <- simpleError(res$message)
+    if (res$code != "Ok") {stop(e)}
+    
+    # Get all the waypoints
+    waypointsg <- data.frame(res$waypoints[,c(1,5)], 
+                             matrix(unlist(res$waypoints$location), 
+                                    byrow = T, ncol = 2), id = loc$id)
+    
+    # In case of island, multiple trips
+    ntour <- dim(res$trips)[1]
+    trips <- vector("list", ntour)
+    
+    for (nt in 1:ntour) {
+      # Coordinates of the line
+      geodf <- data.frame(res$trips[nt,]$geometry$coordinates)
+      # In case of unfinnish trip
+      if (geodf[nrow(geodf),1] != geodf[1,1]) {
+        geodf <- rbind(geodf,geodf[1,])
+      }
+      geodf$ind <- 1:nrow(geodf)
+      # Extract trip waypoints
+      waypoints <- waypointsg[waypointsg$trips_index == (nt - 1),]
+      
+      # Get points order and indexes
+      geodf <- merge(geodf, waypoints, 
+                     by.x = c("X1", "X2"), by.y = c("X1","X2"), 
+                     all.x = T)
+      geodf <- geodf[order(geodf$ind, decreasing = F),]
+      
+      
+      indexes2 <- geodf[!is.na(geodf$waypoint_index),"ind"]
+      xx <- geodf[!is.na(geodf$waypoint_index),]
+      indexes <- c(stats::aggregate(xx$ind, by  = list(xx$waypoint_index),
+                                    min)[,2], 
+                   nrow(geodf))
+      # Build the polylines
+      wktl <- rep(NA,nrow(waypoints))
+      for (i in 1:(length(indexes) - 1)) {
+        wktl[i] <- paste("LINESTRING(",
+                         paste(geodf[indexes[i]:indexes[i + 1],1]," ",
+                               geodf[indexes[i]:indexes[i + 1],2], 
+                               sep = "", collapse = ",")
+                         ,")",sep = "")
+      }
+      wkt <- paste("GEOMETRYCOLLECTION(", paste(wktl, collapse = ","),")", sep = "")
+      sl <- rgeos::readWKT(wkt)
+      sl@proj4string <- sp::CRS("+init=epsg:4326")
+      start <- (waypoints[order(waypoints$waypoint_index, decreasing = F),"id"])
+      end <- start[c(2:length(start),1)]
+      df <- data.frame(start, end, 
+                       duration = res$trips[nt,]$legs[[1]][,"duration"] / 60, 
+                       distance = res$trips[nt,]$legs[[1]][,"distance"] / 1000)
+      sldf <- sp::SpatialLinesDataFrame(sl = sl, data = df, match.ID = F)
+      
+      # Reproj
+      if (!is.na(oprj)) {
+        sldf <- sp::spTransform(sldf, oprj)
+      }
+      
+      # Build tripSummary
+      tripSummary <- list(duration = res$trips[nt,]$duration/60,
+                          distance = res$trips[nt,]$distance/1000)   
+      
+      trips[[nt]] <- list(trip = sldf, summary = tripSummary)
+    }
+    return(trips)
+  }, error = function(e) { message("osrmTrip function returns an error: \n", e)})
+  return(NULL)
 }

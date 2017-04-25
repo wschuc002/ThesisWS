@@ -32,6 +32,7 @@
 
 ## Note 2: It is expected that the working directory is set to backend/src/
 
+
 ## TERMS:
 ## PPH: Personal Place History
 ## CT: Conversion Table, which is used for closest measuring point (Location IDs).
@@ -54,13 +55,13 @@ source("modules/SummaryStatistics.r")
 
 source("modules/util.r")
 source("modules/Interpolate.r")
+source("modules/IntersectsBoolean.r")
 
 #source("modules/WeightCR.r")
 #source("modules/RGBtoSingleBand.r")
 #source("modules/TimeDifferenceCalculation.r")
 #source("modules/CumulativeExposure.r")
 
-rm(list.of.packages, new.packages)
 
 ## Download data from cloud service (Dropbox)
 
@@ -99,7 +100,7 @@ rm(list.of.packages, new.packages)
 # Use the official address database of Flanders and add the correct attribute 'Goal of use'
 
 Subset.Gemeente = NULL # empty = NULL = no subset = all municipalities |  example subset: c("Gent","Antwerpen")
-Subset.Gemeente = "Antwerpen" # c("Antwerpen", "Gent")
+#Subset.Gemeente = "Antwerpen" # c("Antwerpen", "Gent")
 
 BE_crs = CRS("+init=epsg:31370")
 
@@ -155,10 +156,15 @@ if (OSRM.Level != "full" & OSRM.Level != "simplified")
 csv.Commuting_in = file.path("..", "data", "BE_FL", "CommutingStats.csv")
 Commuting = fread(csv.Commuting_in, sep=",", header=TRUE)
 
+# Read Flanders polygon (improve unzip)
+gml.Flanders_in = file.path("..", "data", "BE_FL", "Refgew.gml")
+Flanders = readOGR(gml.Flanders_in, layer = "Refgew")
+Flanders@proj4string = BE_crs
+
 # Determine PPH for the active profile.
 # Check if data already exists. If so, it will not run.
 #if (!file.exists(dir.P)&!file.exists(dir.S)&(!file.exists(dir.T1s)|!file.exists(dir.T1f))&(!file.exists(dir.T2s)|!file.exists(dir.T2f)))
-DeterminePPH_FL(CRAB_Doel, Names, 10, OSRM.Level, Active.Type)
+DeterminePPH_FL(CRAB_Doel, Names, 250, OSRM.Level, Active.Type, "detailed")
 
 
 Name = "CT"
@@ -311,30 +317,51 @@ if (WriteToDisk == TRUE)
 ## Read Air Quality data
 
 # Create buffer of AoI (=Location history)
-m = 500
+m = 250
 AoI_buff1 = gBuffer(merge(PRI,SEC), byid = F, id = NULL, width = m)
-plot(AoI_buff1)
 AoI_buff2 = gBuffer(merge(CommutingRoutes1_SLDF,CommutingRoutes2_SLDF), byid = F, id = NULL, width = m)
-lines(AoI_buff2, col = "red")
-AoI = merge(AoI_buff1, AoI_buff2)
-plot(AoI)
-AoI_SPDF = SpatialPolygonsDataFrame(AoI, data = data.frame(1:3), match.ID = T)
+AoI = union(AoI_buff1, AoI_buff2)
+AoI = rgeos::gUnaryUnion(AoI, id = NULL)
+#AoI.uSP = rgeos::gUnaryUnion(AoI_buff1, AoI_buff2)
+#AoI.uSP = maptools::unionSpatialPolygons(AoI)
+AoI_SPDF = SpatialPolygonsDataFrame(AoI, data = data.frame(1:(length(AoI.UU))), match.ID = T)
 SaveAsFile(AoI_SPDF, paste("AreaOfInterest", paste0(m,"m"), sep = "_"), "GeoJSON", TRUE)
 
 
+AoI = AreaOfInterest.PPH(PRI, SecondaryPaired, PPH.T1, PPH.T2, 250)
+plot(AoI)
+
+AoI.path_in = file.path("..", "output", paste("AreaOfInterest", paste0(m,"m", ".geojson"), sep = "_"))
+AoI = readOGR(AoI.path_in, layer = 'OGRGeoJSON')
+AoI = rgeos::gUnaryUnion(AoI, id = NULL)
+AoI@proj4string = BE_crs
+
 ## TXT structure RIO-IFDM
-txt.Points_in = file.path("..", "data", "BE", "IRCELINE", "NO2", "20150101_1_NO2.txt")
+txt.Points_in = file.path("..", "data", "BE", "IRCELINE", "20150101_1_NO2.txt")
 Points = fread(txt.Points_in, sep=";", header=TRUE)
 
-# bz2.Points_in = file.path("T:", "RIO-IFDM", "20150101_1_NO2.txt.bz2")
-# Points2 = fread(sprintf(bz2.Points_in))
+## Read from compressed bz2 file
+library(R.utils)
 
+hourFile = "20150101_1_NO2.txt"
+bz2.Points_in = file.path("..", "data", "BE", "IRCELINE", paste0(hourFile,".bz2"))
+txt.Points = file.path("..", "data", "BE", "IRCELINE", hourFile)
+if (!file.exists(txt.Points))
+{
+  bunzip2(bz2.Points_in, txt.Points, remove = FALSE, skip = TRUE)
+}
+Points = fread(txt.Points, sep=";", header=TRUE)
 coordinates(Points) = ~x+y
 Points@proj4string = BE_crs
 
-# Make subset (of Flanders)
 
+AoI.AQ = AreaOfInterest.AQ(Points)
+plot(AoI.AQ)
+points(Points)
+lines(PPH.T2, col = "red")
+lines(Flanders, col = "orange")
 
+# Make subset Area of Interest (AoI) (of Flanders)
 
 # Read Flanders polygon (improve unzip)
 gml.Flanders_in = file.path("..", "data", "BE_FL", "Refgew.gml")
@@ -342,75 +369,161 @@ Flanders = readOGR(gml.Flanders_in, layer = "Refgew")
 Flanders@proj4string = BE_crs
 
 # Create buffer of Flanders
-Flanders_buff = gBuffer(Flanders, byid = F, id = NULL, width = 1000)
-AoI_SPDF = Flanders_buff
+Flanders_buff = gBuffer(Flanders, byid = F, id = NULL, width = 5000)
+lines(Flanders_buff, col = "blue")
 
-# Sample = sample(1:length(Points), 1000)
-# plot(Points[Sample,])
-# Flanders.RIO_IFDM = gIntersection(Points[Sample,], Flanders_buff)
-# plot(Flanders.RIO_IFDM)
+# Read Belgian polygon (improve unzip)
+## Read the input data
+BE_zip_in = file.path("..", "data", "BE", "Belgium_shapefile.zip")
+scale = 1 # (in km) 1, 10 or 100
+BE_shp_name = paste0("be_", scale, "km")
+Extentions = c(".shp", ".dbf", ".prj", ".shx")
+BE_shp_in = file.path("..", "data", "BE", paste0(BE_shp_name,Extentions[1]))
 
-# Gemeente.RIO_IFDM_TF = gIntersects(Points[Sample,],
-#                                   Municipalities[Municipalities@data$NAAM %in% "Antwerpen",],
-#                                   byid = TRUE)
-# Gemeente.RIO_IFDM = Points[Sample,][as.logical(Gemeente.RIO_IFDM_TF),]
-
-# 
-Gemeente.RIO_IFDM_TF = gIntersects(Points,
-                                   Municipalities[Municipalities@data$NAAM %in% "Antwerpen",],
-                                   byid = TRUE)
-Gemeente.RIO_IFDM_TF_logi = as.logical(Gemeente.RIO_IFDM_TF)
-Gemeente.RIO_IFDM = Points[Gemeente.RIO_IFDM_TF_logi,]
-
-AoI.RIO_IFDM_TF = gIntersects(Points, AoI_SPDF, byid = T)
-TF = NA
-for (c in 1:ncol(AoI.RIO_IFDM_TF))
+# Check if input data is available
+if (!file.exists(BE_zip_in) & !file.exists(BE_shp_in))
 {
-  TF[c] = any(AoI.RIO_IFDM_TF[,c]==T)
+  stop(paste("Belgium shapefile does not found."))
 }
-AoI.RIO_IFDM = Points[TF,]
-spplot(AoI.RIO_IFDM, "values")
-SaveAsFile(AoI.RIO_IFDM, "AoI-RIO_IFDM", "GeoJSON", TRUE)
+if (!file.exists(BE_shp_in))
+{
+  unzip(BE_zip_in, exdir= file.path("..", "data", "BE"), files = paste0(BE_shp_name,Extentions))
+}
+Belgium = readOGR(BE_shp_in, layer = BE_shp_name)
+Belgium = spTransform(Belgium, BE_crs)
+Belgium = rgeos::gUnaryUnion(Belgium, id = NULL)
 
-AoI.path_in = file.path("..", "output", "AoI-RIO_IFDM.geojson")
-AoI.RIO_IFDM = readOGR(AoI.path_in, layer = 'OGRGeoJSON')
-AoI.RIO_IFDM@proj4string = BE_crs
+# Create buffer of Belgium
+Belgium_buff = gBuffer(Belgium.UU, byid = F, id = NULL, width = -10000)
+plot(PRI, col = "green")
+points(Points)
+lines(PPH.T1, col = "red")
+lines(Belgium, col = "blue")
+lines(Belgium_buff, col = "pink")
 
-# Now we only need the data from the area of interest
-txt.Points_in = file.path("T:" ,"RIO-IFDM", "NO2", "20150101_19_NO2.txt")
-Gemeente.Points = fread(txt.Points_in, sep=";", header=TRUE)
-Gemeente.Points = Gemeente.Points[Gemeente.RIO_IFDM_TF_logi,]
+o = over(coordinates(PPH.T1[1,]@lines[[1]]), Belgium_buff)
+inter = gIntersects(PPH.T1, Belgium_buff, byid = TRUE)
 
-SaveAsFile(Gemeente.Points, "Gemeente_points", "GeoJSON", TRUE)
+coordinates(PPH.T1[1,]@lines[[1]])
+
+# AoI & Subset area Municipality (AoI2) | use for testing
+AoI2 = gIntersection(AoI_SPDF, Municipalities[Municipalities@data$NAAM %in% "Antwerpen",])
+
+AoI2_SPDF = SpatialPolygonsDataFrame(AoI2, data = data.frame(1:(length(AoI2))), match.ID = T)
+SaveAsFile(AoI2_SPDF, "AoI2", "GeoJSON", TRUE)
+#AoI2 = gIntersection(AoI_SPDF, Flanders_buff)
+
+## Simplify AoI
+# s = 25
+# AoI2.simp = gSimplify(AoI2, s)
+# plot(AoI2.simp, col = "blue")
+# AoI2_SPDF.simp = SpatialPolygonsDataFrame(AoI2.simp, data = data.frame(1:(length(AoI2.simp))), match.ID = T)
+# SaveAsFile(AoI2_SPDF.simp, paste("AreaOfInterest_simp", paste0("x", s), sep = "_"), "GeoJSON", TRUE)
+
+# Create the Boolean for the base 
+Points.TF = IntersectsBoolean(Points, AoI2)
+# Create the base: All the RIO-IFDM points inside the Area of Interest
+Points.AoI = Points[Points.TF,]
+plot(Points.AoI)
+SaveAsFile(Points.AoI, "Points_AoI", "GeoJSON", TRUE)
 
 
-coordinates(Gemeente.Points) = ~x+y
-Gemeente.Points@proj4string = BE_crs
-SaveAsFile(Gemeente.Points, paste("Hour19_2015test", "Antwerpen", sep = "_"), "Shapefile", TRUE)
-SaveAsFile(Gemeente.Points, paste("Hour19_2015test", "Antwerpen", sep = "_"), "GeoJSON", TRUE)
+# Create grid for Flanders
+
+# Grid on whole number coordinates 10x10m inside AoI
+!!
 
 
+# data intensive method
+sgrid = GridMaker(Flanders_buff, AoI, 100, 10)
+#plot(sgrid)
+
+sgrid.TF = IntersectsBoolean(sgrid, AoI)
+
+# Create Boolean and base for the Municipality of Antwerp | use for testing
+# Gemeente.RIO_IFDM_TF = gIntersects(Points,
+#                                    Municipalities[Municipalities@data$NAAM %in% "Antwerpen",],
+#                                    byid = TRUE)
+# Gemeente.RIO_IFDM_TF_logi = as.logical(Gemeente.RIO_IFDM_TF)
+# Gemeente.RIO_IFDM = Points[Gemeente.RIO_IFDM_TF_logi,]
+
+# AoI2.RIO_IFDM_TF = gIntersects(Gemeente.RIO_IFDM, AoI_SPDF, byid = T)
+# AoI2.RIO_IFDM_logi = MatrixToLogical(AoI2.RIO_IFDM_TF)
+# 
+# MatrixToLogical <-function(Sub, ...)
+# {
+#   TF = NA
+#   for (c in 1:ncol(Sub))
+#   {
+#     TF[c] = any(Sub[,c]==T)
+#   }
+#   return(TF)
+# }
+# 
+# AoI2.RIO_IFDM = Gemeente.RIO_IFDM[AoI2.RIO_IFDM_logi,]
+# spplot(AoI2.RIO_IFDM, "values")
+# 
+# SaveAsFile(AoI.RIO_IFDM, "AoI-RIO_IFDM", "GeoJSON", TRUE)
+# 
+# AoI.path_in = file.path("..", "output", "AoI-RIO_IFDM.geojson")
+# AoI.RIO_IFDM = readOGR(AoI.path_in, layer = 'OGRGeoJSON')
+# AoI.RIO_IFDM@proj4string = BE_crs
 
 
-plot(Gemeente.RIO_IFDM)
-spplot(Gemeente.RIO_IFDM, "values")
-class(Gemeente.RIO_IFDM)
+# Read the values and place them in the Points SPDF
+hourFile = "20150101_19_NO2.txt"
+bz2.Points_in = file.path("..", "data", "BE", "IRCELINE", paste0(hourFile,".bz2"))
+txt.Points = file.path("..", "data", "BE", "IRCELINE", hourFile)
 
+for (d in 1:length(hourFile))
+{
+  if (!file.exists(txt.Points[d]))
+  {
+    bunzip2(bz2.Points_in[d], txt.Points[d], remove = FALSE, skip = TRUE)
+  }
+}
 
+Values = fread(txt.Points, sep=";", header=TRUE, select = "values")[Points.TF,]
+colnames(Values) = "CON20150101_19_NO2"
 
+Points.AoI@data = cbind(Points.AoI@data, Values)
+colnames(Points.AoI@data)
+
+spplot(Points.AoI, "values")
+spplot(Points.AoI, "CON20150101_19_NO2")
 
 
 ## Interpolating the points
 
 # Remove duplicates
-AoI.RIO_IFDM.Dups = AoI.RIO_IFDM[duplicated(AoI.RIO_IFDM@coords), ]
-AoI.RIO_IFDM.NoDup = AoI.RIO_IFDM[!duplicated(AoI.RIO_IFDM@coords), ]
+Points.AoI.Dups = Points.AoI[duplicated(Points.AoI@coords), ]
+Points.AoI.NoDup = Points.AoI[!duplicated(Points.AoI@coords), ]
+SaveAsFile(Points.AoI.NoDup, paste("Points_AoI_RIO-IFDM", "CON20150101_19_NO2", sep = "_"), "GeoJSON", TRUE)
+
 
 # Calculate a raster from RIO-IFDM points with the Triangulation method
-res = 100
-AoI.Raster = PointsToRasterTIN(SPDF = AoI.RIO_IFDM, dmax = 0, mpp = res, dup = "strip")
-plot(AoI.Raster)
-SaveAsFile(Gemeente.Raster, paste("Raster", paste0(res,"x",res), "Antwerpen", sep = "_"), "GeoTIFF", TRUE)
+res = 10
+AoI2.Raster = PointsToRasterTIN(SPDF = Points.AoI.NoDup, value = "CON20150101_19_NO2",
+                                AoI = AoI,
+                                dmax = 20, mpp = res, dup = "error")
+plot(AoI2.Raster)
+lines(AoI2, col = "red")
+points(Points.AoI2.NoDup)
+SaveAsFile(AoI2.Raster, paste("Antwerpen", paste0(res,"x",res), "CON20150101_19_NO2", sep = "_"), "GeoTIFF", TRUE)
+
+# Compare with Antwerpen NO2 hour19 raster
+raster_in = file.path("..", "output", "Raster_10x10_Antwerpen.tif")
+Raster.Antwerpen = raster(raster_in, layer = "Raster_10x10_Antwerpen.tif")
+projection(Raster.Antwerpen) = BE_crs
+plot(Raster.Antwerpen)
+
+DiffRaster = Raster.Antwerpen - AoI2.Raster
+values(DiffRaster)
+plot(DiffRaster)
+SaveAsFile(DiffRaster, paste("DiffRaster", paste0(res,"x",res), sep = "_"), "GeoTIFF", TRUE)
+
+
+
 
 Gemeente.Raster.Cut = gIntersects(Gemeente.Raster, Municipalities[Municipalities@data$NAAM %in% "Antwerpen",])
 

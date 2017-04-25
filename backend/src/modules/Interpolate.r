@@ -15,7 +15,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 ## Check for required packages and install them (incl dependencies) if they are not installed yet.
-list.of.packages <- c("sp","rgdal", "tmap", "gstat", "akima", "geometry", "Matrix")
+list.of.packages <- c("sp","akima")
 new.packages <- list.of.packages[!(list.of.packages %in% installed.packages()[,"Package"])]
 if(length(new.packages)) install.packages(new.packages)
 
@@ -23,21 +23,75 @@ if(length(new.packages)) install.packages(new.packages)
 library(sp)
 library(akima)
 
-# SPDF = Gemeente.Points.NoDup
-# dmax = 10
-# mpp = 100
-PointsToRasterTIN <- function(SPDF, dmax, mpp, ...)
+library(geoR)
+
+#gjson_in = file.path("..", "output", paste("Points_AoI_RIO-IFDM", "CON20150101_19_NO2.geojson", sep = "_"))
+#Points.AoI.NoDup = readOGR(gjson_in, layer = 'OGRGeoJSON')
+#Points.AoI.NoDup@proj4string = BE_crs
+
+#gjson_in = file.path("..", "output", "AoI2.geojson")
+#AoI = readOGR(gjson_in, layer = 'OGRGeoJSON')
+#AoI@proj4string = BE_crs
+
+# gjson_in = file.path("..", "output", paste("01.OW_Secondary.geojson"))
+# PPH.S = readOGR(gjson_in, layer = 'OGRGeoJSON')
+# PPH.S@proj4string = BE_crs
+
+# SPDF = Points.AoI.NoDup
+# AoI = AoI
+# value = "CON20150101_19_NO2"
+# dmax = 100
+# mpp = 10
+# dup = "error"
+PointsToRasterTIN <- function(SPDF, value, AoI, dmax, mpp, dup, ...)
 {
-  boxCoordX <- seq(from = bbox(SPDF)[1,1] - dmax,
-                   to = bbox(SPDF)[1,2] + dmax,
+  WS = interp(x = SPDF@coords[,1], y = SPDF@coords[,2], z = SPDF@data[,colnames(SPDF@data) == value], #SPDF@data$values
+              xo = PPH.S@coords[,1], yo = PPH.S@coords[,2], duplicate = dup, extrap = FALSE)
+  
+  WS$z
+  
+  
+  
+  boxCoordX <- seq(from = round(bbox(SPDF)[1,1], -2) - dmax,
+                   to = round(bbox(SPDF)[1,2], -2) + dmax,
                    by = mpp)
-  boxCoordY <- seq(from = bbox(SPDF)[2,1] - dmax,
-                   to = bbox(SPDF)[2,2] + dmax,
+  boxCoordY <- seq(from = round(bbox(SPDF)[2,1], -2) - dmax,
+                   to =  round(bbox(SPDF)[2,2], -2) + dmax,
                    by = mpp)
-  sgrid <- expand.grid(boxCoordX, boxCoordY)
+  
+  GridPol.Li = list()
+  for (p in 1:length(AoI@polygons[[1]]@Polygons))
+  {
+    GridPol = polygrid(boxCoordX, boxCoordY, AoI@polygons[[1]]@Polygons[[p]]@coords, vec.inout = FALSE)
+    GridPol.Li[[p]] = GridPol
+  }
+  GridPolWS = do.call(rbind, GridPol.Li)
+  GridPol.SP = GridPolWS
+  coordinates(GridPol.SP) = ~x+y
+  GridPol.SP@proj4string = BE_crs
+  plot(GridPol.SP)
+  
+  GridPol.SPDF = SpatialPointsDataFrame(GridPol.SP, data = data.frame(1:(length(GridPol.SP))))
+  SaveAsFile(GridPol.SPDF, paste("GridPol.SP", paste0(mpp,"x",mpp),sep = "_"), "GeoJSON", TRUE)
+  
+  
+  #sgridDS.SPDF = GridDownScaler(SPDF, AoI, dmax, mpp)
+  #SaveAsFile(sgridDS.SPDF, paste("sgridDS", paste0(mpp,"x",mpp),sep = "_"), "GeoJSON", TRUE)
+  
+  WS = interp(x = SPDF@coords[,1], y = SPDF@coords[,2], z = SPDF@data[,colnames(SPDF@data) == value], #SPDF@data$values
+              xo = GridPol.SP@coords[,1], yo = GridPol.SP@coords[,2], duplicate = dup, extrap = FALSE)
+
+  return(WS)
+  
+  sgrid.SPDF = GridPol.SPDF
+  sgrid.SPDF@data = cbind(sgrid.SPDF@data, as.numeric(WS$z))
+  colnames(sgrid.SPDF@data)[2] = value
+  plot(sgrid.SPDF)
+  spplot(sgrid.SPDF, colnames(sgrid.SPDF@data)[2])
+  
+  WS = interp(x = SPDF@coords[,1], y = SPDF@coords[,2], z = SPDF@data[,colnames(SPDF@data) == value], #SPDF@data$values
+              xo = boxCoordX, yo = boxCoordY, duplicate = dup, extrap = FALSE)
   idSeq <- seq(1, nrow(sgrid), 1)
-  WS = interp(x = SPDF@coords[,1], y = SPDF@coords[,2], z = SPDF@data$values,
-              xo = boxCoordX, yo = boxCoordY)
   sgrid <- data.frame(ID = idSeq,
                       COORDX = sgrid[, 1],
                       COORDY = sgrid[, 2],
@@ -45,23 +99,153 @@ PointsToRasterTIN <- function(SPDF, dmax, mpp, ...)
   sgrid <- sp::SpatialPointsDataFrame(coords = sgrid[ , c(2, 3)],
                                       data = sgrid,
                                       proj4string = BE_crs)
-  Sub = as.logical(gIntersects(sgrid, Municipalities[Municipalities@data$NAAM %in% "Antwerpen",], byid = T))
+  #Sub = as.logical(gIntersects(sgrid, Municipalities[Municipalities@data$NAAM %in% "Antwerpen",], byid = T))
+
+#   terror = gIntersection(AoI_SPDF, Municipalities[Municipalities@data$NAAM %in% "Antwerpen",])
+#   plot(terror)
+#   
+#   herpes = gIntersection(sgrid, terror)
+#   
+#   Sub2 = gIntersects(sgrid, terror, byid = T)
+  
   #sgrid = sgrid[Sub,]
   #plot(sgrid)
   #plot(sgrid[Sub,])
   #return(sgrid)
   sp::gridded(sgrid) <- TRUE
-  sgrid = sgrid[Sub,]
+  #sgrid = sgrid[Sub,]
   #plot(sgrid)
   r <- raster::raster(sgrid)
   r <- raster::rasterize(sgrid, r, field = sgrid@data$NO2, na.rm=TRUE, fun = mean)
   #plot(r)
-  return(r)
+  #lines(Municipalities[Municipalities@data$NAAM %in% "Antwerpen",], col = "red")
+  #lines(AoI_SPDF, col = "blue")
+  #points(SPDF)
+  #return(r)
   
-  #SaveAsFile(sgrid, paste("sgrid", "Antwerpen", paste0(mpp, "x", mpp), sep = "_"), "GeoJSON", TRUE)
+  #r = AoI2.Raster
+  ma = mask(r, AoI)
+#   plot(ma)
+#   lines(AoI)
+  return(ma)
+
+}
+
+GridDownScaler <- function(SPDF, AoI, dmax, mpp, ...)
+{
+  # start with larger grid (100m?) with larger dmax and then fill them in with the 10m grid.
+  # then interpolate on the 10m AoI grid
   
-}  
+  boxCoordX <- seq(from = round(bbox(SPDF)[1,1], -2) - dmax,
+                   to = round(bbox(SPDF)[1,2], -2) + dmax,
+                   by = mpp)
+  boxCoordY <- seq(from = round(bbox(SPDF)[2,1], -2) - dmax,
+                   to =  round(bbox(SPDF)[2,2], -2) + dmax,
+                   by = mpp)
   
+  GridPol = polygrid(boxCoordX, boxCoordY, AoI@polygons[[1]]@Polygons[[1]]@coords, vec.inout = FALSE)
+  
+  GridPol.SP = GridPol
+  coordinates(GridPol.SP) = ~x+y
+  GridPol.SP@proj4string = BE_crs
+  plot(GridPol.SP)
+  
+  
+  sgrid <- expand.grid(boxCoordX, boxCoordY)
+  idSeq <- seq(1, nrow(sgrid), 1)
+  sgrid.DF <- data.frame(ID = idSeq, COORDX = sgrid[, 1], COORDY = sgrid[, 2])
+  sgrid.SPDF <- sp::SpatialPointsDataFrame(coords = sgrid.DF[ , c(2, 3)],
+                                           data = sgrid.DF, proj4string = BE_crs)
+  
+  sgrid.TF = IntersectsBoolean(sgrid.SPDF, AoI)
+  sgrid.SPDF.AoI = sgrid.SPDF[sgrid.TF,]
+  plot(sgrid.SPDF.AoI)
+  #SaveAsFile(sgrid.SPDF.AoI, paste("Grid_AoI", paste0(mpp*10,"x",mpp*10),sep = "_"), "GeoJSON", TRUE)
+
+  sp::gridded(sgrid.SPDF.AoI) <- TRUE # convert to SpatialPixelsDataFrame
+  
+  sgrid2.Li = list()
+  for (p in seq_along(sgrid.SPDF.AoI))
+  {
+    boxCoordX <- seq(from = bbox(sgrid.SPDF.AoI[p,])[1,1], to = bbox(sgrid.SPDF.AoI[p,])[1,2], by = mpp)
+    boxCoordY <- seq(from = bbox(sgrid.SPDF.AoI[p,])[2,1], to = bbox(sgrid.SPDF.AoI[p,])[2,2], by = mpp)
+    sgrid2 <- expand.grid(boxCoordX, boxCoordY)
+    idSeq2 <- seq(1, nrow(sgrid2), 1)
+    sgrid2.DF <- data.frame(ID = idSeq2, COORDX = sgrid2[, 1], COORDY = sgrid2[, 2])
+    sgrid2.SPDF <- sp::SpatialPointsDataFrame(coords = sgrid2.DF[ , c(2, 3)],
+                                              data = sgrid2.DF, proj4string = BE_crs)
+    sgrid2.Li[[p]] = sgrid2.SPDF
+  }
+  sgrid2WS = do.call(rbind, sgrid2.Li)
+  
+  # Remove duplicates
+  #sgrid2WS.Dups = sgrid2WS[duplicated(sgrid2WS@coords), ]
+  sgrid2WS.NoDup = sgrid2WS[!duplicated(sgrid2WS@coords), ]
+  
+  
+#   # connect points distance == 100 and seq 10m point between them (Tree method?)
+#   tree = createTree(coordinates(sgrid.SPDF.AoI))
+#   inds = knnLookup(tree, newdat=coordinates(sgrid.SPDF.AoI), k = 2) # gives the matrix
+#   
+#   sgrid2.Li = list()
+#   p=1
+#   for (p in seq_along(sgrid.SPDF.AoI))
+#     #for (p in 1:2)
+#   {
+#     if (sgrid.SPDF.AoI@coords[inds[p,1],1] > sgrid.SPDF.AoI@coords[inds[p,2],1])
+#     {
+#       SeqX = seq(from = sgrid.SPDF.AoI@coords[inds[p,1],1], to = sgrid.SPDF.AoI@coords[inds[p,2],1], by = -mpp)
+#     } else {
+#       SeqX = seq(from = sgrid.SPDF.AoI@coords[inds[p,1],1], to = sgrid.SPDF.AoI@coords[inds[p,2],1], by = mpp)
+#     }
+#     
+#     if (sgrid.SPDF.AoI@coords[inds[p,1],2] > sgrid.SPDF.AoI@coords[inds[p,2],2])
+#     {
+#       SeqY = seq(from = sgrid.SPDF.AoI@coords[inds[p,1],2], to = sgrid.SPDF.AoI@coords[inds[p,2],2], by = -mpp)
+#     } else {
+#       SeqY = seq(from = sgrid.SPDF.AoI@coords[inds[p,1],2], to = sgrid.SPDF.AoI@coords[inds[p,2],2], by = mpp)
+#     }
+#     
+#     sgrid2 <- expand.grid(SeqX, SeqY)
+#     
+#     plot(sgrid2)
+#     
+#     idSeq2 <- seq(1, nrow(sgrid2), 1)
+#     sgrid2.DF <- data.frame(ID = idSeq2, COORDX = sgrid2[, 1], COORDY = sgrid2[, 2])
+#     sgrid2.SPDF <- sp::SpatialPointsDataFrame(coords = sgrid2.DF[ , c(2, 3)],
+#                                               data = sgrid2.DF, proj4string = BE_crs)
+#     sgrid2.Li[[p]] = sgrid2.SPDF
+#   }
+#   sgrid2WS = do.call(rbind, sgrid2.Li)
+#   plot(sgrid.SPDF.AoI)
+#   points(sgrid2WS, col = "red")
+#   
+#   # Remove duplicates
+#   sgrid2WS.Dups = sgrid2WS[duplicated(sgrid2WS@coords), ]
+#   sgrid2WS.NoDup = sgrid2WS[!duplicated(sgrid2WS@coords), ]
+  
+  return(sgrid2WS.NoDup)
+}
+
+GridMaker <- function(Region, AoI, dmax, mpp, ...)
+{
+  boxCoordX <- seq(from = bbox(Region)[1,1] - dmax,
+                   to = bbox(Region)[1,2] + dmax,
+                   by = mpp)
+  boxCoordY <- seq(from = bbox(Region)[2,1] - dmax,
+                   to = bbox(Region)[2,2] + dmax,
+                   by = mpp)
+  sgrid <- expand.grid(boxCoordX, boxCoordY)
+  idSeq <- seq(1, nrow(sgrid), 1)
+  sgrid <- data.frame(ID = idSeq,
+                      COORDX = sgrid[, 1],
+                      COORDY = sgrid[, 2])
+  sgrid <- sp::SpatialPointsDataFrame(coords = sgrid[ , c(2, 3)],
+                                      data = sgrid,
+                                      proj4string = BE_crs)
+  return(sgrid)
+}
+
 
 #   ## Source: https://dahtah.wordpress.com/2013/03/06/barycentric-interpolation-fast-interpolation-on-arbitrary-grids/
 #   #2D barycentric interpolation at points Xi for a function with values f measured at locations X
@@ -82,6 +266,8 @@ PointsToRasterTIN <- function(SPDF, dmax, mpp, ...)
 PointsToRaster <- function(CT.SPDF, ...)
 {
   Temp_dir = file.path("..", "output", "temp")
+  #Temp_dir = file.path("F:", "output", "temp")
+  
   if (!dir.exists(Temp_dir)) 
   {
     dir.create(Temp_dir)
@@ -129,7 +315,7 @@ PointsToRaster <- function(CT.SPDF, ...)
         EXP@data$hour19[p] = DF[19,] #19 for hour 19
       }
     }
-  
+    H5close()
   }
   
   SaveAsFile(EXP, paste("Hour19test", Subset.Gemeente, sep = "_"), "Shapefile", TRUE)
