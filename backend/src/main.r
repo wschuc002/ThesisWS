@@ -161,6 +161,9 @@ gml.Flanders_in = file.path("..", "data", "BE_FL", "Refgew.gml")
 Flanders = readOGR(gml.Flanders_in, layer = "Refgew")
 Flanders@proj4string = BE_crs
 
+PPH.P = readOGR(dir.P, layer = 'OGRGeoJSON')
+PPH.P@proj4string = BE_crs
+
 # Determine PPH for the active profile.
 # Check if data already exists. If so, it will not run.
 #if (!file.exists(dir.P)&!file.exists(dir.S)&(!file.exists(dir.T1s)|!file.exists(dir.T1f))&(!file.exists(dir.T2s)|!file.exists(dir.T2f)))

@@ -365,6 +365,17 @@ DeterminePPH_FL <- function(CRAB_Doel, Names.sub, FL.primary, OSRM.Level, Active
 #   Mean.distance = as.numeric(Active.Profile$MeanDistance)
 #   SD.distance = as.numeric(Active.Profile$SDdistance)
   
+  #OSRM profile
+  if (Active.Type == "01.OW")
+  {
+    options(osrm.profile = "driving")
+  }
+  if (Active.Type == "03.SP")
+  {
+    options(osrm.profile = "biking")
+  }
+  
+  
   if (Active.Profile$Dynamics == "dynamic")
   {
     #Subset: only Offices
@@ -374,8 +385,8 @@ DeterminePPH_FL <- function(CRAB_Doel, Names.sub, FL.primary, OSRM.Level, Active
       #Secondary@proj4string = BE_crs
       
       start.time = Sys.time()
-      SecondaryPaired = CommutingDistancePairer(Primary_random, Secondary, MaxLinKM = 100,
-                                                SEC.SampleSize = 500, Plot = FALSE)
+      SecondaryPaired = CommutingDistancePairer(PPH.P, Secondary, MaxLinKM = 60,
+                                                SEC.SampleSize = 100, Plot = FALSE)
       end.time = Sys.time()
       time.taken = end.time - start.time  
       time.taken
@@ -411,16 +422,7 @@ DeterminePPH_FL <- function(CRAB_Doel, Names.sub, FL.primary, OSRM.Level, Active
       SaveAsFile(Primary_random, paste0(Active.Type, "_Primary_", Names.sub), "GeoJSON", TRUE)
       SaveAsFile(SecondaryPaired, paste0(Active.Type, "_Secondary_", Names.sub), "GeoJSON", TRUE)
     }
-    
-    #OSRM profile
-    if (Active.Type == "01.OW")
-    {
-      options(osrm.profile = "driving")
-    }
-    if (Active.Type == "03.SP")
-    {
-      options(osrm.profile = "biking")
-    }
+  
     
     #gjson_in = file.path("..", "output", "01.OW_Primary.geojson")
     #SecondaryPaired = readOGR(gjson_in, layer = 'OGRGeoJSON')
@@ -434,7 +436,7 @@ DeterminePPH_FL <- function(CRAB_Doel, Names.sub, FL.primary, OSRM.Level, Active
     
     PPH.T1 = PPH.T[[1]] #Outwards
     PPH.T2 = PPH.T[[2]] #Inwards
-    PPH.T1@data
+    mean(PPH.T1@data$distance)
     
     
     
@@ -510,11 +512,11 @@ Router <- function(PRI, SecondaryPaired, OSRM.Level, ...)
   return(list(PPH.T1, PPH.T2))
 }
 
-# PRI = Primary_random
+# PRI = PPH.P
 # SEC = Secondary 
 # MaxLinKM = 100
 # Plot = TRUE
-# SEC.SampleSize = 500
+# SEC.SampleSize = 5
 CommutingDistancePairer <- function(PRI, SEC, MaxLinKM, SEC.SampleSize, Plot, ...)
 {
   OSRM.level = "simplified" 
@@ -532,54 +534,64 @@ CommutingDistancePairer <- function(PRI, SEC, MaxLinKM, SEC.SampleSize, Plot, ..
   for (p in seq_along(PRI))
   #for (p in 1:10)  # p = 1
   {
-    #SEC.SampleSize = 100
-    SEC.ids = sample(SEC.NoDup@data$object_id, size = SEC.SampleSize)
-    SEC.rs = SEC.NoDup[SEC.NoDup@data$object_id %in% SEC.ids,]
-    
-    SEC.rsSP = SpatialPoints(SEC.rs@coords, proj4string = BE_crs)
-    
-    dst = spTransform(SEC.rsSP, WGS84)
-    
-    DrivingDistance = NA
-    DistanceLinear = NA
-    Probabilities = NA
-    #StraatKoppel = list()
-    
-    for (s in seq_along(SEC.rs))
-    #for (s in 1:20) # s = 1
+    success = FALSE
+    while(!success)
     {
-      DistanceLinear[s] = gDistance(PRI[p,],SEC.rs[s,])
-      if (DistanceLinear[s] < MaxLinKM*1000)
+      print(paste("Starting with ", p, "of", length(PRI)))
+      
+      #SEC.SampleSize = 100
+      SEC.ids = sample(SEC.NoDup@data$object_id, size = SEC.SampleSize)
+      SEC.rs = SEC.NoDup[SEC.NoDup@data$object_id %in% SEC.ids,]
+      
+      SEC.rsSP = SpatialPoints(SEC.rs@coords, proj4string = BE_crs)
+      
+      dst = spTransform(SEC.rsSP, WGS84)
+      
+      DrivingDistance = NA
+      DistanceLinear = NA
+      Probabilities = NA
+      #StraatKoppel = list()
+      
+      for (s in seq_along(SEC.rs))
+        #for (s in 1:20) # s = 1
       {
-          # build the query
-        req <- paste(getOption("osrm.server"),
-                     "route/v1/", getOption("osrm.profile"), "/", 
-                     src@coords[p,1], ",", src@coords[p,2],";",
-                     dst@coords[s,1],",",dst@coords[s,2], 
-                     "?alternatives=false&geometries=polyline&steps=false&overview=",
-                     tolower(OSRM.level),
-                     sep="")
-        
-        # Sending the query
-        resRaw <- RCurl::getURL(utils::URLencode(req), useragent = "'osrm' R package")
-        # Deal with \\u stuff
-        vres <- jsonlite::validate(resRaw)[1]
-        if(!vres){
-          resRaw <- gsub(pattern = "[\\]", replacement = "zorglub", x = resRaw)
-        }
-        # Parse the results
-        res <- try(jsonlite::fromJSON(resRaw))
-        
-        # Error handling
-        #e <- simpleError(res$message)
-        if(vres)
+        DistanceLinear[s] = gDistance(PRI[p,],SEC.rs[s,])
+        if (DistanceLinear[s] < MaxLinKM*1000)
         {
-          if (res$code == "Ok")
+          # build the query
+          req <- paste(getOption("osrm.server"),
+                       "route/v1/", getOption("osrm.profile"), "/", 
+                       src@coords[p,1], ",", src@coords[p,2],";",
+                       dst@coords[s,1],",",dst@coords[s,2], 
+                       "?alternatives=false&geometries=polyline&steps=false&overview=",
+                       tolower(OSRM.level),
+                       sep="")
+          
+          # Sending the query
+          resRaw <- RCurl::getURL(utils::URLencode(req), useragent = "'osrm' R package")
+          # Deal with \\u stuff
+          vres <- jsonlite::validate(resRaw)[1]
+          if(!vres){
+            resRaw <- gsub(pattern = "[\\]", replacement = "zorglub", x = resRaw)
+          }
+          # Parse the results
+          res <- try(jsonlite::fromJSON(resRaw))
+          
+          # Error handling
+          #e <- simpleError(res$message)
+          if(vres)
           {
-            DrivingDistance[s] = res$routes$legs[[1]]$distance/1000
-            Probabilities[s] = Commuting$percentage[DrivingDistance[s] > Commuting$km_min &
-                                                      DrivingDistance[s] < Commuting$km_max]
-            #StraatKoppel[[s]] = res$waypoints$name
+            if (res$code == "Ok")
+            {
+              DrivingDistance[s] = res$routes$legs[[1]]$distance/1000
+              Probabilities[s] = Commuting$percentage[DrivingDistance[s] > Commuting$km_min &
+                                                        DrivingDistance[s] < Commuting$km_max]
+              #StraatKoppel[[s]] = res$waypoints$name
+            } else
+            {
+              DrivingDistance[s] = NA
+              Probabilities[s] = 0
+            }
           } else
           {
             DrivingDistance[s] = NA
@@ -591,14 +603,18 @@ CommutingDistancePairer <- function(PRI, SEC, MaxLinKM, SEC.SampleSize, Plot, ..
           Probabilities[s] = 0
         }
       }
+      
+      # Repeat 'p' when there are only Probabilities of 0 or NA returned. | test with low SEC.SampleSize
+      if(length(which(TRUE %in% 0 == Probabilities | is.na(Probabilities))) == length(Probabilities)) # When all values are 0
+      {
+        print(paste("Resetting p."))
+        success = FALSE
+      } else
+      {
+        print(paste("Pair", p, "finished."))
+        success = TRUE
+      }
     }
-    
-#     if(!(TRUE %in% (MaxLinKM*1000 < DistanceLinear)))
-#     {
-#       # re-enter p loop
-#       p = p-1 
-#       break
-#     }
     
     Probabilities[is.na(Probabilities)] = 0
     
@@ -622,36 +638,22 @@ CommutingDistancePairer <- function(PRI, SEC, MaxLinKM, SEC.SampleSize, Plot, ..
     SEC.Pared.Li[[p]] = SEC.Pared[1,]
   }
   
-  if (length(SEC.Pared.Li) == length(PRI))
+  #   #use the coordinated to return the SPDF
+  SEC.ParedWS = do.call(rbind, SEC.Pared.Li)
+  
+  if (length(SEC.ParedWS) == length(PRI))
   {
-    #   #use the coordinated to return the SPDF
-    SEC.ParedWS = do.call(rbind, SEC.Pared.Li)
-#     length(SEC.ParedWS)
-#     
-#     #test
-#     test_over = over(SEC.NoDup, SEC.ParedWS)
-#     test_over2 = !is.na(test_over)
-#     test_over3 = which(test_over2 %in% TRUE)
-#     head(test_over)
-#     summary(test_over)
-#     which(is.na(test_over))
-#     
-#     SEC.ParedSPDF2 = SEC.NoDup[!is.na(as.numeric(test_over)),]
-#     
-#     BUG = over(SEC.ParedWS, SEC.ParedSPDF2)
-#     BUG2 = !is.na(BUG)
-#     BUG3 = which(BUG2 %in% TRUE)
-    
     overlap = which(!is.na(over(SEC.NoDup, SEC.ParedWS)) == TRUE)
     SEC.ParedSPDF = SEC.NoDup[overlap,]
-    
-    points(SEC.ParedSPDF, col = "red", pch = "O")
+    if (Plot == TRUE)
+    {
+      points(SEC.ParedSPDF, col = "red", pch = "O")
+    }
     return(SEC.ParedSPDF)
-    
   } else
   {
-    warning(paste("Output secondaries did not match input primaries. Incomplete list returned instead."))
-    return(SEC.Pared.Li)
+    warning(paste("Output secondaries did not match input primaries. Incomplete features returned instead. No data frame included."))
+    return(SEC.ParedWS)
   }
 }
 
