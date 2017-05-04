@@ -23,6 +23,76 @@
 
 ## Load the packages
 
+
+HolidayGenerator <- function(HolidayPeriods, ...)
+{
+  HolidayDates.Li = list()
+  period = which(HolidayPeriods$End != "")
+  for (p in period)
+  {
+    HolidayDates.Li[[p]] = seq(as.POSIXct(HolidayPeriods$Start[p]), as.POSIXct(HolidayPeriods$End[p]), 24*60**2)
+  }
+  noperiod = which(HolidayPeriods$End == "")
+  for (p in noperiod)
+  {
+    HolidayDates.Li[[p]] = as.POSIXct(HolidayPeriods$Start[p])
+  }
+  HolidayDates = do.call(c, HolidayDates.Li)
+  
+  return(HolidayDates)
+}
+
+
+# PPH.T = PPH.T1
+# PPH.T.SP = PPH.T1.Pnt
+# Year = year.active
+# Direction.T = "Outwards"
+# Method = "simplified"
+
+LinkPointsToTime.Transport <- function(Direction.T, PPH.T, PPH.T.SP, Year, Active.Profile, Method, ...)
+{
+  if (Direction.T == "Outwards")
+  {
+    StartTime = as.numeric(Active.Profile$TimeLeavingPrimary) / 100
+  } else
+  {
+    StartTime = as.numeric(Active.Profile$TimeLeavingSecondary) / 100
+  }
+
+  TimeVertex.POSIXct = list()
+  TimeLeaveFrom = as.POSIXct(paste0(Year,"-01-01"))+StartTime*60**2 # and then count from last minute at Residence
+  
+  for (i in seq_along(PPH.T))
+  {
+    TimeVertex = NA
+    
+    if (Method == "full")
+    {
+      PPH.T.Pnt = as(PPH.T[i,], "SpatialPoints")
+    }
+    if (Method == "simplified")
+    {
+      PPH.T.Pnt = PPH.T.SP[[i]]
+    }
+    
+    # count vertices/nodes
+    vertices = length(PPH.T.Pnt)
+
+    durVer = PPH.T@data$duration[i]/vertices # duration between vertices (in minutes)
+    
+    #TimeVertex[[i]] = PPH.T.Pnt # use same structure
+    for (t in seq_along(PPH.T.Pnt))
+    {
+      TimeVertex[t] = TimeLeaveFrom+durVer*(t*60)
+    }
+    class(TimeVertex) = class(YearDates)
+    
+    TimeVertex.POSIXct[[i]] = TimeVertex
+  }
+  return(TimeVertex.POSIXct)
+}
+
+
 LinkPointsToTime.Commuting2 <- function(Direction.C, PPH.C, LocationIDs, PHASES, ...)
 {
   TimeVertex = list()
@@ -86,7 +156,7 @@ LinkPointsToTime.Commuting <- function(PPH.C, LocationIDs, Year, Time, ...)
 YearDates1 <- function(Year, ...) #no correction for leap years
 {
   #create the days of the year
-  StartDay = as.POSIXct(paste0(Year,"-01-01"), tz = "CET")
+  StartDay = as.POSIXct(paste0(Year,"-01-01"), tz = "GMT")
   YearDates = StartDay
   for (i in 2:365)
   {
@@ -95,21 +165,21 @@ YearDates1 <- function(Year, ...) #no correction for leap years
   return(YearDates)
 }
 
-DateType <- function(YearDates, Day.Type, ...)
+DateType <- function(YearDates, Day.Type, HoliDates, ...)
 {
   days.workweek = weekdays(YearDates) != "zaterdag" & weekdays(YearDates) != "zondag"
   days.weekends = !days.workweek
   
   if (Day.Type == "Workdays")
   {
-    Dates = subset(YearDates, days.workweek)
+    Dates = YearDates[days.workweek]
+    Dates = Dates[!(Dates %in% HoliDates)] # remove the (official) holidays
   }
   
   if (Day.Type == "Weekends")
   {
-    Dates = subset(YearDates, days.weekends)
+    Dates = YearDates[days.weekends]
   }
-  
   return(Dates)
 }
 

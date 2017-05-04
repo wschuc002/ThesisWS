@@ -123,3 +123,35 @@ HourOfTheYear5 <- function(Year, Time, Decimals, ...)
     return(HOURS)
   }
 }
+
+HourOfTheYear6 <- function(Year, Time, Decimals, ...)
+{
+  StartTimeYear = as.POSIXct(paste0(Year,"-01-01 00:00:00"))
+  HourOfYearVertex = list()
+  
+  if (class(Time[[1]])[1] == "list")
+  {
+    HOURS = list(list())
+    
+    for (i in seq_along(Time))
+    {
+      for (y in seq_along(Time[[i]]))
+      {
+        if (!is.null(Time[[i]][[y]]))
+        {
+          HourOfYearVertex[[y]] = difftime(Time[[i]][[y]], StartTimeYear, units="hours")
+          
+          if (Decimals >0)
+          {
+            HourOfYearVertex[[y]] = round(as.numeric(HourOfYearVertex[[y]]), digits = Decimals)
+          } else
+          {
+            HourOfYearVertex[[y]] = floor(as.numeric(HourOfYearVertex[[y]]))
+          }
+        }
+      }
+      HOURS[[i]] = HourOfYearVertex
+    }
+    return(HOURS)
+  }
+}

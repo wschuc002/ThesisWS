@@ -56,6 +56,11 @@ source("modules/SummaryStatistics.r")
 source("modules/util.r")
 source("modules/Interpolate.r")
 source("modules/IntersectsBoolean.r")
+source("modules/AreaOfInterest.r")
+source("modules/ExtractBZ2.r")
+source("modules/SimplifyRoutes.r")
+source("modules/CreateCorrespondingDateAndTime.r")
+
 
 #source("modules/WeightCR.r")
 #source("modules/RGBtoSingleBand.r")
@@ -136,15 +141,20 @@ Active.Profile = ResidentialProfiles[ResidentialProfiles$Abbreviation == Active.
 OSRM.Level = "full" # "simplified" or "full" version of vectors in routes (OSRM package)
 
 dir.P = file.path("..", "output", paste(Active.Type, paste0("Primary", Names,".geojson"), sep = "_"))
+
 if (Active.Profile$Dynamics == "dynamic")
 {
-  dir.T1s = file.path("..", "output", paste(Active.Type, paste0("TransportOutwards", Names,".geojson"), sep = "_"))
-  dir.T2s = file.path("..", "output", paste(Active.Type, paste0("_TransportInwards", Names,".geojson"), sep = "_"))
-  
-  dir.T1f = file.path("..", "output", paste(Active.Type, paste0("TransportOutwards", Names,".geojson"), sep = "_"))
-  dir.T2f = file.path("..", "output", paste(Active.Type, paste0("TransportInwards", Names,".geojson"), sep = "_"))
-  
   dir.S = file.path("..", "output", paste(Active.Type, paste0("Secondary", Names,".geojson"), sep = "_"))
+  
+  if (is.null(Subset.Gemeente))
+  {
+    dir.T1 = file.path("..", "output", paste(Active.Type, paste0("TransportOutwards", Names, "_", substr(OSRM.Level, 1, 1), ".geojson"), sep = "_"))
+    dir.T2 = file.path("..", "output", paste(Active.Type, paste0("TransportInwards", Names, "_", substr(OSRM.Level, 1, 1), ".geojson"), sep = "_"))
+  } else
+  {
+    dir.T1 = file.path("..", "output", paste0(Active.Type,"_TransportOutwards_", Names, "_", substr(OSRM.Level, 1, 1)))
+    dir.T2 = file.path("..", "output", paste0(Active.Type,"_TransportInwards_", Names, "_", substr(OSRM.Level, 1, 1)))
+  }
 }
 
 if (OSRM.Level != "full" & OSRM.Level != "simplified")
@@ -161,145 +171,218 @@ gml.Flanders_in = file.path("..", "data", "BE_FL", "Refgew.gml")
 Flanders = readOGR(gml.Flanders_in, layer = "Refgew")
 Flanders@proj4string = BE_crs
 
-PPH.P = readOGR(dir.P, layer = 'OGRGeoJSON')
-PPH.P@proj4string = BE_crs
-
-# Determine PPH for the active profile.
+## Determine PPH for the active profile.
 # Check if data already exists. If so, it will not run.
-#if (!file.exists(dir.P)&!file.exists(dir.S)&(!file.exists(dir.T1s)|!file.exists(dir.T1f))&(!file.exists(dir.T2s)|!file.exists(dir.T2f)))
-DeterminePPH_FL(CRAB_Doel, Names, 250, OSRM.Level, Active.Type, "detailed")
-
-
-Name = "CT"
-if (file.exists(file.path("..", "output", paste0(Name,".shp"))))
+if (!file.exists(dir.P))
 {
-  CT.SPDF = readOGR(file.path("..", "output", paste0(Name,".shp")), layer = Name) # Bug in .geojson, read .shp
-  CT.SPDF@proj4string = BE_crs
-} else
-{
-  data_in = file.path("..", "data", "BE", "ATMOSYS", "atmosys-timeseries_2.data")
-  #data_in = file.path("H:", "ATMOSYS", "atmosys-timeseries_2.data")
-  
-  CT = CreateConversionTable(data_in)
-  #CT.SP = MakeCTSpatial(CT)
-  CT.SPDF = MakeCTSpatial(CT)
-  
-  SaveAsFile(CT.SPDF, Name, "Shapefile", TRUE) #"GeoJSON"
+  DeterminePPH_FL(CRAB_Doel, Names, 250, OSRM.Level, Active.Type, "detailed")
 }
 
-if (!is.null(Subset.Gemeente))
+if (!exists("PPH.P") & file.exists(dir.P))
 {
-  CT.SPDF = SubsetCTSpatial(CT.SPDF, Subset.Gemeente)
+  PPH.P = readOGR(dir.P, layer = 'OGRGeoJSON')
+  PPH.P@proj4string = BE_crs
 }
-SaveAsFile(CT.SPDF, paste(Name, Subset.Gemeente, sep = "_"), "Shapefile", TRUE)
+
+dir.S.fix = file.path("..", "output", paste(Active.Type, paste0("Secondary", Names, "_fix", ".geojson"), sep = "_"))
+if (!exists("PPH.S") & file.exists(dir.S.fix))
+{
+  PPH.S = readOGR(dir.S.fix, layer = 'OGRGeoJSON')
+  
+  #PPH.S = readOGR(dir.S, layer = 'OGRGeoJSON')
+  PPH.S@proj4string = BE_crs
+}
+
+if (!exists("PPH.T1") & file.exists(dir.T1))
+{
+  PPH.T1 = readOGR(dir.T1, layer = 'OGRGeoJSON')
+  PPH.T1@proj4string = BE_crs
+}
+
+if (!exists("PPH.T2") & file.exists(dir.T2))
+{
+  PPH.T2 = readOGR(dir.T2, layer = 'OGRGeoJSON')
+  PPH.T2@proj4string = BE_crs
+}
+
+# # Conversion Table for HDF5 structure
+# Name = "CT"
+# if (file.exists(file.path("..", "output", paste0(Name,".shp"))))
+# {
+#   CT.SPDF = readOGR(file.path("..", "output", paste0(Name,".shp")), layer = Name) # Bug in .geojson, read .shp
+#   CT.SPDF@proj4string = BE_crs
+# } else
+# {
+#   data_in = file.path("..", "data", "BE", "ATMOSYS", "atmosys-timeseries_2.data")
+#   #data_in = file.path("H:", "ATMOSYS", "atmosys-timeseries_2.data")
+#   
+#   CT = CreateConversionTable(data_in)
+#   #CT.SP = MakeCTSpatial(CT)
+#   CT.SPDF = MakeCTSpatial(CT)
+#   
+#   SaveAsFile(CT.SPDF, Name, "Shapefile", TRUE) #"GeoJSON"
+# }
+# 
+# if (!is.null(Subset.Gemeente))
+# {
+#   CT.SPDF = SubsetCTSpatial(CT.SPDF, Subset.Gemeente)
+# }
+# SaveAsFile(CT.SPDF, paste(Name, Subset.Gemeente, sep = "_"), "Shapefile", TRUE)
 
 
 # Set year of pollutant dataset, determine dates and date types (Workdays~Weekends)
+# Sys.setenv(TZ="Europe/Brussels")
+# BE_tz = "Europe/Brussels"
+Sys.setenv(TZ="GMT")
 year.active = 2015
 YearDates = YearDates1(year.active)
-BusinesDates = DateType(YearDates,"Workdays")
-WeekendDates = DateType(YearDates,"Weekends")
-#HolidayDates = DateType(YearDates,"Holidays")
 
-# Read PPH and determine the Location ID corresponding to the pollutant dataset (Spatial ConversionTable = CT.SP)
-PPH.P = readOGR(dir.P, layer = 'OGRGeoJSON')
-PPH.P@proj4string = BE_crs
-LocationIDs.P = PersonalLocationToLocationID(PPH.P, CT.SP, 1)
+if (Active.Type == "01.OW")
+{
+  # Official holydays (for all profiles)
+  csv.OfficialHolidays_in = file.path("..", "data", "BE", "OfficialHolidays.csv")
+  OfficialHolidays = fread(csv.OfficialHolidays_in, sep = ";", header=TRUE)
+  HoliDates = as.POSIXct(OfficialHolidays$Datum)
+}
+if (Active.Type == "03.SP")
+{
+  # School holidays (School Pupils only)
+  csv.SchoolHolidays_in = file.path("..", "data", "BE_FL", "SchoolHolidays.csv")
+  SchoolHolidays = fread(csv.SchoolHolidays_in, sep = ";", header=TRUE)
+  HoliDates = HolidayGenerator(SchoolHolidays) #2015 only
+}
 
+BusinesDates = DateType(YearDates, "Workdays", HoliDates)
+WeekendDates = DateType(YearDates, "Weekends")
+
+
+# Convert Transport to points for every x minutes
+
+PPH.T1.Pnt = SimplifyRoutes(PPH.T1, FALSE, "EqualDuration", 10)
+PPH.T2.Pnt = SimplifyRoutes(PPH.T2, FALSE, "EqualDuration", 10)
+
+TimeVertex.T1.Simp = LinkPointsToTime.Transport("Outwards", PPH.T1, PPH.T1.Pnt, year.active, Active.Profile, "simplified")
+TimeVertex.T2.Simp = LinkPointsToTime.Transport("Inwards", PPH.T2, PPH.T2.Pnt, year.active, Active.Profile, "simplified")
+TimeVertex.T1 = LinkPointsToTime.Transport("Outwards", PPH.T1, PPH.T1.Pnt, year.active, Active.Profile, "full")
+TimeVertex.T2 = LinkPointsToTime.Transport("Inwards", PPH.T2, PPH.T2.Pnt, year.active, Active.Profile, "full")
+
+TIME = CreateCorrespondingDateAndTime(Active.Type, Active.Profile, PPH.P, YearDates, BusinesDates, WeekendDates, HoliDates,
+                                      TimeVertex.T1, TimeVertex.T2, TimeVertex.T1.Simp, TimeVertex.T2.Simp)
+PHASES = TIME[[1]]
+TIME.P = TIME[[2]]
 if (Active.Profile$Dynamics == "dynamic")
 {
-  PPH.S = readOGR(dir.S, layer = 'OGRGeoJSON')
-  
-  if (OSRM.Level == "simplified")
-  {
-    PPH.T1 = readOGR(dir.T1s, layer = 'OGRGeoJSON')
-    PPH.T2 = readOGR(dir.T2s, layer = 'OGRGeoJSON')
-  }
-  if (OSRM.Level == "full")
-  {
-    PPH.T1 = readOGR(dir.T1f, layer = 'OGRGeoJSON')
-    PPH.T2 = readOGR(dir.T2f, layer = 'OGRGeoJSON')
-  }
-  
-  LocationIDs.S = PersonalLocationToLocationID(PPH.S, CT.SP, 1)
-  LocationIDs.T1 = PersonalLocationToLocationID(PPH.T1, CT.SP, 1)
-  LocationIDs.T2 = PersonalLocationToLocationID(PPH.T2, CT.SP, 1)
-  
-  PPH.T1@data$duration = PPH.T1@data$duration * 1.2 # duration correction
-  PPH.T2@data$duration = PPH.T2@data$duration * 1.2 # duration correction
-  
-  Leave.P = 8
-  Leave.S = 17
-  
-  TimeVertex.T1 = LinkPointsToTime.Commuting(PPH.T1, LocationIDs.T1, 2009, Leave.P) # Time of the Transport route vertices Outwards
-  TimeVertex.T2 = LinkPointsToTime.Commuting(PPH.T2, LocationIDs.T2, 2009, Leave.S) # Time of the Transport route vertices Inwards
-  
-  PPH.Phases.Times = TimePhaser(PPH.P,Leave.P, Leave.S, TimeVertex.T1, TimeVertex.T2)
-  PPH.Phases.DateTimes = PPH.Phases.Times
-  
-  PHASES = TimePhaserList(BusinesDates, PPH.Phases.DateTimes)
-  as.POSIXct(PHASES[[60]][15,2], origin = "1970-01-01", tz = "CET")
-  as.POSIXct(PHASES[[70]][15,1], origin = "1970-01-01", tz = "CET")
-  as.POSIXct(PHASES[[70]][15,2], origin = "1970-01-01", tz = "CET")
-  
-  #PHASES[[200]][1,1] #[[businesday#]][individual,]
-  
-  Correct = T
-  if (Correct == T) # Summertime correction correction (CET vs. CEST | The S can be ignored after this correction)
-  {
-    PHASES = TimePhaserListC(PHASES, Leave.P, PPH.Phases.Times)
-  }
-  as.POSIXct(PHASES[[60]][15,2], origin = "1970-01-01", tz = "CET")
-  as.POSIXct(PHASES[[70]][15,1], origin = "1970-01-01", tz = "CET")
-  as.POSIXct(PHASES[[70]][15,2], origin = "1970-01-01", tz = "CET")
-  
-  TIME.P = AtPrimaryOrSecondary2("Primary", PHASES, BusinesDates, "Workdays")
-  TIME.S = AtPrimaryOrSecondary2("Secondary", PHASES, BusinesDates)
-  
-  TIMEVertex.T1 = LinkPointsToTime.Commuting2("Outwards", PPH.T1, LocationIDs.T1, PHASES) # Time of the Transport routes vertices Outwards
-  TIMEVertex.T2 = LinkPointsToTime.Commuting2("Inwards", PPH.T2, LocationIDs.T2, PHASES) # Time of the Transport routes vertices Inwards
-  
-  # Weekends
-  Include.Weekends = TRUE
-  if (Include.Weekends == TRUE)
-  {
-    TIME.P = IncludeWeekends("Primary", TIME.P, YearDates, BusinesDates, WeekendDates)
-    TIME.S = IncludeWeekends("Secondary", TIME.S, YearDates, BusinesDates, WeekendDates)
-    TIMEVertex.T1 = IncludeWeekends("T1", TIMEVertex.T1, YearDates, BusinesDates, WeekendDates)
-    TIMEVertex.T2 = IncludeWeekends("T2", TIMEVertex.T2, YearDates, BusinesDates, WeekendDates)
-  }
-  
-  # Hours of the year
-  HOURS.P = HourOfTheYear4(2009, TIME.P, 0)
-  HOURS.S = HourOfTheYear4(2009, TIME.S, 0)
-  HOURS.T1 = HourOfTheYear4(2009, TIMEVertex.T1, 0)
-  HOURS.T2 = HourOfTheYear4(2009, TIMEVertex.T2, 0)
-  HOURS.T1_3d = HourOfTheYear4(2009, TIMEVertex.T1, 3)
-  HOURS.T2_3d = HourOfTheYear4(2009, TIMEVertex.T2, 3)
+  TIME.S = TIME[[3]]
+  TIME.T1 = TIME[[4]]
+  TIME.T2 = TIME[[5]]
 }
 
-if (Active.Profile$Dynamics == "static")
+
+DurationCorrection = FALSE
+if (DurationCorrection == TRUE)
 {
-  #   TIME.P = seq(YearDates[1], tail((YearDates), 1)+1*60**2*24, by = 1*60**2)
-  #   length(TIME.P_test)
-  #   tail((TIME.P), 2)
-  
-  Time.P = NULL
-  for (d in seq(2, length(YearDates), 1))
-  {
-    Time.P[[1]] = seq(YearDates[1], YearDates[1]+1*60**2*24, by = 1*60**2)
-    Time.P[[d]] = seq(YearDates[d]+1*60**2, YearDates[d]+1*60**2*24, by = 1*60**2)
-  }
-  
-  TIME.P = list()
-  for (i in seq_along(PPH.P))
-  {
-    TIME.P[[i]] = Time.P
-  }
-  
-  Hours.P = HourOfTheYear5(2009, Time.P, 0)
-  HOURS.P = HourOfTheYear5(2009, TIME.P, 0)
+  PPH.T1@data$duration = PPH.T1@data$duration * 1.2 # duration correction
+  PPH.T2@data$duration = PPH.T2@data$duration * 1.2 # duration correction
 }
+
+
+# # Read PPH and determine the Location ID corresponding to the pollutant dataset (Spatial ConversionTable = CT.SP)
+# LocationIDs.P = PersonalLocationToLocationID(PPH.P, CT.SP, 1)
+# 
+# if (Active.Profile$Dynamics == "dynamic")
+# {
+#   LocationIDs.S = PersonalLocationToLocationID(PPH.S, CT.SP, 1)
+#   LocationIDs.T1 = PersonalLocationToLocationID(PPH.T1, CT.SP, 1)
+#   LocationIDs.T2 = PersonalLocationToLocationID(PPH.T2, CT.SP, 1)
+#   
+#   PPH.T1@data$duration = PPH.T1@data$duration * 1.2 # duration correction
+#   PPH.T2@data$duration = PPH.T2@data$duration * 1.2 # duration correction
+#   
+#   Leave.P = 8
+#   Leave.S = 17
+#   
+#   TimeVertex.T1 = LinkPointsToTime.Commuting(PPH.T1, LocationIDs.T1, year.active, Leave.P) # Time of the Transport route vertices Outwards
+#   TimeVertex.T2 = LinkPointsToTime.Commuting(PPH.T2, LocationIDs.T2, year.active, Leave.S) # Time of the Transport route vertices Inwards
+#   
+#   PPH.Phases.Times = TimePhaser(PPH.P,Leave.P, Leave.S, TimeVertex.T1, TimeVertex.T2)
+#   PPH.Phases.DateTimes = PPH.Phases.Times
+#   
+#   PHASES = TimePhaserList(BusinesDates, PPH.Phases.DateTimes)
+#   as.POSIXct(PHASES[[60]][15,2], origin = "1970-01-01", tz = "CET")
+#   as.POSIXct(PHASES[[70]][15,1], origin = "1970-01-01", tz = "CET")
+#   as.POSIXct(PHASES[[70]][15,2], origin = "1970-01-01", tz = "CET")
+#   
+#   #PHASES[[200]][1,1] #[[businesday#]][individual,]
+#   
+#   Correct = T
+#   if (Correct == T) # Summertime correction correction (CET vs. CEST | The S can be ignored after this correction)
+#   {
+#     PHASES = TimePhaserListC(PHASES, Leave.P, PPH.Phases.Times)
+#   }
+#   as.POSIXct(PHASES[[60]][15,2], origin = "1970-01-01", tz = "CET")
+#   as.POSIXct(PHASES[[70]][15,1], origin = "1970-01-01", tz = "CET")
+#   as.POSIXct(PHASES[[70]][15,2], origin = "1970-01-01", tz = "CET")
+#   
+#   TIME.P = AtPrimaryOrSecondary2("Primary", PHASES, BusinesDates, "Workdays")
+#   TIME.S = AtPrimaryOrSecondary2("Secondary", PHASES, BusinesDates)
+#   
+#   TIMEVertex.T1 = LinkPointsToTime.Commuting2("Outwards", PPH.T1, LocationIDs.T1, PHASES) # Time of the Transport routes vertices Outwards
+#   TIMEVertex.T2 = LinkPointsToTime.Commuting2("Inwards", PPH.T2, LocationIDs.T2, PHASES) # Time of the Transport routes vertices Inwards
+#   
+#   # Weekends
+#   Include.Weekends = TRUE
+#   if (Include.Weekends == TRUE)
+#   {
+#     TIME.P = IncludeWeekends("Primary", TIME.P, YearDates, BusinesDates, WeekendDates)
+#     TIME.S = IncludeWeekends("Secondary", TIME.S, YearDates, BusinesDates, WeekendDates)
+#     TIMEVertex.T1 = IncludeWeekends("T1", TIMEVertex.T1, YearDates, BusinesDates, WeekendDates)
+#     TIMEVertex.T2 = IncludeWeekends("T2", TIMEVertex.T2, YearDates, BusinesDates, WeekendDates)
+#   }
+#   
+#   # Hours of the year
+#   HOURS.P = HourOfTheYear4(2009, TIME.P, 0)
+#   HOURS.S = HourOfTheYear4(2009, TIME.S, 0)
+#   HOURS.T1 = HourOfTheYear4(2009, TIMEVertex.T1, 0)
+#   HOURS.T2 = HourOfTheYear4(2009, TIMEVertex.T2, 0)
+#   HOURS.T1_3d = HourOfTheYear4(2009, TIMEVertex.T1, 3)
+#   HOURS.T2_3d = HourOfTheYear4(2009, TIMEVertex.T2, 3)
+# }
+
+# if (Active.Profile$Dynamics == "static")
+# {
+#   #   TIME.P = seq(YearDates[1], tail((YearDates), 1)+1*60**2*24, by = 1*60**2)
+#   #   length(TIME.P_test)
+#   #   tail((TIME.P), 2)
+#   
+#   Time.P = NULL
+#   for (d in seq(2, length(YearDates), 1))
+#   {
+#     Time.P[[1]] = seq(YearDates[1], YearDates[1]+1*60**2*24, by = 1*60**2)
+#     Time.P[[d]] = seq(YearDates[d]+1*60**2, YearDates[d]+1*60**2*24, by = 1*60**2)
+#   }
+#   
+#   TIME.P = list()
+#   for (i in seq_along(PPH.P))
+#   {
+#     TIME.P[[i]] = Time.P
+#   }
+#   
+#   Hours.P = HourOfTheYear5(2009, Time.P, 0)
+#   HOURS.P = HourOfTheYear5(2009, TIME.P, 0)
+# }
+
+# Hours of the year
+HOURS.P = HourOfTheYear6(year.active, TIME.P, 0)
+if (Active.Profile$Dynamics == "dynamic")
+{
+  HOURS.S = HourOfTheYear6(year.active, TIME.S, 0)
+  HOURS.T1 = HourOfTheYear6(year.active, TIME.T1, 0)
+  HOURS.T2 = HourOfTheYear6(year.active, TIME.T2, 0)
+  
+  HOURS.T1_3d = HourOfTheYear6(year.active, TIME.T1, 3)
+  HOURS.T2_3d = HourOfTheYear6(year.active, TIME.T2, 3)
+}
+
 
 # Write TIME to disk
 WriteToDisk = TRUE
@@ -310,8 +393,8 @@ if (WriteToDisk == TRUE)
   if (Active.Profile$Dynamics == "dynamic")
   {
     SaveAsDBF(TIME.S, "TIME_S", Active.Type)
-    SaveAsDBF(TIMEVertex.T1, "TIME_T1", Active.Type)
-    SaveAsDBF(TIMEVertex.T2, "TIME_T2", Active.Type)
+    SaveAsDBF(TIME.T1, "TIME_T1", Active.Type)
+    SaveAsDBF(TIME.T2, "TIME_T2", Active.Type)
   }
 }
 
@@ -319,132 +402,139 @@ if (WriteToDisk == TRUE)
 
 ## Read Air Quality data
 
-# Create buffer of AoI (=Location history)
-m = 250
-AoI_buff1 = gBuffer(merge(PRI,SEC), byid = F, id = NULL, width = m)
-AoI_buff2 = gBuffer(merge(CommutingRoutes1_SLDF,CommutingRoutes2_SLDF), byid = F, id = NULL, width = m)
-AoI = union(AoI_buff1, AoI_buff2)
-AoI = rgeos::gUnaryUnion(AoI, id = NULL)
-#AoI.uSP = rgeos::gUnaryUnion(AoI_buff1, AoI_buff2)
-#AoI.uSP = maptools::unionSpatialPolygons(AoI)
-AoI_SPDF = SpatialPolygonsDataFrame(AoI, data = data.frame(1:(length(AoI.UU))), match.ID = T)
-SaveAsFile(AoI_SPDF, paste("AreaOfInterest", paste0(m,"m"), sep = "_"), "GeoJSON", TRUE)
+# # Create buffer of AoI (=Location history)
+# 
+# mBuffer = 250
+# start.time = Sys.time()
+# AoI = AreaOfInterest.PPH(PPH.P, PPH.S, PPH.T1, PPH.T2, mBuffer)
+# end.time = Sys.time()
+# print(end.time - start.time)
+# SaveAsFile(AoI, paste(Active.Type,"AreaOfInterest", paste0(mBuffer,"m"), sep = "_"), "GeoJSON", TRUE)
+# 
+# start.time = Sys.time()
+# AoI2 = AreaOfInterest.PPH.2(PPH.P, PPH.S, PPH.T1, PPH.T2, mBuffer, Plot = TRUE)
+# end.time = Sys.time()
+# print(end.time - start.time)
+# SaveAsFile(AoI2, paste(Active.Type,"AreaOfInterest", paste0(mBuffer,"m"), "simp", sep = "_"), "GeoJSON", TRUE)
+# 
+# 
+# AoI.path_in = file.path("..", "output", paste(Active.Type, "AreaOfInterest", paste0(mBuffer,"m", ".geojson"), sep = "_"))
+# AoI = readOGR(AoI.path_in, layer = 'OGRGeoJSON')
+# AoI = rgeos::gUnaryUnion(AoI, id = NULL)
+# AoI@proj4string = BE_crs
 
-
-AoI = AreaOfInterest.PPH(PRI, SecondaryPaired, PPH.T1, PPH.T2, 250)
-plot(AoI)
-
-AoI.path_in = file.path("..", "output", paste("AreaOfInterest", paste0(m,"m", ".geojson"), sep = "_"))
-AoI = readOGR(AoI.path_in, layer = 'OGRGeoJSON')
-AoI = rgeos::gUnaryUnion(AoI, id = NULL)
-AoI@proj4string = BE_crs
-
-## TXT structure RIO-IFDM
-txt.Points_in = file.path("..", "data", "BE", "IRCELINE", "20150101_1_NO2.txt")
-Points = fread(txt.Points_in, sep=";", header=TRUE)
-
-## Read from compressed bz2 file
-library(R.utils)
-
-hourFile = "20150101_1_NO2.txt"
-bz2.Points_in = file.path("..", "data", "BE", "IRCELINE", paste0(hourFile,".bz2"))
-txt.Points = file.path("..", "data", "BE", "IRCELINE", hourFile)
-if (!file.exists(txt.Points))
+#Read DBF file with TIME 
+TIME.P = DBFreader("Time", "Primary", PPH.P, YearDates, Active.Type)
+if (Active.Profile$Dynamics == "dynamic")
 {
-  bunzip2(bz2.Points_in, txt.Points, remove = FALSE, skip = TRUE)
+  TIME.S = DBFreader("Time", "Secondary", PPH.P, YearDates, Active.Type)
+  TIME.T1 = DBFreader("Time", "T1", PPH.P, YearDates, Active.Type)
+  TIME.T2 = DBFreader("Time", "T2", PPH.P, YearDates, Active.Type)
 }
-Points = fread(txt.Points, sep=";", header=TRUE)
-coordinates(Points) = ~x+y
-Points@proj4string = BE_crs
 
 
-AoI.AQ = AreaOfInterest.AQ(Points)
-plot(AoI.AQ)
-points(Points)
-lines(PPH.T2, col = "red")
-lines(Flanders, col = "orange")
-
-# Make subset Area of Interest (AoI) (of Flanders)
-
-# Read Flanders polygon (improve unzip)
-gml.Flanders_in = file.path("..", "data", "BE_FL", "Refgew.gml")
-Flanders = readOGR(gml.Flanders_in, layer = "Refgew")
-Flanders@proj4string = BE_crs
-
-# Create buffer of Flanders
-Flanders_buff = gBuffer(Flanders, byid = F, id = NULL, width = 5000)
-lines(Flanders_buff, col = "blue")
-
-# Read Belgian polygon (improve unzip)
-## Read the input data
-BE_zip_in = file.path("..", "data", "BE", "Belgium_shapefile.zip")
-scale = 1 # (in km) 1, 10 or 100
-BE_shp_name = paste0("be_", scale, "km")
-Extentions = c(".shp", ".dbf", ".prj", ".shx")
-BE_shp_in = file.path("..", "data", "BE", paste0(BE_shp_name,Extentions[1]))
-
-# Check if input data is available
-if (!file.exists(BE_zip_in) & !file.exists(BE_shp_in))
-{
-  stop(paste("Belgium shapefile does not found."))
-}
-if (!file.exists(BE_shp_in))
-{
-  unzip(BE_zip_in, exdir= file.path("..", "data", "BE"), files = paste0(BE_shp_name,Extentions))
-}
-Belgium = readOGR(BE_shp_in, layer = BE_shp_name)
-Belgium = spTransform(Belgium, BE_crs)
-Belgium = rgeos::gUnaryUnion(Belgium, id = NULL)
-
-# Create buffer of Belgium
-Belgium_buff = gBuffer(Belgium.UU, byid = F, id = NULL, width = -10000)
-plot(PRI, col = "green")
-points(Points)
-lines(PPH.T1, col = "red")
-lines(Belgium, col = "blue")
-lines(Belgium_buff, col = "pink")
-
-PPH.T1.co = coordinates(PPH.T1)
-
-o = over(PPH.T1.co, Belgium_buff)
-inter = gIntersects(PPH.T1[1:20,], Belgium_buff, byid = TRUE)
-inter = gIntersection(PPH.T1[1:20,], Belgium_buff, byid = TRUE)
-
-coordinates(PPH.T1[1,]@lines[[1]])
-
-# AoI & Subset area Municipality (AoI2) | use for testing
-AoI2 = gIntersection(AoI_SPDF, Municipalities[Municipalities@data$NAAM %in% "Antwerpen",])
-
-AoI2_SPDF = SpatialPolygonsDataFrame(AoI2, data = data.frame(1:(length(AoI2))), match.ID = T)
-SaveAsFile(AoI2_SPDF, "AoI2", "GeoJSON", TRUE)
-#AoI2 = gIntersection(AoI_SPDF, Flanders_buff)
-
-## Simplify AoI
-# s = 25
-# AoI2.simp = gSimplify(AoI2, s)
-# plot(AoI2.simp, col = "blue")
-# AoI2_SPDF.simp = SpatialPolygonsDataFrame(AoI2.simp, data = data.frame(1:(length(AoI2.simp))), match.ID = T)
-# SaveAsFile(AoI2_SPDF.simp, paste("AreaOfInterest_simp", paste0("x", s), sep = "_"), "GeoJSON", TRUE)
-
-# Create the Boolean for the base 
-Points.TF = IntersectsBoolean(Points, AoI2)
-# Create the base: All the RIO-IFDM points inside the Area of Interest
-Points.AoI = Points[Points.TF,]
-plot(Points.AoI)
-SaveAsFile(Points.AoI, "Points_AoI", "GeoJSON", TRUE)
 
 
-# Create grid for Flanders
+# AoI.AQ = AreaOfInterest.AQ(Points)
+# plot(AoI.AQ)
+# points(Points)
+# lines(PPH.T2, col = "red")
+# lines(Flanders, col = "orange")
 
-# Grid on whole number coordinates 10x10m inside AoI
-!!
+# # Make subset Area of Interest (AoI) (of Flanders)
+# 
+# # Create buffer of Flanders
+# Flanders_buff = gBuffer(Flanders, byid = F, id = NULL, width = 5000)
+# lines(Flanders_buff, col = "blue")
+# 
+# # Read Belgian polygon (improve unzip)
+# ## Read the input data
+# BE_zip_in = file.path("..", "data", "BE", "Belgium_shapefile.zip")
+# scale = 1 # (in km) 1, 10 or 100
+# BE_shp_name = paste0("be_", scale, "km")
+# Extentions = c(".shp", ".dbf", ".prj", ".shx")
+# BE_shp_in = file.path("..", "data", "BE", paste0(BE_shp_name,Extentions[1]))
+# 
+# # Check if input data is available
+# if (!file.exists(BE_zip_in) & !file.exists(BE_shp_in))
+# {
+#   stop(paste("Belgium shapefile does not found."))
+# }
+# if (!file.exists(BE_shp_in))
+# {
+#   unzip(BE_zip_in, exdir= file.path("..", "data", "BE"), files = paste0(BE_shp_name,Extentions))
+# }
+# Belgium = readOGR(BE_shp_in, layer = BE_shp_name)
+# Belgium = spTransform(Belgium, BE_crs)
+# Belgium = rgeos::gUnaryUnion(Belgium, id = NULL)
+# 
+# # Create buffer of Belgium
+# Belgium_buff = gBuffer(Belgium.UU, byid = F, id = NULL, width = -10000)
+# plot(PRI, col = "green")
+# points(Points)
+# lines(PPH.T1, col = "red")
+# lines(Belgium, col = "blue")
+# lines(Belgium_buff, col = "pink")
+# 
+# PPH.T1.co = coordinates(PPH.T1)
+# 
+# o = over(PPH.T1.co, Belgium_buff)
+# inter = gIntersects(PPH.T1[1:20,], Belgium_buff, byid = TRUE)
+# inter = gIntersection(PPH.T1[1:20,], Belgium_buff, byid = TRUE)
+# 
+# coordinates(PPH.T1[1,]@lines[[1]])
 
+# # AoI & Subset area Municipality (AoI2) | use for testing
+# AoI2 = gIntersection(AoI_SPDF, Municipalities[Municipalities@data$NAAM %in% "Antwerpen",])
+# 
+# AoI2_SPDF = SpatialPolygonsDataFrame(AoI2, data = data.frame(1:(length(AoI2))), match.ID = T)
+# SaveAsFile(AoI2_SPDF, "AoI2", "GeoJSON", TRUE)
+# #AoI2 = gIntersection(AoI_SPDF, Flanders_buff)
 
-# data intensive method
-sgrid = GridMaker(Flanders_buff, AoI, 100, 10)
-#plot(sgrid)
+##
+# Points.T.txt.path_in = file.path("..", "output", paste(Active.Type,"AoI_TRUES.txt", sep = "_"))
+# if (!exists("Points.T"))
+# {
+#   if (file.exists(Points.T.txt.path_in))
+#   {
+#     Points.T = as.integer(fread(Points.T.txt.path_in, sep = ";", header = FALSE))
+#     Points.T = Points.T[1:(length(Points.T)-1)] # remove last 'fake' value
+#   } else
+#   {
+#     Points.TF = IntersectsBoolean(Points, AoI)
+#     Points.T = which(Points.TF == TRUE)
+#     
+#     #create and write to txt file
+#     file.create(Points.T.txt.path_in)
+#     Points.T.txt = file(Points.T.txt.path_in)
+#     writeLines(paste(Points.T), Points.T.txt, sep = ";")
+#     close(Points.T.txt)
+#   }
+# }
 
-sgrid.TF = IntersectsBoolean(sgrid, AoI)
+# # Create the base: All the RIO-IFDM points inside the Area of Interest
+# Points.AoI = Points[Points.T,]
+# # plot(Points.AoI)
+# # SaveAsFile(Points.AoI, paste(Active.Type, "Points_AoI", sep = "_"), "GeoJSON", TRUE)
+# 
+# AoI.path_in = file.path("..", "output", paste(Active.Type, "Points_AoI", sep = "_"))
+# if (!exists("Points.AoI") & file.exists(AoI.path_in))
+# {
+#   Points.AoI = readOGR(AoI.path_in, layer = 'OGRGeoJSON')
+#   Points.AoI@proj4string = BE_crs
+# }
+
+# # Create grid for Flanders
+# 
+# # Grid on whole number coordinates 10x10m inside AoI
+# !!
+#   
+#   
+#   # data intensive method
+#   sgrid = GridMaker(Flanders_buff, AoI, 100, 10)
+# #plot(sgrid)
+# 
+# sgrid.TF = IntersectsBoolean(sgrid, AoI)
 
 # Create Boolean and base for the Municipality of Antwerp | use for testing
 # Gemeente.RIO_IFDM_TF = gIntersects(Points,
@@ -476,41 +566,84 @@ sgrid.TF = IntersectsBoolean(sgrid, AoI)
 # AoI.RIO_IFDM@proj4string = BE_crs
 
 
+## TXT structure RIO-IFDM
+
 # Read the values and place them in the Points SPDF
-hourFile = "20150101_19_NO2.txt"
-bz2.Points_in = file.path("..", "data", "BE", "IRCELINE", paste0(hourFile,".bz2"))
-txt.Points = file.path("..", "data", "BE", "IRCELINE", hourFile)
+pol = "no2" # "pm25"
+PolDir = file.path("..", "data", "BE", "IRCELINE")
+PolDir = file.path("T:", "RIO-IFDM", toupper(pol))
+txt.Points = ExtractBZ2(pol, PolDir, 1, 50)
 
-for (d in 1:length(hourFile))
+
+# Read the base | # Read from compressed bz2 file
+BaseFile = paste0(year.active, "0101_1_", toupper(pol), ".txt")
+bz2.Points_in = file.path("..", "data", "BE", "IRCELINE", paste0(BaseFile,".bz2"))
+txt.Points = file.path("..", "data", "BE", "IRCELINE", BaseFile)
+if (!file.exists(txt.Points))
 {
-  if (!file.exists(txt.Points[d]))
-  {
-    bunzip2(bz2.Points_in[d], txt.Points[d], remove = FALSE, skip = TRUE)
-  }
+  bunzip2(bz2.Points_in, txt.Points, remove = FALSE, skip = TRUE)
 }
+Points = fread(txt.Points, sep=";", header=TRUE)
+coordinates(Points) = ~x+y
+Points@proj4string = BE_crs
 
-Values = fread(txt.Points, sep=";", header=TRUE, select = "values")[Points.TF,]
-colnames(Values) = "CON20150101_19_NO2"
 
-Points.AoI@data = cbind(Points.AoI@data, Values)
-colnames(Points.AoI@data)
+Points.NoVal = Points
+colnames(Points.NoVal@data) = NA
+Points.NoVal@data[,1] = NA
 
-spplot(Points.AoI, "values")
-spplot(Points.AoI, "CON20150101_19_NO2")
 
+for (p in 1:length(txt.Points))
+{
+  Values = fread(txt.Points[p], sep=";", header=TRUE, select = "values") #[Points.T,]
+  
+  Points.AoI_test@data = cbind(Points.AoI_test@data, Values)
+}
+ColNames = paste0("CON_", regmatches(txt.Points, regexpr(paste0("[0-9]*_[0-9]*_", toupper(pol)), txt.Points)))
+Points.AoI_test@data[,1] = NULL
+colnames(Points.AoI_test@data) = ColNames
+
+
+
+spplot(Points.AoI_test, colnames(Points.AoI_test@data)[25])
 
 ## Interpolating the points
 
 # Remove duplicates
-Points.AoI.Dups = Points.AoI[duplicated(Points.AoI@coords), ]
+#Points.AoI.Dups = Points.AoI[duplicated(Points.AoI@coords), ]
 Points.AoI.NoDup = Points.AoI[!duplicated(Points.AoI@coords), ]
-SaveAsFile(Points.AoI.NoDup, paste("Points_AoI_RIO-IFDM", "CON20150101_19_NO2", sep = "_"), "GeoJSON", TRUE)
+#SaveAsFile(Points.AoI.NoDup, paste("Points_AoI_RIO-IFDM", "CON_20150101_19_NO2", sep = "_"), "GeoJSON", TRUE)
+
+start.time = Sys.time()
+ExposureValue.All = PPH.TIN.InterpolationWS(PPH.P, PPH.S, PPH.T1, PPH.T2, Points.NoVal, PolDir, Plot = FALSE,
+                              pol, StartHour = 1, EndHour = 24*15,
+                              HOURS.P, HOURS.S, HOURS.T1, HOURS.T2)
+ExposureValue.P = ExposureValue.All[[1]]
+if (Active.Profile$Dynamics == "dynamic")
+{
+  ExposureValue.S = ExposureValue.All[[2]]
+  ExposureValue.T1 = ExposureValue.All[[3]]
+  ExposureValue.T2 = ExposureValue.All[[4]]
+}
+end.time = Sys.time()
+print(end.time - start.time)
+
+
+ExposureValue.P[[1]]
+
+# Plotting results
+Ind = 265
+Plot.PersonalExposureGraph(Ind, 70, 6) # (Individual, Start(working)Day, Amount of days)
+
+Plot.Group(Active.Type, 1, 7, 100, TRUE)
+
+
 
 
 # Calculate a raster from RIO-IFDM points with the Triangulation method
-res = 10
+res = 100
 AoI2.Raster = PointsToRasterTIN(SPDF = Points.AoI.NoDup, value = "CON20150101_19_NO2",
-                                AoI = AoI,
+                                AoI = AoI2,
                                 dmax = 20, mpp = res, dup = "error")
 plot(AoI2.Raster)
 lines(AoI2, col = "red")

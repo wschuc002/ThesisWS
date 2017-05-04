@@ -15,27 +15,228 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 ## Check for required packages and install them (incl dependencies) if they are not installed yet.
-list.of.packages <- c("sp","akima")
+list.of.packages <- c("sp","akima", "SearchTrees")
 new.packages <- list.of.packages[!(list.of.packages %in% installed.packages()[,"Package"])]
 if(length(new.packages)) install.packages(new.packages)
 
 ## Load the packages
 library(sp)
 library(akima)
+library(SearchTrees)
 
 library(geoR)
 
-#gjson_in = file.path("..", "output", paste("Points_AoI_RIO-IFDM", "CON20150101_19_NO2.geojson", sep = "_"))
-#Points.AoI.NoDup = readOGR(gjson_in, layer = 'OGRGeoJSON')
-#Points.AoI.NoDup@proj4string = BE_crs
+#PPH = PPH.P
+#POL = Points.NoVal
+#HOURS = HOURS.P
+#Plot = FALSE
+#StartHour = 104
+#EndHour = 150
 
-#gjson_in = file.path("..", "output", "AoI2.geojson")
-#AoI = readOGR(gjson_in, layer = 'OGRGeoJSON')
-#AoI@proj4string = BE_crs
+PPH.TIN.InterpolationWS <- function(PPH.P, PPH.S, PPH.T1, PPH.T2, POL, PolDir, Plot,
+                                    pol, StartHour = 1, EndHour = length(YearDates)*24,
+                                    HOURS.P, HOURS.S, HOURS.T1, HOURS.T2, ...)
+{
+  txt.dr = ExtractBZ2(pol, PolDir, StartHour, EndHour)
+  
+  # Create tree
+  tree = createTree(coordinates(POL))
+  
+  EXP.P.Li = list()
+  EXP.S.Li = list()
+  EXP.T1.Li = list()
+  EXP.T2.Li = list()
+  
+  # Prepare lists
+  for (i in seq_along(PPH.P))
+  {
+    EXP.P.Li[[i]] = unlist(HOURS.P[[i]])
+    EXP.S.Li[[i]] = unlist(HOURS.S[[i]])
+    EXP.T1.Li[[i]] = unlist(HOURS.T1[[i]])
+    EXP.T2.Li[[i]] = unlist(HOURS.T2[[i]])
+    
+    EXP.P.Li[[i]][EXP.P.Li[[i]] > 0] <- NA
+    EXP.S.Li[[i]][EXP.S.Li[[i]] > 0] <- NA
+    EXP.T1.Li[[i]][EXP.T1.Li[[i]] > 0] <- NA
+    EXP.T2.Li[[i]][EXP.T2.Li[[i]] > 0] <- NA
+  }
 
-# gjson_in = file.path("..", "output", paste("01.OW_Secondary.geojson"))
-# PPH.S = readOGR(gjson_in, layer = 'OGRGeoJSON')
-# PPH.S@proj4string = BE_crs
+  for (h in seq_along(StartHour:EndHour))
+  #for (h in 1:1)
+  {
+    print(paste0("Hour ", h+StartHour-1))
+    
+    h=1# check which points should be used per hour
+    #for (i in seq_along(PPH))
+    
+    wP = list()
+    wS = list()
+    wT1 = list()
+    wT2 = list()
+    
+    POL.h = fread(txt.dr[h], sep=";", header=TRUE, select = "values")
+    
+    POL@data = POL.h
+    
+    for (i in seq_along(PPH.P))
+    #for (i in 1:100)
+    {
+      #print(paste0("Individual ", i))
+      cat(paste(i," "))
+      
+      HOURS.P.ul = unlist(HOURS.P[[i]])
+      wP[[i]] = which(h == HOURS.P.ul)
+
+      HOURS.S.ul = unlist(HOURS.S[[i]])
+      wS[[i]] = which(h == HOURS.S.ul)
+      
+      HOURS.T1.ul = unlist(HOURS.T1[[i]])
+      wT1[[i]] = which(h == HOURS.T1.ul)
+      
+      HOURS.T2.ul = unlist(HOURS.T2[[i]])
+      wT2[[i]] = which(h == HOURS.T2.ul)
+      
+      if (length(wP[[i]]) > 0)
+      {
+        # select proximity coordinates
+        inds = knnLookup(tree, newdat = coordinates(PPH.P[i,]), k = 50) # gives the matrix
+        inds = as.vector(inds)
+        
+        POL.sel = POL[inds,]
+        
+        # do the TIN interpolation
+        Exp.P = unlist(akima::interp(x = POL.sel@coords[,1], y = POL.sel@coords[,2], z = unlist(POL.sel@data[,1]),
+                                           xo = PPH.P[i,]@coords[,1], yo = PPH.P[i,]@coords[,2], extrap = F, duplicate = "strip"))[3]
+        if (Plot == TRUE)
+        {
+          plot(POL.sel)
+          text(POL.sel, labels = round( unlist(POL.sel@data[,1]),3), pos=3, cex = 0.4)
+          points(PPH.P[i,], col="green")
+          text(PPH.P[i,], labels = round(Exp.P,3), pos=2, cex = 0.75, col = "green")
+        }
+        
+        EXP.P.Li[[i]][wP[[i]]] = Exp.P
+      }
+      
+      if (length(wS[[i]]) > 0)
+      {
+        # select proximity coordinates
+        inds = knnLookup(tree, newdat = coordinates(PPH.S[i,]), k = 50) # gives the matrix
+        inds = as.vector(inds)
+        
+        POL.sel = POL[inds,]
+        
+        # do the TIN interpolation
+        Exp.S = unlist(akima::interp(x = POL.sel@coords[,1], y = POL.sel@coords[,2], z = unlist(POL.sel@data[,1]),
+                                             xo = PPH.S[i,]@coords[,1], yo = PPH.S[i,]@coords[,2], extrap = F, duplicate = "strip"))[3]
+        if (Plot == TRUE)
+        {
+          plot(POL.sel)
+          text(POL.sel, labels = round( unlist(POL.sel@data[,1]),3), pos=3, cex = 0.4)
+          points(PPH.S[i,], col="orange")
+          text(PPH.S[i,], labels = round(Exp.S,3), pos=2, cex = 0.75, col = "orange")
+        }
+        
+        EXP.S.Li[[i]][wS[[i]]] = Exp.S
+      }
+      
+      if (length(wT1[[i]]) > 0)
+      {
+        if (Plot == TRUE){ plot(POL[as.vector(knnLookup(tree, newdat = coordinates(PPH.T1.Pnt[[i]]), k = 50)),]) }
+
+        for (v in wT1[[i]])
+        {
+          # select proximity coordinates
+          inds = knnLookup(tree, newdat = coordinates(PPH.T1.Pnt[[i]][v]), k = 50) # gives the matrix
+          inds = as.vector(inds)
+          
+          POL.sel = POL[inds,]
+          
+          # do the TIN interpolation
+          Exp.T1 = unlist(akima::interp(x = POL.sel@coords[,1], y = POL.sel@coords[,2], z = unlist(POL.sel@data[,1]),
+                                        xo = PPH.T1.Pnt[[i]][v]@coords[,1], yo = PPH.T1.Pnt[[i]][v]@coords[,2], extrap = F, duplicate = "strip"))[3]
+          
+          if (Plot == TRUE)
+          {
+            text(POL.sel, labels = round( unlist(POL.sel@data[,1]),3), pos=3, cex = 0.4)
+            points(PPH.T1.Pnt[[i]][v], col="purple")
+            text(PPH.T1.Pnt[[i]][v], labels = round(Exp.T1,3), pos=2, cex = 0.75, col = "purple")
+          }
+          
+          EXP.T1.Li[[i]][wT1[[i]]] = Exp.T1
+        }
+      }
+      
+      if (length(wT2[[i]]) > 0)
+      {
+        if (Plot == TRUE){ plot(POL[as.vector(knnLookup(tree, newdat = coordinates(PPH.T2.Pnt[[i]]), k = 50)),]) }
+
+        for (v in wT2[[i]])
+        {
+          # select proximity coordinates
+          inds = knnLookup(tree, newdat = coordinates(PPH.T2.Pnt[[i]][v]), k = 50) # gives the matrix
+          inds = as.vector(inds)
+          
+          POL.sel = POL[inds,]
+          
+          # do the TIN interpolation
+          Exp.T2 = unlist(akima::interp(x = POL.sel@coords[,1], y = POL.sel@coords[,2], z = unlist(POL.sel@data[,1]),
+                                                xo = PPH.T2.Pnt[[i]][v]@coords[,1], yo = PPH.T2.Pnt[[i]][v]@coords[,2], extrap = F, duplicate = "strip"))[3]
+          
+          if (Plot == TRUE)
+          {
+            text(POL.sel, labels = round( unlist(POL.sel@data[,1]),3), pos=3, cex = 0.4)
+            points(PPH.T2.Pnt[[i]][v], col="purple")
+            text(PPH.T2.Pnt[[i]][v], labels = round(Exp.T2,3), pos=2, cex = 0.75, col = "purple")
+          }
+          EXP.T2.Li[[i]][wT2[[i]]] = Exp.T2
+        }
+      }
+    }
+  }
+
+  if (Active.Profile$Dynamics == "dynamic")
+  {
+    return(list(EXP.P.Li, EXP.S.Li, EXP.T1.Li, EXP.T2.Li))
+  }
+  
+}
+
+#PPH = PPH.P
+#POL = Points.AoI.NoDup
+#POL = Points.AoI_test
+#value = "CON_20150101_19_NO2"
+#Plot = TRUE
+
+PPH.TIN.Interpolation <- function(PPH, POL, Plot, ...)
+{
+  #if (Plot == TRUE){plot(Flanders)}
+  EXP.Li = list()
+  for (i in seq_along(PPH))
+    #for (i in 1:10)  
+  {
+    # select proximity coordinates
+    tree = createTree(coordinates(POL))
+    inds = knnLookup(tree, newdat=coordinates(PPH[i,]), k = 50) # gives the matrix
+    inds = as.vector(inds)
+    
+    POL.p = POL[inds,]
+    
+    if (Plot == TRUE)
+    {
+      plot(POL.p)
+      points(PPH[i,], col="green")
+    }
+    
+    # do the TIN interpolation
+    EXP.Li[[i]] = unlist(interp(x = POL.p@coords[,1], y = POL.p@coords[,2], z = POL.p@data[,2],
+                                xo = PPH[i,]@coords[,1], yo = PPH[i,]@coords[,2], extrap = F, duplicate = "strip"))[3]
+    
+  }
+  EXP = do.call(rbind, EXP.Li)
+  
+  return(EXP)
+}
 
 # SPDF = Points.AoI.NoDup
 # AoI = AoI
@@ -80,7 +281,7 @@ PointsToRasterTIN <- function(SPDF, value, AoI, dmax, mpp, dup, ...)
   
   WS = interp(x = SPDF@coords[,1], y = SPDF@coords[,2], z = SPDF@data[,colnames(SPDF@data) == value], #SPDF@data$values
               xo = GridPol.SP@coords[,1], yo = GridPol.SP@coords[,2], duplicate = dup, extrap = FALSE)
-
+  
   return(WS)
   
   sgrid.SPDF = GridPol.SPDF
@@ -100,13 +301,13 @@ PointsToRasterTIN <- function(SPDF, value, AoI, dmax, mpp, dup, ...)
                                       data = sgrid,
                                       proj4string = BE_crs)
   #Sub = as.logical(gIntersects(sgrid, Municipalities[Municipalities@data$NAAM %in% "Antwerpen",], byid = T))
-
-#   terror = gIntersection(AoI_SPDF, Municipalities[Municipalities@data$NAAM %in% "Antwerpen",])
-#   plot(terror)
-#   
-#   herpes = gIntersection(sgrid, terror)
-#   
-#   Sub2 = gIntersects(sgrid, terror, byid = T)
+  
+  #   test1 = gIntersection(AoI_SPDF, Municipalities[Municipalities@data$NAAM %in% "Antwerpen",])
+  #   plot(terror)
+  #   
+  #   test2 = gIntersection(sgrid, terror)
+  #   
+  #   Sub2 = gIntersects(sgrid, terror, byid = T)
   
   #sgrid = sgrid[Sub,]
   #plot(sgrid)
@@ -125,10 +326,10 @@ PointsToRasterTIN <- function(SPDF, value, AoI, dmax, mpp, dup, ...)
   
   #r = AoI2.Raster
   ma = mask(r, AoI)
-#   plot(ma)
-#   lines(AoI)
+  #   plot(ma)
+  #   lines(AoI)
   return(ma)
-
+  
 }
 
 GridDownScaler <- function(SPDF, AoI, dmax, mpp, ...)
@@ -161,7 +362,7 @@ GridDownScaler <- function(SPDF, AoI, dmax, mpp, ...)
   sgrid.SPDF.AoI = sgrid.SPDF[sgrid.TF,]
   plot(sgrid.SPDF.AoI)
   #SaveAsFile(sgrid.SPDF.AoI, paste("Grid_AoI", paste0(mpp*10,"x",mpp*10),sep = "_"), "GeoJSON", TRUE)
-
+  
   sp::gridded(sgrid.SPDF.AoI) <- TRUE # convert to SpatialPixelsDataFrame
   
   sgrid2.Li = list()
@@ -183,46 +384,46 @@ GridDownScaler <- function(SPDF, AoI, dmax, mpp, ...)
   sgrid2WS.NoDup = sgrid2WS[!duplicated(sgrid2WS@coords), ]
   
   
-#   # connect points distance == 100 and seq 10m point between them (Tree method?)
-#   tree = createTree(coordinates(sgrid.SPDF.AoI))
-#   inds = knnLookup(tree, newdat=coordinates(sgrid.SPDF.AoI), k = 2) # gives the matrix
-#   
-#   sgrid2.Li = list()
-#   p=1
-#   for (p in seq_along(sgrid.SPDF.AoI))
-#     #for (p in 1:2)
-#   {
-#     if (sgrid.SPDF.AoI@coords[inds[p,1],1] > sgrid.SPDF.AoI@coords[inds[p,2],1])
-#     {
-#       SeqX = seq(from = sgrid.SPDF.AoI@coords[inds[p,1],1], to = sgrid.SPDF.AoI@coords[inds[p,2],1], by = -mpp)
-#     } else {
-#       SeqX = seq(from = sgrid.SPDF.AoI@coords[inds[p,1],1], to = sgrid.SPDF.AoI@coords[inds[p,2],1], by = mpp)
-#     }
-#     
-#     if (sgrid.SPDF.AoI@coords[inds[p,1],2] > sgrid.SPDF.AoI@coords[inds[p,2],2])
-#     {
-#       SeqY = seq(from = sgrid.SPDF.AoI@coords[inds[p,1],2], to = sgrid.SPDF.AoI@coords[inds[p,2],2], by = -mpp)
-#     } else {
-#       SeqY = seq(from = sgrid.SPDF.AoI@coords[inds[p,1],2], to = sgrid.SPDF.AoI@coords[inds[p,2],2], by = mpp)
-#     }
-#     
-#     sgrid2 <- expand.grid(SeqX, SeqY)
-#     
-#     plot(sgrid2)
-#     
-#     idSeq2 <- seq(1, nrow(sgrid2), 1)
-#     sgrid2.DF <- data.frame(ID = idSeq2, COORDX = sgrid2[, 1], COORDY = sgrid2[, 2])
-#     sgrid2.SPDF <- sp::SpatialPointsDataFrame(coords = sgrid2.DF[ , c(2, 3)],
-#                                               data = sgrid2.DF, proj4string = BE_crs)
-#     sgrid2.Li[[p]] = sgrid2.SPDF
-#   }
-#   sgrid2WS = do.call(rbind, sgrid2.Li)
-#   plot(sgrid.SPDF.AoI)
-#   points(sgrid2WS, col = "red")
-#   
-#   # Remove duplicates
-#   sgrid2WS.Dups = sgrid2WS[duplicated(sgrid2WS@coords), ]
-#   sgrid2WS.NoDup = sgrid2WS[!duplicated(sgrid2WS@coords), ]
+  #   # connect points distance == 100 and seq 10m point between them (Tree method?)
+  #   tree = createTree(coordinates(sgrid.SPDF.AoI))
+  #   inds = knnLookup(tree, newdat=coordinates(sgrid.SPDF.AoI), k = 2) # gives the matrix
+  #   
+  #   sgrid2.Li = list()
+  #   p=1
+  #   for (p in seq_along(sgrid.SPDF.AoI))
+  #     #for (p in 1:2)
+  #   {
+  #     if (sgrid.SPDF.AoI@coords[inds[p,1],1] > sgrid.SPDF.AoI@coords[inds[p,2],1])
+  #     {
+  #       SeqX = seq(from = sgrid.SPDF.AoI@coords[inds[p,1],1], to = sgrid.SPDF.AoI@coords[inds[p,2],1], by = -mpp)
+  #     } else {
+  #       SeqX = seq(from = sgrid.SPDF.AoI@coords[inds[p,1],1], to = sgrid.SPDF.AoI@coords[inds[p,2],1], by = mpp)
+  #     }
+  #     
+  #     if (sgrid.SPDF.AoI@coords[inds[p,1],2] > sgrid.SPDF.AoI@coords[inds[p,2],2])
+  #     {
+  #       SeqY = seq(from = sgrid.SPDF.AoI@coords[inds[p,1],2], to = sgrid.SPDF.AoI@coords[inds[p,2],2], by = -mpp)
+  #     } else {
+  #       SeqY = seq(from = sgrid.SPDF.AoI@coords[inds[p,1],2], to = sgrid.SPDF.AoI@coords[inds[p,2],2], by = mpp)
+  #     }
+  #     
+  #     sgrid2 <- expand.grid(SeqX, SeqY)
+  #     
+  #     plot(sgrid2)
+  #     
+  #     idSeq2 <- seq(1, nrow(sgrid2), 1)
+  #     sgrid2.DF <- data.frame(ID = idSeq2, COORDX = sgrid2[, 1], COORDY = sgrid2[, 2])
+  #     sgrid2.SPDF <- sp::SpatialPointsDataFrame(coords = sgrid2.DF[ , c(2, 3)],
+  #                                               data = sgrid2.DF, proj4string = BE_crs)
+  #     sgrid2.Li[[p]] = sgrid2.SPDF
+  #   }
+  #   sgrid2WS = do.call(rbind, sgrid2.Li)
+  #   plot(sgrid.SPDF.AoI)
+  #   points(sgrid2WS, col = "red")
+  #   
+  #   # Remove duplicates
+  #   sgrid2WS.Dups = sgrid2WS[duplicated(sgrid2WS@coords), ]
+  #   sgrid2WS.NoDup = sgrid2WS[!duplicated(sgrid2WS@coords), ]
   
   return(sgrid2WS.NoDup)
 }
@@ -291,7 +492,7 @@ PointsToRaster <- function(CT.SPDF, ...)
   EXP@data$hour19 = NA
   
   for (a in usedSlots)
-  #for (a in seq(0,20))
+    #for (a in seq(0,20))
     #for (a in head(usedSlots,3))
   {
     print(paste("Starting with slot", a, "of", length(usedSlots)))
@@ -340,7 +541,7 @@ PointsToRaster <- function(CT.SPDF, ...)
   Municipalities = Municipalities[Municipalities@data$NAAM %in% Subset.Gemeente,] # filter columns
   
   Municipalities@proj4string = BE_crs
-    
+  
   ## IDW
   
   library(gstat) # Use gstat's idw routine
@@ -371,9 +572,9 @@ PointsToRaster <- function(CT.SPDF, ...)
   
   tm_shape(r.m) + tm_raster(n=10,palette = "RdBu", auto.palette.mapping = FALSE,
                             title = paste("Concentration", toupper(pol),  "\n(µg/m³)")) + 
-                              tm_shape(EXP) + tm_dots(size=0.2) +
-                              tm_legend(legend.outside=TRUE)
-
+    tm_shape(EXP) + tm_dots(size=0.2) +
+    tm_legend(legend.outside=TRUE)
+  
   tm_shape(r.m) + tm_raster(n=5,palette = "RdBu", auto.palette.mapping = TRUE,
                             title = paste("Concentration", toupper(pol),  "\n(µg/m³)")) + 
     #tm_shape(EXP) + tm_dots(size=0.2) +
@@ -384,18 +585,18 @@ PointsToRaster <- function(CT.SPDF, ...)
   
   
   
-spplot(EXP, "hour19")    
-
-labelat = seq(0,100,by=10)
-labeltext = paste("Exposure values in",Names)
-spplot(EXP, "hour2", col.regions = rainbow(100, start = 4/6, end = 1),
-       colorkey=list(width=0.3,     # works
-                     space="right", # not honoured
-                     tick.number=5, # not honoured, can be left out
-                     labels=list( # so we must do it by hand
-                       at=labelat,
-                       labels=labeltext )))
-spplot(EXP, "hour2", col.regions = rainbow(100, start = 4/6, end = 1))
+  spplot(EXP, "hour19")    
+  
+  labelat = seq(0,100,by=10)
+  labeltext = paste("Exposure values in",Names)
+  spplot(EXP, "hour2", col.regions = rainbow(100, start = 4/6, end = 1),
+         colorkey=list(width=0.3,     # works
+                       space="right", # not honoured
+                       tick.number=5, # not honoured, can be left out
+                       labels=list( # so we must do it by hand
+                         at=labelat,
+                         labels=labeltext )))
+  spplot(EXP, "hour2", col.regions = rainbow(100, start = 4/6, end = 1))
 }
 
 DigitalSurfaceModel <- function(...)
@@ -478,9 +679,9 @@ RegressionKriging <- function(...)
   
   "https://downloadagiv.blob.core.windows.net/dhm-vlaanderen-ii-dsm-raster-1m/DHMVIIDSMRAS1m_k15.zip"
   
-#   Roads_Antwerpen = gIntersection(Roads, Antwerpen, byid = T)
-#   plot(Roads_Antwerpen, col = "grey")
-#   lines(Antwerpen, col = "red")
+  #   Roads_Antwerpen = gIntersection(Roads, Antwerpen, byid = T)
+  #   plot(Roads_Antwerpen, col = "grey")
+  #   lines(Antwerpen, col = "red")
   
   o = over(Roads, Antwerpen)
   Roads_Antwerpen = Roads[o$NAAM == "Antwerpen",]
@@ -496,8 +697,8 @@ RegressionKriging <- function(...)
 }
 
 
-  
-  
+
+
 # source: http://r-sig-geo.2731867.n2.nabble.com/DEM-interpolation-with-Delaunay-triangulation-td7013856.html
 maybetin <- function(X, nx, ny, x=NULL, y=NULL, na.v=0)
 {
@@ -536,7 +737,7 @@ maybetin <- function(X, nx, ny, x=NULL, y=NULL, na.v=0)
   }
   return(gri.ppp)
 } 
-  
+
 TestCode <- function(...)
 {
   
@@ -571,7 +772,7 @@ TestCode <- function(...)
   
   
   Dens <- stats::density(WS.ppp, adjust = 0.2)  # create density object
-
+  
   
   #data pre-processing
   library(maptools) # for the "as" method
@@ -605,6 +806,6 @@ TestCode <- function(...)
   x = krige(log(zinc)~x+y, meuse, meuse.grid, nmax=3)
   spplot(x[1],col.regions=bpy.colors(),
          sp.layout=list("sp.points", meuse)) 
-
+  
   
 }
