@@ -21,6 +21,58 @@
 
 ## Load the packages
 
+Plot.Group2 <- function(Profile, DAY.start, DAYS, IND.amount, PlotMinMax, ...)
+{
+  if (IND.amount > length(ExposureValue.P))
+  {
+    print(paste0("Warning: The amount of individuals to be plotted is higher than available in the data set. This
+                 amount is reduced to this number:", length(ExposureValue.P)))
+    IND.amount = length(ExposureValue.P)
+  }
+  
+  ST.DF.P = DF.Structure(TIME.P, ExposureValue.P, 100, 60)
+  ST.DF.S = DF.Structure(TIME.S, ExposureValue.S, 100, 60)
+  ST.DF.T1 = DF.Structure(TIME.T1, ExposureValue.T1, 100, 60)
+  ST.DF.T2 = DF.Structure(TIME.T2, ExposureValue.T2, 100, 60)
+  
+  stats.EXP.P = DF.Stats(ST.DF.P)
+  
+  E.max = max(c(stats.EXP.P$maxEXP, stats.EXP.S$maxEXP, stats.EXP.T1$maxEXP, stats.EXP.T2$maxEXP), na.rm = T)
+  
+  Col.P = rgb(red=0, green=0.5, blue=0.5, alpha=0.2)
+  Col.S = rgb(red=1, green=0.2, blue=0.5, alpha=0.2)
+  Col.T1 = rgb(red=0.5, green=0.2, blue=0.5, alpha=0.2)
+  Col.T2 = rgb(red=1, green=0.2, blue=0.2, alpha=0.2)
+  
+  # point plot with transparency in color
+  with (ST.DF.P, plot(TIME, EXP, pch = "-", cex=1, col = Col.P, ylim=c(0, E.max+20),
+                        xlab = "Time", ylab = paste(toupper(pol), "concentration (µg/m³)"),
+                        main = paste(Active.Profile$FullName, ":", IND.amount, "out of", length(ExposureValue.P), "individuals")))
+  
+  with (ST.DF.S, points(TIME, EXP, pch = "-", cex=1, col = Col.S))
+  with (ST.DF.T1, points(TIME, EXP, pch = "-", cex=1, col = Col.T1))
+  with (ST.DF.T2, points(TIME, EXP, pch = "-", cex=1, col = Col.T2))
+  
+  mtext(paste(head(ST.DF.P$TIME,1), "-", tail(ST.DF.P$TIME,1)))
+
+  #add mean, min and max to plot
+  points(as.POSIXct(stats.EXP.P$TIME), stats.EXP.P$meanEXP, col = "orange", pch = "-", cex = 1)
+  
+  if (PlotMinMax == TRUE)
+  {
+    points(as.POSIXct(stats.EXP.P$TIME), stats.EXP.P$minEXP, col = "white", pch = 24, bg = rgb(red=0, green=0.5, blue=0.5), cex=0.75)
+    points(as.POSIXct(stats.EXP.P$TIME), stats.EXP.P$maxEXP, col = "white", pch = 25, bg = rgb(red=0, green=0.5, blue=0.5), cex=0.75)
+  }
+  
+  legend("top", c("Individual exposure value","Mean"), xpd = FALSE, horiz = TRUE, inset = c(0,0),
+         bty = "n", pch = c("-","-"), col = c(WS.col,"orange"), cex = 1)
+  
+  
+  #abline(v=as.POSIXct("2009-03-29 02:00:00", origin = "1970-01-01"), col = "orange") # start summertime / Daylight saving time (DST)
+  #abline(v=as.POSIXct("2009-10-25 02:00:00", origin = "1970-01-01"), col = "grey") # start wintertime / Standard time
+
+}
+
 Weighted.Dynamic <- function(ExposureValue.C, WEIGHTS.C, CalcType, ...)
 {
   EXP = list()
