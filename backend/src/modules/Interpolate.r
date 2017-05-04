@@ -24,14 +24,14 @@ library(sp)
 library(akima)
 library(SearchTrees)
 
-library(geoR)
+#library(geoR)
 
 #PPH = PPH.P
 #POL = Points.NoVal
 #HOURS = HOURS.P
 #Plot = FALSE
-#StartHour = 104
-#EndHour = 150
+#StartHour = 1
+#EndHour = 10
 
 PPH.TIN.InterpolationWS <- function(PPH.P, PPH.S, PPH.T1, PPH.T2, POL, PolDir, Plot,
                                     pol, StartHour = 1, EndHour = length(YearDates)*24,
@@ -66,7 +66,7 @@ PPH.TIN.InterpolationWS <- function(PPH.P, PPH.S, PPH.T1, PPH.T2, POL, PolDir, P
   {
     print(paste0("Hour ", h+StartHour-1))
     
-    h=1# check which points should be used per hour
+    # check which points should be used per hour
     #for (i in seq_along(PPH))
     
     wP = list()
