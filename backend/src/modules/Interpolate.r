@@ -29,9 +29,9 @@ library(SearchTrees)
 #PPH = PPH.P
 #POL = Points.NoVal
 #HOURS = HOURS.P
-#Plot = FALSE
-#StartHour = 1
-#EndHour = 10
+#Plot = TRUE
+#StartHour = 140
+#EndHour = 144
 
 PPH.TIN.InterpolationWS <- function(PPH.P, PPH.S, PPH.T1, PPH.T2, POL, PolDir, Plot,
                                     pol, StartHour = 1, EndHour = length(YearDates)*24,
@@ -66,6 +66,8 @@ PPH.TIN.InterpolationWS <- function(PPH.P, PPH.S, PPH.T1, PPH.T2, POL, PolDir, P
   {
     print(paste0("Hour ", h+StartHour-1))
     
+    print(paste0("Hour ", h))
+    
     # check which points should be used per hour
     #for (i in seq_along(PPH))
     
@@ -78,8 +80,8 @@ PPH.TIN.InterpolationWS <- function(PPH.P, PPH.S, PPH.T1, PPH.T2, POL, PolDir, P
     
     POL@data = POL.h
     
-    for (i in seq_along(PPH.P))
-    #for (i in 1:100)
+    #for (i in seq_along(PPH.P))
+    for (i in 1:2)
     {
       #print(paste0("Individual ", i))
       cat(paste(i," "))
@@ -147,20 +149,22 @@ PPH.TIN.InterpolationWS <- function(PPH.P, PPH.S, PPH.T1, PPH.T2, POL, PolDir, P
         for (v in wT1[[i]])
         {
           # select proximity coordinates
-          inds = knnLookup(tree, newdat = coordinates(PPH.T1.Pnt[[i]][v]), k = 50) # gives the matrix
+          #inds = knnLookup(tree, newdat = coordinates(PPH.T1.Pnt[[i]][v]), k = 50) # gives the matrix
+          CoordsOfInterest = PPH.T1.Pnt[[i]][v-v+1,]@coords
+          inds = knnLookup(tree, newdat = CoordsOfInterest, k = 50)
           inds = as.vector(inds)
           
           POL.sel = POL[inds,]
           
           # do the TIN interpolation
           Exp.T1 = unlist(akima::interp(x = POL.sel@coords[,1], y = POL.sel@coords[,2], z = unlist(POL.sel@data[,1]),
-                                        xo = PPH.T1.Pnt[[i]][v]@coords[,1], yo = PPH.T1.Pnt[[i]][v]@coords[,2], extrap = F, duplicate = "strip"))[3]
+                                        xo = CoordsOfInterest[1], yo = CoordsOfInterest[2], extrap = F, duplicate = "strip"))[3]
           
           if (Plot == TRUE)
           {
             text(POL.sel, labels = round( unlist(POL.sel@data[,1]),3), pos=3, cex = 0.4)
-            points(PPH.T1.Pnt[[i]][v], col="purple")
-            text(PPH.T1.Pnt[[i]][v], labels = round(Exp.T1,3), pos=2, cex = 0.75, col = "purple")
+            points(CoordsOfInterest, col="purple")
+            text(CoordsOfInterest, labels = round(Exp.T1,3), pos=2, cex = 0.75, col = "purple")
           }
           
           EXP.T1.Li[[i]][wT1[[i]]] = Exp.T1
@@ -174,21 +178,24 @@ PPH.TIN.InterpolationWS <- function(PPH.P, PPH.S, PPH.T1, PPH.T2, POL, PolDir, P
         for (v in wT2[[i]])
         {
           # select proximity coordinates
-          inds = knnLookup(tree, newdat = coordinates(PPH.T2.Pnt[[i]][v]), k = 50) # gives the matrix
+          #inds = knnLookup(tree, newdat = coordinates(PPH.T2.Pnt[[i]][v]), k = 50) # gives the matrix
+          CoordsOfInterest = PPH.T2.Pnt[[i]][v-v+1,]@coords
+          inds = knnLookup(tree, newdat = CoordsOfInterest, k = 50)
           inds = as.vector(inds)
           
           POL.sel = POL[inds,]
           
           # do the TIN interpolation
           Exp.T2 = unlist(akima::interp(x = POL.sel@coords[,1], y = POL.sel@coords[,2], z = unlist(POL.sel@data[,1]),
-                                                xo = PPH.T2.Pnt[[i]][v]@coords[,1], yo = PPH.T2.Pnt[[i]][v]@coords[,2], extrap = F, duplicate = "strip"))[3]
+                                        xo = CoordsOfInterest[1], yo = CoordsOfInterest[2], extrap = F, duplicate = "strip"))[3]
           
           if (Plot == TRUE)
           {
             text(POL.sel, labels = round( unlist(POL.sel@data[,1]),3), pos=3, cex = 0.4)
-            points(PPH.T2.Pnt[[i]][v], col="purple")
-            text(PPH.T2.Pnt[[i]][v], labels = round(Exp.T2,3), pos=2, cex = 0.75, col = "purple")
+            points(CoordsOfInterest, col="purple")
+            text(CoordsOfInterest, labels = round(Exp.T2,3), pos=2, cex = 0.75, col = "purple")
           }
+          
           EXP.T2.Li[[i]][wT2[[i]]] = Exp.T2
         }
       }

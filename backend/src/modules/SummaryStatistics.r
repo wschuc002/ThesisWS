@@ -37,7 +37,9 @@ Plot.Group2 <- function(Profile, DAY.start, DAYS, IND.amount, PlotMinMax, ...)
   
   stats.EXP.P = DF.Stats(ST.DF.P)
   
-  E.max = max(c(stats.EXP.P$maxEXP, stats.EXP.S$maxEXP, stats.EXP.T1$maxEXP, stats.EXP.T2$maxEXP), na.rm = T)
+  E.max = max(stats.EXP.P$maxEXP, na.rm = T)
+  #E.max = max(c(stats.EXP.P$maxEXP, stats.EXP.S$maxEXP, stats.EXP.T1$maxEXP, stats.EXP.T2$maxEXP), na.rm = T)
+  
   
   Col.P = rgb(red=0, green=0.5, blue=0.5, alpha=0.2)
   Col.S = rgb(red=1, green=0.2, blue=0.5, alpha=0.2)
@@ -65,7 +67,7 @@ Plot.Group2 <- function(Profile, DAY.start, DAYS, IND.amount, PlotMinMax, ...)
   }
   
   legend("top", c("Individual exposure value","Mean"), xpd = FALSE, horiz = TRUE, inset = c(0,0),
-         bty = "n", pch = c("-","-"), col = c(WS.col,"orange"), cex = 1)
+         bty = "n", pch = c("-","-"), col = c(Col.P,"orange"), cex = 1)
   
   
   #abline(v=as.POSIXct("2009-03-29 02:00:00", origin = "1970-01-01"), col = "orange") # start summertime / Daylight saving time (DST)
