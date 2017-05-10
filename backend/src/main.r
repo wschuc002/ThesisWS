@@ -83,9 +83,11 @@ source("modules/util.r")
 ### Download data from OneDrive or irceline ftp server
 DownloadMode = "OneDrive" # "FPT"
 
-# create 'data' folder in case it does not exist
+# create 'data' and 'data/BE' folder in case it does not exist
 data.dir = file.path("..", "data")
 if (!dir.exists(data.dir)) { dir.create(data.dir) }
+BE.dir = file.path("..", "data", "BE")
+if (!dir.exists(BE.dir)) { dir.create(BE.dir) }
 
 ## ONE DRIVE
 
@@ -162,6 +164,10 @@ if (Active.Profile$Dynamics == "dynamic")
   }
 }
 
+# create 'output' folder in case it does not exist
+output.dir = file.path("..", "output")
+if (!dir.exists(output.dir)) { dir.create(output.dir) }
+
 if (!file.exists(dir.P))
 {
   if (file.exists(file.path("..", "output", paste0(CRAB.Name,".shp"))))
@@ -194,9 +200,11 @@ Flanders@proj4string = BE_crs
 # Check if data already exists. If so, it will not run.
 if (!file.exists(dir.P) & !file.exists(dir.S))
 {
-  DeterminePPH_FL(CRAB_Doel, Names, 25, OSRM.Level, Active.Type, "detailed", Plot = TRUE, SaveResults = TRUE)
+  DeterminePPH_FL(CRAB_Doel, Names, 25, OSRM.Level, Active.Type, Plot = TRUE, SaveResults = TRUE)
 }
 
+# Remove the data in the environment that will not be used from this point.
+rm(CRAB_Doel, KEY.InputData, DownloadMode, keyInputData.dir, Filenames)
 
 if (!exists("PPH.P") & file.exists(dir.P))
 {

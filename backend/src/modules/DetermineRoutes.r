@@ -31,9 +31,13 @@ library(SearchTrees)
 
 DetermineAddressGoals_FL <- function(FL.Gemeente, Method.nr, ... )
 {
+  shp.associates = c(".shp", ".dbf", ".prj", ".shx")
+  Shapefile.dir = file.path("..", "data", "BE_FL", "Shapefile")
+  
   ## Read the input data
   zip_in = file.path("..", "data", "BE_FL", "CRAB_Adressenlijst.zip")
-  shp_in = file.path("..", "data", "BE_FL", "CrabAdr.shp")
+  crab.filename = "CrabAdr"
+  shp_in = file.path("..", "data", "BE_FL", paste0(crab.filename, ".shp"))
   
   # Check if input data is available
   if (!file.exists(zip_in) & !file.exists(shp_in))
@@ -42,10 +46,16 @@ DetermineAddressGoals_FL <- function(FL.Gemeente, Method.nr, ... )
   }
   if (!file.exists(shp_in))
   {
-    unzip(zip_in, exdir= file.path("..", "data", "BE_FL"))
+    Files = paste0(crab.filename, shp.associates)
+    unzip(zip_in, files = file.path("Shapefile", Files), exdir = file.path("..", "data", "BE_FL"))
+    
+    file.copy(from = file.path(Shapefile.dir, Files), file.path("..", "data", "BE_FL", Files), overwrite = TRUE, recursive = FALSE,
+              copy.mode = TRUE, copy.date = FALSE)
+    
+    unlink(Shapefile.dir, recursive = TRUE)
   }
   
-  CRAB = readOGR(shp_in, layer = "CrabAdr") #! Make subset with Gemeente(n) in this stage?
+  CRAB = readOGR(shp_in, layer = crab.filename) #! Make subset with Gemeente(n) in this stage?
   CRAB@proj4string = BE_crs
   CRAB_backup = CRAB
   
@@ -67,7 +77,8 @@ DetermineAddressGoals_FL <- function(FL.Gemeente, Method.nr, ... )
   
   # Use Company terrain datasets for CRAB CLASSIFICATION (partial)
   zip_in = file.path("..", "data", "BE_FL", "Bedrijventerreinen_Toestand_01_06_2016.zip")
-  shp_in = file.path("..", "data", "BE_FL", "Gebrprc.shp")
+  gebrprc.filename = "Gebrprc"
+  shp_in = file.path("..", "data", "BE_FL", paste0(gebrprc.filename, ".shp"))
   
   # Check if input data is available
   if (!file.exists(zip_in) & !file.exists(shp_in))
@@ -76,10 +87,16 @@ DetermineAddressGoals_FL <- function(FL.Gemeente, Method.nr, ... )
   }
   if (!file.exists(shp_in))
   {
-    unzip(zip_in, exdir= file.path("..", "data", "BE_FL"))
+    Files = paste0(gebrprc.filename, shp.associates)
+    unzip(zip_in, files = file.path("Shapefile", Files), exdir = file.path("..", "data", "BE_FL"))
+    
+    file.copy(from = file.path(Shapefile.dir, Files), file.path("..", "data", "BE_FL", Files), overwrite = TRUE, recursive = FALSE,
+              copy.mode = TRUE, copy.date = FALSE)
+    
+    unlink(Shapefile.dir, recursive = TRUE)
   }
   
-  Gebrprc = readOGR(shp_in, layer = "Gebrprc")
+  Gebrprc = readOGR(shp_in, layer = gebrprc.filename)
   Gebrprc@proj4string = BE_crs
   
   # Keep the attributes that will be used
@@ -382,7 +399,7 @@ DeterminePPH_FL <- function(CRAB_Doel, Names.sub, FL.primary, OSRM.Level, Active
     {
       Secondary = CRAB_Doel[CRAB_Doel@data$DOEL %in% "Economische functie" | CRAB_Doel@data$DOEL %in% "Company" ,]
       
-      SecondaryPaired = CommutingDistancePairer(PPH.P, Secondary, MaxLinKM = 60,
+      SecondaryPaired = CommutingDistancePairer(Primary_random, Secondary, MaxLinKM = 60,
                                                 SEC.SampleSize = 100, Plot = FALSE)
     }
     
@@ -392,7 +409,7 @@ DeterminePPH_FL <- function(CRAB_Doel, Names.sub, FL.primary, OSRM.Level, Active
       #Secondary = subset(CRAB_Doel, CRAB_Doel@data$DOEL == "Basisonderwijs")
       Secondary = CRAB_Doel[CRAB_Doel@data$DOEL %in% "Basisonderwijs",] # CRAB_Doel@data$DOEL %in% "Secundair onderwijs" 
       
-      SecondaryPaired = CommutingDistancePairer(PPH.P, Secondary, MaxLinKM = 60,
+      SecondaryPaired = CommutingDistancePairer(Primary_random, Secondary, MaxLinKM = 60,
                                                 SEC.SampleSize = 100, Plot = FALSE)
     }
     
@@ -422,15 +439,15 @@ DeterminePPH_FL <- function(CRAB_Doel, Names.sub, FL.primary, OSRM.Level, Active
     }
     
     # reate the routes
-    PPH.T = Router(PRI, SecondaryPaired, "full")
+    PPH.T = Router(Primary_random, SecondaryPaired, "full")
     
     PPH.T1 = PPH.T[[1]] #Outwards
     PPH.T2 = PPH.T[[2]] #Inwards
     
     if (Plot == TRUE)
     {
-      lines(PPH.T1, col = "orange")
-      lines(PPH.T2, col = "green")
+      lines(PPH.T1, col = 93)
+      lines(PPH.T2, col = 94)
     }
     
     if (SaveResults == TRUE)
