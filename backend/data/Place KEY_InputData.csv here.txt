@@ -1,0 +1,3 @@
+To download the input data from OneDrive you need a KEY file (KEY_InputData.csv), which should be placed in backend/data/.
+
+In case "KEY_InputData.csv" missing. Please contact William Schuch (william.schuch@wur.nl) for a file request.
