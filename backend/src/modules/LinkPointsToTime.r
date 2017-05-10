@@ -153,6 +153,26 @@ LinkPointsToTime.Commuting <- function(PPH.C, LocationIDs, Year, Time, ...)
   return(TimeVertex.POSIXct)
 }
 
+YearDates2 <- function(Year, ...) #no correction for leap years
+{
+  #create the days of the year
+  StartDay = as.POSIXct(paste0(Year,"-01-01"), tz = "GMT")
+  YearDates = StartDay
+  for (i in 2:366)
+  {
+    YearDates[i] = StartDay+(i-1)*24*60**2
+  }
+  
+  YearLastDate = as.numeric( format(YearDates[366], '%Y'))
+  
+  if (Year != YearLastDate)
+  {
+    YearDates = YearDates[1:365]
+  }
+  
+  return(YearDates)
+}
+
 YearDates1 <- function(Year, ...) #no correction for leap years
 {
   #create the days of the year

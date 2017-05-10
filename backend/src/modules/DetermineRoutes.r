@@ -324,8 +324,10 @@ DetermineAddressGoals_FL <- function(FL.Gemeente, Method.nr, ... )
 # SaveResults = TRUE
 
 DeterminePPH_FL <- function(CRAB_Doel, Names.sub, FL.primary, OSRM.Level, Active.Type,
-                            Prob.Method, Plot, SaveResults, ...)
+                            Plot, SaveResults, ...)
 {
+  if (Plot == TRUE){plot(Flanders)}
+  
   # Create the attribute "object_id" (verplaatsen naar andere functie)
   CRAB_Doel@data["object_id"] = seq.int(nrow(CRAB_Doel@data))
   
@@ -350,6 +352,8 @@ DeterminePPH_FL <- function(CRAB_Doel, Names.sub, FL.primary, OSRM.Level, Active
   Primary_KEEPS = Primary@data$object_id %in% keeps_RS_Re
   Primary_random = subset(Primary, Primary_KEEPS)
   
+  if (Plot == TRUE){points(Primary_random, col = "green")}
+  
   if (Active.Profile$Dynamics == "static")
   {
     if (is.null(Subset.Gemeente))
@@ -361,11 +365,7 @@ DeterminePPH_FL <- function(CRAB_Doel, Names.sub, FL.primary, OSRM.Level, Active
     }
   }
   
-  # For simple calculation method, based on assumption on normal distribution
-#   Mean.distance = as.numeric(Active.Profile$MeanDistance)
-#   SD.distance = as.numeric(Active.Profile$SDdistance)
-  
-  #OSRM profile
+  # OSRM profile
   if (Active.Type == "01.OW")
   {
     options(osrm.profile = "driving")
@@ -375,74 +375,62 @@ DeterminePPH_FL <- function(CRAB_Doel, Names.sub, FL.primary, OSRM.Level, Active
     options(osrm.profile = "biking")
   }
   
-  
   if (Active.Profile$Dynamics == "dynamic")
   {
     #Subset: only Offices
     if (Active.Type == "01.OW")
     {
       Secondary = CRAB_Doel[CRAB_Doel@data$DOEL %in% "Economische functie" | CRAB_Doel@data$DOEL %in% "Company" ,]
-      #Secondary@proj4string = BE_crs
       
-      start.time = Sys.time()
       SecondaryPaired = CommutingDistancePairer(PPH.P, Secondary, MaxLinKM = 60,
                                                 SEC.SampleSize = 100, Plot = FALSE)
-      end.time = Sys.time()
-      time.taken = end.time - start.time  
-      time.taken
     }
+    
     #Subset: only schools
     if (Active.Type == "03.SP")
     {
       #Secondary = subset(CRAB_Doel, CRAB_Doel@data$DOEL == "Basisonderwijs")
       Secondary = CRAB_Doel[CRAB_Doel@data$DOEL %in% "Basisonderwijs",] # CRAB_Doel@data$DOEL %in% "Secundair onderwijs" 
       
-      SecondaryPaired = "place a "
-      
+      SecondaryPaired = CommutingDistancePairer(PPH.P, Secondary, MaxLinKM = 60,
+                                                SEC.SampleSize = 100, Plot = FALSE)
     }
     
-    #! Remove the individuals who did not pair
-    if (length(PRI) != length(SecondaryPaired))
-    {
-      head(SecondaryPaired)
-      head(PRI)
-    }
+#     #! Remove the individuals who did not pair
+#     if (length(PRI) != length(SecondaryPaired))
+#     {
+#       head(SecondaryPaired)
+#       head(PRI)
+#     }
+    
+    if (Plot == TRUE){points(SecondaryPaired, col = "orange")}
     
     #! Remove the individuals who drive outside Flanders +250m buffer
     
-    
-    
-    # Save files to hard drive
-    if (is.null(Subset.Gemeente))
+    if (SaveResults == TRUE)
     {
-      SaveAsFile(Primary_random, paste(Active.Type, "Primary", sep = "_"), "GeoJSON", TRUE)
-      SaveAsFile(SecondaryPaired, paste(Active.Type, "Secondary", sep = "_"), "GeoJSON", TRUE)
-    } else
-    {
-      SaveAsFile(Primary_random, paste0(Active.Type, "_Primary_", Names.sub), "GeoJSON", TRUE)
-      SaveAsFile(SecondaryPaired, paste0(Active.Type, "_Secondary_", Names.sub), "GeoJSON", TRUE)
+      # Save files to hard drive
+      if (is.null(Subset.Gemeente))
+      {
+        SaveAsFile(Primary_random, paste(Active.Type, "Primary", sep = "_"), "GeoJSON", TRUE)
+        SaveAsFile(SecondaryPaired, paste(Active.Type, "Secondary", sep = "_"), "GeoJSON", TRUE)
+      } else
+      {
+        SaveAsFile(Primary_random, paste0(Active.Type, "_Primary_", Names.sub), "GeoJSON", TRUE)
+        SaveAsFile(SecondaryPaired, paste0(Active.Type, "_Secondary_", Names.sub), "GeoJSON", TRUE)
+      }
     }
-  
     
-    #gjson_in = file.path("..", "output", "01.OW_Primary.geojson")
-    #SecondaryPaired = readOGR(gjson_in, layer = 'OGRGeoJSON')
-    #SecondaryPaired@proj4string = BE_crs
-    
-    start.time = Sys.time()
+    # reate the routes
     PPH.T = Router(PRI, SecondaryPaired, "full")
-    end.time = Sys.time()
-    time.taken = end.time - start.time  
-    time.taken
     
     PPH.T1 = PPH.T[[1]] #Outwards
     PPH.T2 = PPH.T[[2]] #Inwards
-    mean(PPH.T1@data$distance)
-    
-    
     
     if (Plot == TRUE)
     {
-      lines(PPH.T1)
+      lines(PPH.T1, col = "orange")
+      lines(PPH.T2, col = "green")
     }
     
     if (SaveResults == TRUE)
@@ -457,15 +445,7 @@ DeterminePPH_FL <- function(CRAB_Doel, Names.sub, FL.primary, OSRM.Level, Active
         SaveAsFile(PPH.T2, paste0(Active.Type,"_TransportInwards_", Names.sub, "_", substr(OSRM.Level, 1, 1)), "GeoJSON", TRUE)
       }
     }
-
-
-    
     #Secondary_Selected = IsoChroneSampler(Primary_random[1,], Secondary, "driving duration", TRUE)
-
-
-    
-    
-
   }
 }
 
@@ -474,7 +454,9 @@ DeterminePPH_FL <- function(CRAB_Doel, Names.sub, FL.primary, OSRM.Level, Active
 #PRI = readOGR(gjson_in, layer = 'OGRGeoJSON')
 #PRI@proj4string = BE_crs
 
-OSRM.Level = "full"
+#SecondaryPaired = PPH.S
+
+#OSRM.Level = "full"
 
 Router <- function(PRI, SecondaryPaired, OSRM.Level, ...)
 {
@@ -492,10 +474,10 @@ Router <- function(PRI, SecondaryPaired, OSRM.Level, ...)
   for (i in seq_along(SecondaryPaired))
   #for (i in 1:10)
   {
-    PPH.T1.Li[[i]] = osrmRoute.WS(src = src1[i,], dst = dst1[i,], overview = OSRM.Level, sp = TRUE)
+    PPH.T1.Li[[i]] = osrmRoute(src = src1[i,], dst = dst1[i,], overview = OSRM.Level, sp = TRUE)
     PPH.T1.Li[[i]] = spTransform(PPH.T1.Li[[i]], BE_crs)
     
-    PPH.T2.Li[[i]] = osrmRoute.WS(src = src2[i,], dst = dst2[i,], overview = OSRM.Level, sp = TRUE)
+    PPH.T2.Li[[i]] = osrmRoute(src = src2[i,], dst = dst2[i,], overview = OSRM.Level, sp = TRUE)
     PPH.T2.Li[[i]] = spTransform(PPH.T2.Li[[i]], BE_crs)
     
     PPH.T1.Li[[i]]@data$src_CRAB = NA
@@ -675,8 +657,8 @@ Tester <- function(...)
     return(CHECK)
   }
 }
-UITKOMST = Tester()
-rm(UITKOMST)
+#UITKOMST = Tester()
+#rm(UITKOMST)
 
 IsoChroneSampler <- function(Primary_random, Secondary, Method, Plot, ...)
 {

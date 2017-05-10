@@ -112,9 +112,9 @@ PPH.TIN.InterpolationWS <- function(PPH.P, PPH.S, PPH.T1, PPH.T2, POL, PolDir, P
         if (Plot == TRUE)
         {
           plot(POL.sel)
-          text(POL.sel, labels = round( unlist(POL.sel@data[,1]),3), pos=3, cex = 0.4)
-          points(PPH.P[i,], col="green")
-          text(PPH.P[i,], labels = round(Exp.P,3), pos=2, cex = 0.75, col = "green")
+          text(POL.sel, labels = round( unlist(POL.sel@data[,1]),3), pos = 3, cex = 0.6)
+          points(PPH.P[i,], col = 11, font = 2, pch = 19)
+          text(PPH.P[i,], labels = round(Exp.P,3), pos = 1, cex = 1, col = 11, font = 2)
         }
         
         EXP.P.Li[[i]][wP[[i]]] = Exp.P
@@ -134,9 +134,9 @@ PPH.TIN.InterpolationWS <- function(PPH.P, PPH.S, PPH.T1, PPH.T2, POL, PolDir, P
         if (Plot == TRUE)
         {
           plot(POL.sel)
-          text(POL.sel, labels = round( unlist(POL.sel@data[,1]),3), pos=3, cex = 0.4)
-          points(PPH.S[i,], col="orange")
-          text(PPH.S[i,], labels = round(Exp.S,3), pos=2, cex = 0.75, col = "orange")
+          text(POL.sel, labels = round( unlist(POL.sel@data[,1]),3), pos = 3, cex = 0.6)
+          points(PPH.S[i,], col = "orange", font = 2, pch = 19)
+          text(PPH.S[i,], labels = round(Exp.S,3), pos = 1, cex = 1, col = "orange", font = 2)
         }
         
         EXP.S.Li[[i]][wS[[i]]] = Exp.S
@@ -162,9 +162,9 @@ PPH.TIN.InterpolationWS <- function(PPH.P, PPH.S, PPH.T1, PPH.T2, POL, PolDir, P
           
           if (Plot == TRUE)
           {
-            text(POL.sel, labels = round( unlist(POL.sel@data[,1]),3), pos=3, cex = 0.4)
-            points(CoordsOfInterest, col="purple")
-            text(CoordsOfInterest, labels = round(Exp.T1,3), pos=2, cex = 0.75, col = "purple")
+            text(POL.sel, labels = round( unlist(POL.sel@data[,1]),3), pos = 3, cex = 0.6)
+            points(CoordsOfInterest, col="purple", font = 2, pch = 19)
+            text(CoordsOfInterest, labels = round(Exp.T1,3), pos = 1, cex = 1, font = 2, col = "purple")
           }
           
           EXP.T1.Li[[i]][wT1[[i]]] = Exp.T1
@@ -192,8 +192,8 @@ PPH.TIN.InterpolationWS <- function(PPH.P, PPH.S, PPH.T1, PPH.T2, POL, PolDir, P
           if (Plot == TRUE)
           {
             text(POL.sel, labels = round( unlist(POL.sel@data[,1]),3), pos=3, cex = 0.4)
-            points(CoordsOfInterest, col="purple")
-            text(CoordsOfInterest, labels = round(Exp.T2,3), pos=2, cex = 0.75, col = "purple")
+            points(CoordsOfInterest, col="purple", font = 2, pch = 19)
+            text(CoordsOfInterest, labels = round(Exp.T2,3), pos = 1, cex = 1, font = 2, col = "purple")
           }
           
           EXP.T2.Li[[i]][wT2[[i]]] = Exp.T2

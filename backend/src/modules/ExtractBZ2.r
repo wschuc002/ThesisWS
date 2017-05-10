@@ -26,7 +26,7 @@ library(gtools)
 ExtractBZ2 <- function(pol, PolDir, StartHour = 1, EndHour = length(YearDates)*24, ...)
 {
   bz2.lst = list.files(path = PolDir, pattern = paste0("[0-9]*_[0-9]*_", toupper(pol), ".txt.bz2"))
-  bz2.lst = mixedsort(bz2.lst) # fix string order 1 10 11 -> 1 2 3
+  bz2.lst = mixedsort(bz2.lst) # fixes string order 1 10 11 -> 1 2 3
   bz2.lst = bz2.lst[StartHour:EndHour] # subset
   
   bz2.dr = file.path(PolDir, bz2.lst)

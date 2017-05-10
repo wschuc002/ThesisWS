@@ -24,56 +24,93 @@ library(sp)
 
 # PPH.T = PPH.T1[1:25,]
 # SampSize = 25
-# Method = "EqualDuration"
+# Method = "EqualDurationRandomnessAwesomeness"
 # Plot = TRUE
 
-SimplifyRoutes <- function(PPH.T, Plot, Method, SampSize, ...)
+SimplifyRoutes <- function(PPH.T, Plot = FALSE, Factor = 100, ...)
 {
   if (Plot == TRUE){plot(Flanders)}
   
-  Sel.Li = list()
-  Min.Li = list()
-  PPH.T.Pnt.Sel.Li = list()
+  PPH.T.Pnt.eq.Li = list()
   
   for (i in seq_along(PPH.T))
   {
     PPH.T.Pnt = as(PPH.T[i,], "SpatialPoints")
-    # count vertices/nodes
-    vertices = length(PPH.T.Pnt)
+      
+    # calculate length per line section
+    PietjeAgoras = NA
+    PietjeAgoras.pct = NA
+    DurationPerLineSegment = NA
+    lijntjes.SL = list()
+    lijntjes.SLDF = list()
     
-    if (Method == "Random")
+    for (v in 1:(length(PPH.T.Pnt)-1))
     {
-      Sel.Li[[i]] = sample(vertices, size = SampSize)
-      Min.Li[[i]] = Sel.Li[[i]]/vertices * PPH.T[i,]@data$duration
+      src = PPH.T[i,]@lines[[1]]@Lines[[1]]@coords[v,]
+      dst = PPH.T[i,]@lines[[1]]@Lines[[1]]@coords[v+1,]
+      
+      PietjeAgoras[v] = sqrt(abs(src[1]-dst[1])**2 + abs(src[2]-dst[2])**2) / 1000 # in km
+      #sum(PietjeAgoras) # should be close to PPH.T[i,]@data$distance
+      PietjeAgoras.pct[v] = PietjeAgoras[v] / PPH.T[i,]@data$distance # percentage of duration per line segment
+      #sum(PietjeAgoras.pct) # should be close to 1
+      DurationPerLineSegment[v] = PietjeAgoras.pct[v] * PPH.T[i,]@data$duration
+      #sum(DurationPerLineSegment) # should be close to PPH.T[i,]@data$duration
+      
+      lijntjes.SL[[v]] = SpatialLines(list(Lines(Line(rbind(dst,src)), ID = v)), proj4string = BE_crs)
+      lijntjes.SLDF[[v]] = SpatialLinesDataFrame(lijntjes.SL[[v]], data = data.frame(DurationPerLineSegment[v]), match.ID = F)
     }
-    if (Method == "EqualDuration")
+    lijntjes = do.call(rbind, unlist(lijntjes.SLDF))
+    colnames(lijntjes@data) = "DurationPerLineSegment"
+    
+    step.size = sum(DurationPerLineSegment) / Factor # simplify by factor
+    duration.driven = cumsum(lijntjes@data$DurationPerLineSegment)
+    
+    eq = seq(step.size, sum(DurationPerLineSegment), step.size)
+    
+    #find closest match
+    sel = NA
+    for (v in seq_along(eq))
     {
-      eq = floor(length(PPH.T.Pnt)/SampSize)
-      Sel.Li[[i]] = seq(eq, length(PPH.T.Pnt), eq)
-      Min.Li[[i]] = Sel.Li[[i]]/vertices * PPH.T[i,]@data$duration
+      n = eq[v]
+      sel[v] = which(abs(n-duration.driven)==min(abs(n-duration.driven))) +1
     }
-
-    PPH.T.Pnt.Sel.Li[[i]] = PPH.T.Pnt[Sel.Li[[i]],]
+    #make subset of equals
+    PPH.T.Pnt.eq = PPH.T.Pnt[sel,]
     
     if (Plot == TRUE)
     {
-      PPH.T.Pnt.Sel = PPH.T.Pnt[Sel.Li[[i]],]
       points(PPH.T.Pnt)
-      points(PPH.T.Pnt.Sel, col = "red")
+      points(PPH.T.Pnt.eq, col = "blue")
+    }
+    
+    PPH.T.Pnt.eq.Li[[i]] = PPH.T.Pnt.eq
+  }
+  #PPH.T.Pnt.eq = do.call(rbind, PPH.T.Pnt.eq.Li)
+  
+  return(PPH.T.Pnt.eq.Li)
+}
+
+SampleSimplifyRoutes <- function(PPH.T.Pnt, Plot, SampSize, ...)
+{
+  if (Plot == TRUE){plot(Flanders)}
+  
+  PPH.T.Pnt.eq.rs.Li = list()
+  
+  for (i in seq_along(PPH.T.Pnt))
+  {
+    # make the random sample
+    PPH.T.Pnt.eq.rs = sample(PPH.T.Pnt, SampSize-2)
+    
+    # add first and last point
+    PPH.T.Pnt.eq.rs.Li[[i]] = rbind(PPH.T.Pnt[[i]][1,], PPH.T.Pnt.eq.rs, PPH.T.Pnt[length(PPH.T.Pnt[[i]]),])
+    
+    if (Plot == TRUE)
+    {
+      #points(PPH.T.Pnt.eq, col = "blue")
+      points(PPH.T.Pnt.eq.rs.Li[[i]], col = "red")
     }
   }
-  PPH.T.Pnt.Sel = do.call(rbind, PPH.T.Pnt.Sel.Li)
-  return(PPH.T.Pnt.Sel.Li)
-#   Sel = do.call(rbind, Sel.Li)
-#   Min = do.call(rbind, Min.Li)
-#   
-#   for (r in 1:nrow(Sel))
-#   {
-#     if (Sel[r,length(Sel[r,])] == Sel[r,1])
-#     {
-#       Sel[r,length(Sel[r,])] = NA
-#     }
-#   }
-#  return(list(Sel.Li,Min.Li))
+  #PPH.T.Pnt.eq.rs = do.call(rbind, PPH.T.Pnt.eq.rs.Li)
 
+  return(PPH.T.Pnt.eq.rs.Li[[i]]) 
 }
