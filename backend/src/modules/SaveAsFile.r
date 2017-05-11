@@ -15,11 +15,9 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 ## Check for required packages and install them (incl dependencies) if they are not installed yet.
-# list.of.packages <- c("rhdf5", "raster")
-# new.packages <- list.of.packages[!(list.of.packages %in% installed.packages()[,"Package"])]
-# #if(length(new.packages)) install.packages(new.packages)
-# if(length(new.packages)) source("http://bioconductor.org/biocLite.R")
-# biocLite("rhdf5")
+list.of.packages <- c("rgdal")
+new.packages <- list.of.packages[!(list.of.packages %in% installed.packages()[,"Package"])]
+if(length(new.packages)) install.packages(new.packages)
 
 ## Load the packages
 library(rgdal)
