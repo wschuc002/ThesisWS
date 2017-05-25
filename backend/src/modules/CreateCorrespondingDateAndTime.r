@@ -24,7 +24,7 @@ library(sp)
 library(Hmisc)
 
 CreateCorrespondingDateAndTime <- function(Active.Type, Active.Profile, PPH.P, YearDates, BusinesDates, WeekendDates, HoliDates,
-                                           TimeVertex.T1, TimeVertex.T2, TimeVertex.T1.Simp, TimeVertex.T2.Simp, ...)
+                                           TimeVertex.T1, TimeVertex.T2, PPH.T1.PNT.RS, PPH.T2.PNT.RS, ...)
 {
   PHASES = list()
   TIME.P = list()
@@ -67,8 +67,18 @@ CreateCorrespondingDateAndTime <- function(Active.Type, Active.Profile, PPH.P, Y
         
         Time.S[[d]] = seq(round(Phases[[d]][3], digits='hours'), Phases[[d]][4], 1*60**2)
         
-        Time.T1[[d]] = TimeVertex.T1.Simp[[i]]+(d-1)*24*60**2
-        Time.T2[[d]] = TimeVertex.T2.Simp[[i]]+(d-1)*24*60**2
+        
+#         PPH.T1.Pnt.eq.rs = RandomSampleRoutes(PPH.T1.Pnt.eq.Li[i], TRUE, 25)
+#         PPH.T2.Pnt.eq.rs = RandomSampleRoutes(PPH.T2.Pnt.eq.Li[i], TRUE, 25)
+        
+        # Check which points of the line are part of the random selection
+        point.nrs.T1 = which(coordinates(PPH.T1.Pnt.Li[[i]])[,1] %in% coordinates(PPH.T1.PNT.RS[[i]][[d]])[,1] &
+                                    coordinates(PPH.T1.Pnt.Li[[i]])[,2] %in% coordinates(PPH.T1.PNT.RS[[i]][[d]])[,2])
+        point.nrs.T2 = which(coordinates(PPH.T2.Pnt.Li[[i]])[,1] %in% coordinates(PPH.T2.PNT.RS[[i]][[d]])[,1] &
+                               coordinates(PPH.T2.Pnt.Li[[i]])[,2] %in% coordinates(PPH.T2.PNT.RS[[i]][[d]])[,2])
+        
+        Time.T1[[d]] = TimeVertex.T1[[i]][point.nrs.T1]+(d-1)*24*60**2
+        Time.T2[[d]] = TimeVertex.T2[[i]][point.nrs.T2]+(d-1)*24*60**2
       }
       
       days = which(YearDates %in% WeekendDates == TRUE)

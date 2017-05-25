@@ -125,7 +125,8 @@ if (DownloadMode == "FTP")
 
 Subset.Gemeente = NULL # empty = NULL = no subset = all municipalities |  example subset: c("Gent","Antwerpen")
 
-BE_crs = CRS("+init=epsg:31370")
+BE.epsg = 31370
+BE_crs = CRS(paste0("+init=epsg:", BE.epsg))
 
 if (is.null(Subset.Gemeente))
 {
@@ -142,7 +143,7 @@ csv.ResidentialProfiles_in = file.path("..", "data", "ResidentialProfiles.csv")
 ResidentialProfiles = fread(csv.ResidentialProfiles_in, sep=",", header=TRUE)
 
 # Select active Residential Profile
-Active.Type = "01.OW"
+Active.Type = "01.OW" #"03.SP"
 Active.Profile = ResidentialProfiles[ResidentialProfiles$Abbreviation == Active.Type,]
 
 OSRM.Level = "full" # "simplified" or "full" version of vectors in routes (OSRM package)
@@ -168,7 +169,7 @@ if (Active.Profile$Dynamics == "dynamic")
 output.dir = file.path("..", "output")
 if (!dir.exists(output.dir)) { dir.create(output.dir) }
 
-if (!file.exists(dir.P))
+if (!exists("CRAB_Doel") & !file.exists(dir.P))
 {
   if (file.exists(file.path("..", "output", paste0(CRAB.Name,".shp"))))
   {
@@ -212,12 +213,9 @@ if (!exists("PPH.P") & file.exists(dir.P))
   PPH.P@proj4string = BE_crs
 }
 
-dir.S.fix = file.path("..", "output", paste(Active.Type, paste0("Secondary", Names, "_fix", ".geojson"), sep = "_"))
-if (!exists("PPH.S") & file.exists(dir.S.fix))
+if (!exists("PPH.S") & file.exists(dir.S))
 {
-  PPH.S = readOGR(dir.S.fix, layer = 'OGRGeoJSON')
-  
-  #PPH.S = readOGR(dir.S, layer = 'OGRGeoJSON') # Error: FIDs not unique
+  PPH.S = readOGR(dir.S, layer = 'OGRGeoJSON') # Error: FIDs not unique
   PPH.S@proj4string = BE_crs
 }
 
@@ -261,40 +259,96 @@ if (Active.Profile$Dynamics == "dynamic")
   WeekendDates = DateType(YearDates, "Weekends")
 }
 
-# # Convert Transport to points for equal durations
-# PPH.T1.Pnt.eq = SimplifyRoutes(PPH.T1, TRUE, Factor = 100) # Factor should be desirable resulting amount
-# PPH.T2.Pnt.eq = SimplifyRoutes(PPH.T2, FALSE, Factor = 100)
+# Convert Transport to points for equal durations
+PPH.T1.Pnt.eq.Li = SimplifyRoutes(PPH.T1, TRUE, Factor = 100) # Factor should be desirable resulting amount
+PPH.T2.Pnt.eq.Li = SimplifyRoutes(PPH.T2, FALSE, Factor = 100)
 
-# Bovenstaande methode is traag als dikke str%^$
-# Kijk naar andere mogelijkheden
+Simplify = TRUE
 
-PPH.T1.Simp = gSimplify(PPH.T1, 75, topologyPreserve = TRUE)
+if (Simplify)
+{
+  PPH.T1.Simp = gSimplify(PPH.T1, 75, topologyPreserve = TRUE)
+  PPH.T2.Simp = gSimplify(PPH.T2, 75, topologyPreserve = TRUE)
+  
+  PPH.T1.Simp.Pnt.Li = list()
+  PPH.T2.Simp.Pnt.Li = list()
+}
+PPH.T1.Pnt.Li = list()
+PPH.T2.Pnt.Li = list()
 
-PPH.T1.Pnt = list()
 for (i in seq_along(PPH.T1))
 {
-  PPH.T1.Pnt[[i]] = as(PPH.T1.Simp[i,], "SpatialPoints")
+  if (Simplify)
+  {
+    PPH.T1.Simp.Pnt.Li[[i]] = as(PPH.T1.Simp[i,], "SpatialPoints")
+    PPH.T2.Simp.Pnt.Li[[i]] = as(PPH.T2.Simp[i,], "SpatialPoints")
+    
+    points(PPH.T1.Simp.Pnt.Li[[i]], col = "blue")
+    points(PPH.T2.Simp.Pnt.Li[[i]], col = "blue")
+  }
+  PPH.T1.Pnt.Li[[i]] = as(PPH.T1[i,], "SpatialPoints")
+  PPH.T2.Pnt.Li[[i]] = as(PPH.T2[i,], "SpatialPoints")
+  
+  points(PPH.T1.Pnt.Li[[i]])
+  points(PPH.T2.Pnt.Li[[i]])
 }
 
+# PPH.T1.Pnt.rs.Li = SampleSimplifyRoutes(PPH.T1.Pnt.Li, TRUE, 25)
+# PPH.T2.Pnt.rs.Li = SampleSimplifyRoutes(PPH.T2.Pnt.Li, TRUE, 25)
 
-PPH.T1.Pnt.eq.rs = SampleSimplifyRoutes(PPH.T1.Pnt, TRUE, 25)
-plot(PPH.T1.Pnt.eq.rs)
+i = 5
+plot(PPH.T1[i,])
+points(PPH.T1.Pnt.Li[[i]])
+points(PPH.T1.Simp.Pnt.Li[[i]], col = "blue")
+points(PPH.T1.Pnt.rs.Li[[i]], col = "red")
 
-plot(PPH.T1[3,])
-lines(PPH.T1.Simp[3,], col = "blue")
-points(PPH.T1.Pnt)
+TimeVertex.T1 = LinkPointsToTime.Transport("Outwards", PPH.T1, PPH.T1.Pnt.Li, year.active, Active.Profile)
+TimeVertex.T2 = LinkPointsToTime.Transport("Inwards", PPH.T2, PPH.T2.Pnt.Li, year.active, Active.Profile)
 
-# Random Sample the equal duration per day
-PPH.T1.Pnt.eq.rs = SampleSimplifyRoutes(PPH.T1.Pnt.eq, TRUE, 25)
-PPH.T2.Pnt.eq.rs = SampleSimplifyRoutes(PPH.T2.Pnt.eq, TRUE, 25)
+# Equal distances of simplified points
+# PPH.T1.Pnt.eq.rs.Li = RandomSampleRoutes(PPH.T1.Pnt.eq, TRUE, 25)
+# PPH.T2.Pnt.eq.rs.Li = RandomSampleRoutes(PPH.T2.Pnt.eq, TRUE, 25)
+#
+# PPH.T1.PNT.RS = list()
+# PPH.T2.PNT.RS = list()
+# for (i in seq_along(PPH.T1))
+# {
+#   day.T1.Li = list()
+#   day.T2.Li = list()
+#   for (d in seq_along(TIME.T1))
+#   {
+#     day.T1.Li[[d]] = RandomSampleRoutes(PPH.T1.Pnt.eq.Li[i], TRUE, 25)
+#     day.T2.Li[[d]] = RandomSampleRoutes(PPH.T2.Pnt.eq.Li[i], TRUE, 25)
+#   }
+#   PPH.T1.PNT.RS[[i]] = day.T1.Li
+#   PPH.T2.PNT.RS[[i]] = day.T2.Li
+# }
+# 
+# points(PPH.T1.Pnt.Li[[5]])
+# points(PPH.T1.Pnt.eq.Li[[5]], col = "blue")
 
-TimeVertex.T1.Simp = LinkPointsToTime.Transport("Outwards", PPH.T1, PPH.T1.Pnt, year.active, Active.Profile, "simplified")
-TimeVertex.T2.Simp = LinkPointsToTime.Transport("Inwards", PPH.T2, PPH.T2.Pnt, year.active, Active.Profile, "simplified")
-TimeVertex.T1 = LinkPointsToTime.Transport("Outwards", PPH.T1, PPH.T1.Pnt, year.active, Active.Profile, "full")
-TimeVertex.T2 = LinkPointsToTime.Transport("Inwards", PPH.T2, PPH.T2.Pnt, year.active, Active.Profile, "full")
+PPH.T1.PNT.RS = RandomSampleRoutesYears(PPH.T1.Pnt.eq.Li, TRUE, 25, YearDates, BusinesDates)
+PPH.T2.PNT.RS = RandomSampleRoutesYears(PPH.T2.Pnt.eq.Li, FALSE, 25, YearDates, BusinesDates)
+
+d = 3
+plot(Flanders)
+for (i in seq_along(PPH.T1.PNT.RS))
+{
+  plot(unlist(PPH.T1.PNT.RS[[i]][[d]]), col = "red", add = TRUE)
+  plot(unlist(PPH.T2.PNT.RS[[i]][[d]]), col = "darkred", add = TRUE)
+}
+
+class(PPH.T1.PNT.RS[[i]][[d]])
+
+i = 5
+plot(PPH.T1[i,])
+points(PPH.T1.Pnt.eq[[i]], col = "blue")
+points(PPH.T1.Pnt.eq.rs.Li[[i]], col = "red")
+
+
 
 TIME = CreateCorrespondingDateAndTime(Active.Type, Active.Profile, PPH.P, YearDates, BusinesDates, WeekendDates, HoliDates,
-                                      TimeVertex.T1, TimeVertex.T2, TimeVertex.T1.Simp, TimeVertex.T2.Simp)
+                                      TimeVertex.T1, TimeVertex.T2, PPH.T1.PNT.RS, PPH.T2.PNT.RS)
 PHASES = TIME[[1]]
 TIME.P = TIME[[2]]
 if (Active.Profile$Dynamics == "dynamic")
@@ -306,7 +360,7 @@ if (Active.Profile$Dynamics == "dynamic")
 
 
 DurationCorrection = FALSE
-if (DurationCorrection == TRUE)
+if (DurationCorrection)
 {
   PPH.T1@data$duration = PPH.T1@data$duration * 1.2 # duration correction
   PPH.T2@data$duration = PPH.T2@data$duration * 1.2 # duration correction
@@ -325,8 +379,8 @@ if (Active.Profile$Dynamics == "dynamic")
 }
 
 # Write TIME to disk
-WriteToDisk = TRUE
-if (WriteToDisk == TRUE)
+WriteToDisk = FALSE
+if (WriteToDisk)
 {
   SaveAsDBF(TIME.P, "TIME_P", Active.Type)
   
@@ -382,12 +436,15 @@ zip(zipfile = fn, files = path.expand(dir), flags = paste0("-r --password ", psw
 # Read the values and place them in the Points SPDF
 PolDir = file.path("..", "data", "BE", "IRCELINE")
 PolDir = file.path("T:", "RIO-IFDM", toupper(pol))
+
 txt.Points = ExtractBZ2(pol, PolDir, 1, 50)
 
 # Read the base | # Read from compressed bz2 file
 BaseFile = paste0(year.active, "0101_1_", toupper(pol), ".txt")
-bz2.Points_in = file.path("..", "data", "BE", "IRCELINE", paste0(BaseFile,".bz2"))
-txt.Points = file.path("..", "data", "BE", "IRCELINE", BaseFile)
+#bz2.Points_in = file.path("..", "data", "BE", "IRCELINE", paste0(BaseFile,".bz2"))
+#txt.Points = file.path("..", "data", "BE", "IRCELINE", BaseFile)
+txt.Points = file.path(PolDir, BaseFile)
+
 if (!file.exists(txt.Points))
 {
   bunzip2(bz2.Points_in, txt.Points, remove = FALSE, skip = TRUE)
@@ -421,9 +478,9 @@ Points.AoI.NoDup = Points.AoI[!duplicated(Points.AoI@coords), ]
 #SaveAsFile(Points.AoI.NoDup, paste("Points_AoI_RIO-IFDM", "CON_20150101_19_NO2", sep = "_"), "GeoJSON", TRUE)
 
 start.time = Sys.time()
-ExposureValue.All = PPH.TIN.InterpolationWS(PPH.P, PPH.S, PPH.T1, PPH.T2, Points.NoVal, PolDir, Plot = TRUE,
-                                            pol, StartHour = 1, EndHour = 24*2,
-                                            HOURS.P, HOURS.S, HOURS.T1, HOURS.T2)
+ExposureValue.All = PPH.TIN.InterpolationWS(PPH.P, PPH.S, PPH.T1.PNT.RS, PPH.T2.PNT.RS, Points.NoVal, PolDir, Plot = TRUE,
+                                            pol, StartHour = 112, EndHour = 122,
+                                            HOURS.P, HOURS.S, HOURS.T1, HOURS.T2, 40)
 ExposureValue.P = ExposureValue.All[[1]]
 if (Active.Profile$Dynamics == "dynamic")
 {
@@ -436,12 +493,19 @@ print(end.time - start.time)
 
 ExposureValue.P[[1]]
 ExposureValue.S[[1]]
+ExposureValue.T1[[1]]
+ExposureValue.T2[[25]]
+
+
+
+
+
 
 # Plotting results
-Ind = 265
-Plot.PersonalExposureGraph(Ind, 70, 6) # (Individual, Start(working)Day, Amount of days)
+Ind = 25
+Plot.PersonalExposureGraph(Ind, 2, 5) # (Individual, Start(working)Day, Amount of days)
 
-Plot.Group2(Active.Type, 1, 7, 100, TRUE)
+Plot.Group2(Active.Type, 1, 7, 25, TRUE)
 
 
 

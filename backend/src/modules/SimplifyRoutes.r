@@ -90,7 +90,7 @@ SimplifyRoutes <- function(PPH.T, Plot = FALSE, Factor = 100, ...)
   return(PPH.T.Pnt.eq.Li)
 }
 
-SampleSimplifyRoutes <- function(PPH.T.Pnt, Plot, SampSize, ...)
+RandomSampleRoutes <- function(PPH.T.Pnt, Plot, SampSize, ...)
 {
   if (Plot == TRUE){plot(Flanders)}
   
@@ -98,11 +98,17 @@ SampleSimplifyRoutes <- function(PPH.T.Pnt, Plot, SampSize, ...)
   
   for (i in seq_along(PPH.T.Pnt))
   {
-    # make the random sample
-    PPH.T.Pnt.eq.rs = sample(PPH.T.Pnt, SampSize-2)
-    
-    # add first and last point
-    PPH.T.Pnt.eq.rs.Li[[i]] = rbind(PPH.T.Pnt[[i]][1,], PPH.T.Pnt.eq.rs, PPH.T.Pnt[length(PPH.T.Pnt[[i]]),])
+    if (length(PPH.T.Pnt[[i]]) > SampSize)
+    {
+      # make the random sample
+      PPH.T.Pnt.eq.rs = sample(PPH.T.Pnt[[i]], SampSize-2)
+      
+      # add first and last point
+      PPH.T.Pnt.eq.rs.Li[[i]] = rbind(PPH.T.Pnt[[i]][1,], PPH.T.Pnt.eq.rs, PPH.T.Pnt[[i]][length(PPH.T.Pnt[[i]]),])
+    } else # no not simplify with a total points that is higher than sample size
+    {
+      PPH.T.Pnt.eq.rs.Li[[i]] = PPH.T.Pnt[[i]]
+    }
     
     if (Plot == TRUE)
     {
@@ -111,6 +117,59 @@ SampleSimplifyRoutes <- function(PPH.T.Pnt, Plot, SampSize, ...)
     }
   }
   #PPH.T.Pnt.eq.rs = do.call(rbind, PPH.T.Pnt.eq.rs.Li)
+  return(PPH.T.Pnt.eq.rs.Li) 
+}
 
-  return(PPH.T.Pnt.eq.rs.Li[[i]]) 
+# PPH.T.Pnt = PPH.T1.Pnt.eq.Li
+# SampSize = 25
+
+RandomSampleRoutesYears <- function(PPH.T.Pnt, Plot, SampSize, YearDates, BusinesDates, ...)
+{
+  if (Plot == TRUE){plot(Flanders)}
+  
+  PPH.T.Pnt.eq.rs.Li = list()
+  
+  for (i in seq_along(PPH.T.Pnt))
+  {
+    if (length(PPH.T.Pnt[[i]]) > SampSize)
+    {
+      PPH.T.Pnt.eq.rs = list()
+      for (d in seq_along(YearDates))
+      {
+        if (YearDates[d] %in% BusinesDates)
+        {
+          # make the random sample
+          PPH.T.Pnt.eq.rs[[d]] = sample(PPH.T.Pnt[[i]], SampSize-2)
+          
+          # add first and last point
+          PPH.T.Pnt.eq.rs[[d]] = rbind(PPH.T.Pnt[[i]][1,], PPH.T.Pnt.eq.rs[[d]], PPH.T.Pnt[[i]][length(PPH.T.Pnt[[i]]),])
+          
+          # Order the points
+          Sel = paste0(coordinates(PPH.T.Pnt[[i]])[,1], coordinates(PPH.T.Pnt[[i]])[,2]) %in% 
+            paste0(coordinates(PPH.T.Pnt.eq.rs[[d]])[,1], coordinates(PPH.T.Pnt.eq.rs[[d]])[,2])
+          
+          PPH.T.Pnt.eq.rs[[d]] = PPH.T.Pnt[[i]][Sel,]
+          
+          if (Plot == TRUE)
+          {
+            points(PPH.T.Pnt.eq.rs[[d]], col = "red")
+          }
+        }
+      }
+    
+    } else # no not simplify with a total points that is higher than sample size
+    {
+      PPH.T.Pnt.eq.rs.Li[[i]] = PPH.T.Pnt[[i]]
+      
+      if (Plot == TRUE)
+      {
+        points(PPH.T.Pnt.eq.rs.Li[[i]], col = "blue")
+      }
+    }
+    
+    PPH.T.Pnt.eq.rs.Li[[i]] = PPH.T.Pnt.eq.rs
+
+  }
+  #PPH.T.Pnt.eq.rs = do.call(rbind, PPH.T.Pnt.eq.rs.Li)
+  return(PPH.T.Pnt.eq.rs.Li) 
 }

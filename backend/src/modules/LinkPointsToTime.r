@@ -58,97 +58,27 @@ LinkPointsToTime.Transport <- function(Direction.T, PPH.T, PPH.T.SP, Year, Activ
   {
     StartTime = as.numeric(Active.Profile$TimeLeavingSecondary) / 100
   }
+  Minutes = (StartTime %% 1) * 100 / 60
+  StartTime = StartTime - (StartTime %% 1) + Minutes
 
   TimeVertex.POSIXct = list()
   TimeLeaveFrom = as.POSIXct(paste0(Year,"-01-01"))+StartTime*60**2 # and then count from last minute at Residence
   
-  for (i in seq_along(PPH.T))
+  for (i in seq_along(PPH.T.SP))
   {
     TimeVertex = NA
     
-    if (Method == "full")
-    {
-      PPH.T.Pnt = as(PPH.T[i,], "SpatialPoints")
-    }
-    if (Method == "simplified")
-    {
-      PPH.T.Pnt = PPH.T.SP[[i]]
-    }
-    
     # count vertices/nodes
-    vertices = length(PPH.T.Pnt)
-
+    vertices = length(PPH.T.SP[[i]])
     durVer = PPH.T@data$duration[i]/vertices # duration between vertices (in minutes)
     
-    #TimeVertex[[i]] = PPH.T.Pnt # use same structure
-    for (t in seq_along(PPH.T.Pnt))
+    for (t in seq_along(PPH.T.SP[[i]]))
     {
       TimeVertex[t] = TimeLeaveFrom+durVer*(t*60)
     }
     class(TimeVertex) = class(YearDates)
     
     TimeVertex.POSIXct[[i]] = TimeVertex
-  }
-  return(TimeVertex.POSIXct)
-}
-
-
-LinkPointsToTime.Commuting2 <- function(Direction.C, PPH.C, LocationIDs, PHASES, ...)
-{
-  TimeVertex = list()
-  TimeVertex.POSIXct = list()
-  TIME.C = list(list())
-  
-  for (i in seq_along(PPH.C))
-  {
-  
-    for (y in seq_along(BusinesDates))
-    {
-      if (Direction.C == "Outwards")
-      {
-        TimeLeaveFrom = PHASES[[y]][i,1]
-      }
-      if (Direction.C == "Inwards")
-      {
-        TimeLeaveFrom = PHASES[[y]][i,3]
-      }
-      
-      Vertices = length(LocationIDs[[i]])
-      durVer = PPH.C@data$duration[i]/Vertices # duration between vertices (in minutes)
-      
-      TimeVertex[[y]] = LocationIDs[[i]]
-      for (t in seq_along(LocationIDs[[i]]))
-      {
-        TimeVertex[[y]][t] = TimeLeaveFrom+durVer*(t*60)
-      }
-      
-      TimeVertex.POSIXct[[y]] = as.POSIXct(TimeVertex[[y]], origin = "1970-01-01", tz = "CET") # time format correction
-    }
-    
-  TIME.C[[i]] = TimeVertex.POSIXct
-  }
-  return(TIME.C)
-}
-
-LinkPointsToTime.Commuting <- function(PPH.C, LocationIDs, Year, Time, ...)
-{
-  TimeVertex = list()
-  TimeVertex.POSIXct = list()
-  
-  TimeLeaveFromRes = as.POSIXct(paste0(Year,"-01-01"), tz = "CET")+Time*60**2 # and then count from last minute at Residence
-  
-  for (i in seq_along(PPH.C))
-  {
-    Vertices = length(LocationIDs[[i]])
-    durVer = PPH.C@data$duration[i]/Vertices # duration between vertices (in minutes)
-    
-    TimeVertex[[i]] = LocationIDs[[i]]
-    for (t in seq_along(LocationIDs[[i]]))
-    {
-      TimeVertex[[i]][t] = TimeLeaveFromRes+durVer*(t*60)
-    }
-    
-    TimeVertex.POSIXct[[i]] = as.POSIXct(TimeVertex[[i]], origin = "1970-01-01", tz = "CET") # time format correction
   }
   return(TimeVertex.POSIXct)
 }
@@ -223,3 +153,65 @@ StayDateTime.R<- function(Dates, Time, ...) # based on lenght BusinesDates (261)
   }
   return(StayDates)
 }
+
+
+
+# LinkPointsToTime.Commuting2 <- function(Direction.C, PPH.C, LocationIDs, PHASES, ...)
+# {
+#   TimeVertex = list()
+#   TimeVertex.POSIXct = list()
+#   TIME.C = list(list())
+#   
+#   for (i in seq_along(PPH.C))
+#   {
+#     
+#     for (y in seq_along(BusinesDates))
+#     {
+#       if (Direction.C == "Outwards")
+#       {
+#         TimeLeaveFrom = PHASES[[y]][i,1]
+#       }
+#       if (Direction.C == "Inwards")
+#       {
+#         TimeLeaveFrom = PHASES[[y]][i,3]
+#       }
+#       
+#       Vertices = length(LocationIDs[[i]])
+#       durVer = PPH.C@data$duration[i]/Vertices # duration between vertices (in minutes)
+#       
+#       TimeVertex[[y]] = LocationIDs[[i]]
+#       for (t in seq_along(LocationIDs[[i]]))
+#       {
+#         TimeVertex[[y]][t] = TimeLeaveFrom+durVer*(t*60)
+#       }
+#       
+#       TimeVertex.POSIXct[[y]] = as.POSIXct(TimeVertex[[y]], origin = "1970-01-01", tz = "CET") # time format correction
+#     }
+#     
+#     TIME.C[[i]] = TimeVertex.POSIXct
+#   }
+#   return(TIME.C)
+# }
+# 
+# LinkPointsToTime.Commuting <- function(PPH.C, LocationIDs, Year, Time, ...)
+# {
+#   TimeVertex = list()
+#   TimeVertex.POSIXct = list()
+#   
+#   TimeLeaveFromRes = as.POSIXct(paste0(Year,"-01-01"), tz = "CET")+Time*60**2 # and then count from last minute at Residence
+#   
+#   for (i in seq_along(PPH.C))
+#   {
+#     Vertices = length(LocationIDs[[i]])
+#     durVer = PPH.C@data$duration[i]/Vertices # duration between vertices (in minutes)
+#     
+#     TimeVertex[[i]] = LocationIDs[[i]]
+#     for (t in seq_along(LocationIDs[[i]]))
+#     {
+#       TimeVertex[[i]][t] = TimeLeaveFromRes+durVer*(t*60)
+#     }
+#     
+#     TimeVertex.POSIXct[[i]] = as.POSIXct(TimeVertex[[i]], origin = "1970-01-01", tz = "CET") # time format correction
+#   }
+#   return(TimeVertex.POSIXct)
+# }
