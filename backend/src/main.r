@@ -302,9 +302,6 @@ points(PPH.T1.Pnt.Li[[i]])
 points(PPH.T1.Simp.Pnt.Li[[i]], col = "blue")
 points(PPH.T1.Pnt.rs.Li[[i]], col = "red")
 
-TimeVertex.T1 = LinkPointsToTime.Transport("Outwards", PPH.T1, PPH.T1.Pnt.Li, year.active, Active.Profile)
-TimeVertex.T2 = LinkPointsToTime.Transport("Inwards", PPH.T2, PPH.T2.Pnt.Li, year.active, Active.Profile)
-
 # Equal distances of simplified points
 # PPH.T1.Pnt.eq.rs.Li = RandomSampleRoutes(PPH.T1.Pnt.eq, TRUE, 25)
 # PPH.T2.Pnt.eq.rs.Li = RandomSampleRoutes(PPH.T2.Pnt.eq, TRUE, 25)
@@ -345,7 +342,8 @@ plot(PPH.T1[i,])
 points(PPH.T1.Pnt.eq[[i]], col = "blue")
 points(PPH.T1.Pnt.eq.rs.Li[[i]], col = "red")
 
-
+TimeVertex.T1 = LinkPointsToTime.Transport("Outwards", PPH.T1, PPH.T1.Pnt.Li, year.active, Active.Profile)
+TimeVertex.T2 = LinkPointsToTime.Transport("Inwards", PPH.T2, PPH.T2.Pnt.Li, year.active, Active.Profile)
 
 TIME = CreateCorrespondingDateAndTime(Active.Type, Active.Profile, PPH.P, YearDates, BusinesDates, WeekendDates, HoliDates,
                                       TimeVertex.T1, TimeVertex.T2, PPH.T1.PNT.RS, PPH.T2.PNT.RS)
@@ -458,29 +456,29 @@ colnames(Points.NoVal@data) = NA
 Points.NoVal@data[,1] = NA
 rm(Points)
 
-for (p in 1:length(txt.Points))
-{
-  Values = fread(txt.Points[p], sep=";", header=TRUE, select = "values") #[Points.T,]
-  
-  Points.AoI_test@data = cbind(Points.AoI_test@data, Values)
-}
-ColNames = paste0("CON_", regmatches(txt.Points, regexpr(paste0("[0-9]*_[0-9]*_", toupper(pol)), txt.Points)))
-Points.AoI_test@data[,1] = NULL
-colnames(Points.AoI_test@data) = ColNames
+# for (p in 1:length(txt.Points))
+# {
+#   Values = fread(txt.Points[p], sep=";", header=TRUE, select = "values") #[Points.T,]
+#   
+#   Points.AoI_test@data = cbind(Points.AoI_test@data, Values)
+# }
+# ColNames = paste0("CON_", regmatches(txt.Points, regexpr(paste0("[0-9]*_[0-9]*_", toupper(pol)), txt.Points)))
+# Points.AoI_test@data[,1] = NULL
+# colnames(Points.AoI_test@data) = ColNames
+# 
+# spplot(Points.AoI_test, colnames(Points.AoI_test@data)[25])
 
-spplot(Points.AoI_test, colnames(Points.AoI_test@data)[25])
+# # Remove duplicates
+# #Points.AoI.Dups = Points.AoI[duplicated(Points.AoI@coords), ]
+# Points.AoI.NoDup = Points.AoI[!duplicated(Points.AoI@coords), ]
+# #SaveAsFile(Points.AoI.NoDup, paste("Points_AoI_RIO-IFDM", "CON_20150101_19_NO2", sep = "_"), "GeoJSON", TRUE)
 
 ## Interpolating the points
 
-# Remove duplicates
-#Points.AoI.Dups = Points.AoI[duplicated(Points.AoI@coords), ]
-Points.AoI.NoDup = Points.AoI[!duplicated(Points.AoI@coords), ]
-#SaveAsFile(Points.AoI.NoDup, paste("Points_AoI_RIO-IFDM", "CON_20150101_19_NO2", sep = "_"), "GeoJSON", TRUE)
-
 start.time = Sys.time()
-ExposureValue.All = PPH.TIN.InterpolationWS(PPH.P, PPH.S, PPH.T1.PNT.RS, PPH.T2.PNT.RS, Points.NoVal, PolDir, Plot = TRUE,
-                                            pol, StartHour = 112, EndHour = 122,
-                                            HOURS.P, HOURS.S, HOURS.T1, HOURS.T2, 40)
+ExposureValue.All = PPH.TIN.InterpolationWS(PPH.P, PPH.S, PPH.T1.PNT.RS, PPH.T2.PNT.RS, Points.NoVal, PolDir, Plot = FALSE,
+                                            pol, StartHour = 1, EndHour = length(YearDates)*24,
+                                            HOURS.P, HOURS.S, HOURS.T1, HOURS.T2, 100)
 ExposureValue.P = ExposureValue.All[[1]]
 if (Active.Profile$Dynamics == "dynamic")
 {
