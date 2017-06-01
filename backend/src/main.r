@@ -510,8 +510,8 @@ for (i in seq_along(PPH.P))
   ExposureValueCombined[[i]][ExposureValueCombined[[i]] > 0] = NA
 }
 
-for (h in 1:(24*length(YearDates)))
-#for (h in 1:(21*24))
+#for (h in 1:(24*length(YearDates)))
+for (h in 1:(21*24))
 {
   print(paste0("Series Hour ", h))
   day = ceiling(h/24)
@@ -584,7 +584,7 @@ for (h in 1:(24*length(YearDates)))
 
 for (i in seq_along(PPH.P))
 {
-  print(head(ExposureValueCombined[[i]], 2*24))
+  print(head(ExposureValueCombined[[i]], 21*24))
 }
 
 ST.DF.HR = DF.Structure2(TIME.P, Time, ExposureValueCombined)
