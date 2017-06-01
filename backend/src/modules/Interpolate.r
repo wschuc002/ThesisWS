@@ -30,9 +30,9 @@ library(SearchTrees)
 #POL = Points.NoVal
 #HOURS = HOURS.P
 #Plot = TRUE
-#StartHour = 112
-#EndHour = 114
-#NearestPoints = 20
+#StartHour = 1*24 + 1
+#EndHour = 2*24 + 1
+#NearestPoints = 50
 #PPH.T1.Pnt = PPH.T1.PNT.RS
 #PPH.T2.Pnt = PPH.T2.PNT.RS
 
@@ -53,23 +53,34 @@ PPH.TIN.InterpolationWS <- function(PPH.P, PPH.S, PPH.T1.Pnt, PPH.T2.Pnt, POL, P
   # Prepare lists
   for (i in seq_along(PPH.P))
   {
-    EXP.P.Li[[i]] = unlist(HOURS.P[[i]])
-    EXP.S.Li[[i]] = unlist(HOURS.S[[i]])
-    EXP.T1.Li[[i]] = unlist(HOURS.T1[[i]])
-    EXP.T2.Li[[i]] = unlist(HOURS.T2[[i]])
+    EXP.P.Li[[i]] = HOURS.P[[i]]
+    EXP.S.Li[[i]] = HOURS.S[[i]]
+    EXP.T1.Li[[i]] = HOURS.T1[[i]]
+    EXP.T2.Li[[i]] = HOURS.T2[[i]]
     
-    EXP.P.Li[[i]][EXP.P.Li[[i]] > 0] <- NA
-    EXP.S.Li[[i]][EXP.S.Li[[i]] > 0] <- NA
-    EXP.T1.Li[[i]][EXP.T1.Li[[i]] > 0] <- NA
-    EXP.T2.Li[[i]][EXP.T2.Li[[i]] > 0] <- NA
+    for (d in seq_along(HOURS.P[[i]]))
+    {
+      EXP.P.Li[[i]][[d]][EXP.P.Li[[i]][[d]] > 0] = NA
+      EXP.S.Li[[i]][[d]][EXP.S.Li[[i]][[d]] > 0] = NA
+      EXP.T1.Li[[i]][[d]][EXP.T1.Li[[i]][[d]] > 0] = NA
+      EXP.T2.Li[[i]][[d]][EXP.T2.Li[[i]][[d]] > 0] = NA
+    }
+    #EXP.T2.Li[[i]][[day]]
+#     EXP.P.Li[[i]][EXP.P.Li[[i]] > 0] <- NA
+#     EXP.S.Li[[i]][EXP.S.Li[[i]] > 0] <- NA
+#     EXP.T1.Li[[i]][EXP.T1.Li[[i]] > 0] <- NA
+#     EXP.T2.Li[[i]][EXP.T2.Li[[i]] > 0] <- NA
   }
 
   for (h in seq_along(StartHour:EndHour))
   #for (h in 1:1)
   {
     hr = h+StartHour-1
-    print(paste0("Hour ", h))
-    print(paste0("Hour ", hr))
+    day = ceiling(hr/24)
+    print(paste0("Series Hour ", h))
+    print(paste0("Year Hour ", hr))
+    print(paste0("Day ", day))
+    print(txt.dr[h])
     
     # check which points should be used per hour
     #for (i in seq_along(PPH))
@@ -89,17 +100,22 @@ PPH.TIN.InterpolationWS <- function(PPH.P, PPH.S, PPH.T1.Pnt, PPH.T2.Pnt, POL, P
       #print(paste0("Individual ", i))
       cat(paste(i," "))
       
-      HOURS.P.ul = unlist(HOURS.P[[i]])
-      wP[[i]] = which(hr == HOURS.P.ul)
+#       HOURS.P.ul = unlist(HOURS.P[[i]])
+#       wP[[i]] = which(hr == HOURS.P.ul)
+      wP[[i]] = which(hr == HOURS.P[[i]][[day]])
 
-      HOURS.S.ul = unlist(HOURS.S[[i]])
-      wS[[i]] = which(hr == HOURS.S.ul)
+#       HOURS.S.ul = unlist(HOURS.S[[i]])
+#       wS[[i]] = which(hr == HOURS.S.ul)
+      wS[[i]] = which(hr == HOURS.S[[i]][[day]])
       
-      HOURS.T1.ul = unlist(HOURS.T1[[i]])
-      wT1[[i]] = which(hr == HOURS.T1.ul)
+#       HOURS.T1.ul = unlist(HOURS.T1[[i]])
+#       wT1[[i]] = which(hr == HOURS.T1.ul)
+      wT1[[i]] = which(hr == HOURS.T1[[i]][[day]])
       
-      HOURS.T2.ul = unlist(HOURS.T2[[i]])
-      wT2[[i]] = which(hr == HOURS.T2.ul)
+#       HOURS.T2.ul = unlist(HOURS.T2[[i]])
+#       wT2[[i]] = which(hr == HOURS.T2.ul)
+      wT2[[i]] = which(hr == HOURS.T2[[i]][[day]])
+      
       
       if (length(wP[[i]]) > 0)
       {
@@ -112,7 +128,7 @@ PPH.TIN.InterpolationWS <- function(PPH.P, PPH.S, PPH.T1.Pnt, PPH.T2.Pnt, POL, P
         # do the TIN interpolation
         Exp.P = unlist(akima::interp(x = POL.sel@coords[,1], y = POL.sel@coords[,2], z = unlist(POL.sel@data[,1]),
                                            xo = PPH.P[i,]@coords[,1], yo = PPH.P[i,]@coords[,2], extrap = F, duplicate = "strip",
-                                     linear = FALSE))[3]
+                                     linear = TRUE))[3]
         if (Plot == TRUE)
         {
           plot(POL.sel)
@@ -121,7 +137,7 @@ PPH.TIN.InterpolationWS <- function(PPH.P, PPH.S, PPH.T1.Pnt, PPH.T2.Pnt, POL, P
           text(PPH.P[i,], labels = round(Exp.P,3), pos = 1, cex = 1, col = 11, font = 2)
         }
         
-        EXP.P.Li[[i]][wP[[i]]] = Exp.P
+        EXP.P.Li[[i]][[day]][wP[[i]]] = Exp.P
       }
       
       if (length(wS[[i]]) > 0)
@@ -135,7 +151,7 @@ PPH.TIN.InterpolationWS <- function(PPH.P, PPH.S, PPH.T1.Pnt, PPH.T2.Pnt, POL, P
         # do the TIN interpolation
         Exp.S = unlist(akima::interp(x = POL.sel@coords[,1], y = POL.sel@coords[,2], z = unlist(POL.sel@data[,1]),
                                              xo = PPH.S[i,]@coords[,1], yo = PPH.S[i,]@coords[,2], extrap = F, duplicate = "strip",
-                                     linear = FALSE))[3]
+                                     linear = TRUE))[3]
         if (Plot == TRUE)
         {
           plot(POL.sel)
@@ -144,7 +160,7 @@ PPH.TIN.InterpolationWS <- function(PPH.P, PPH.S, PPH.T1.Pnt, PPH.T2.Pnt, POL, P
           text(PPH.S[i,], labels = round(Exp.S,3), pos = 1, cex = 1, col = "orange", font = 2)
         }
         
-        EXP.S.Li[[i]][wS[[i]]] = Exp.S
+        EXP.S.Li[[i]][[day]][wS[[i]]] = Exp.S
       }
       
       if (length(wT1[[i]]) > 0)
@@ -165,7 +181,7 @@ PPH.TIN.InterpolationWS <- function(PPH.P, PPH.S, PPH.T1.Pnt, PPH.T2.Pnt, POL, P
           # do the TIN interpolation
           Exp.T1 = unlist(akima::interp(x = POL.sel@coords[,1], y = POL.sel@coords[,2], z = unlist(POL.sel@data[,1]),
                                         xo = CoordsOfInterest[1], yo = CoordsOfInterest[2], extrap = F, duplicate = "strip",
-                                        linear = FALSE))[3]
+                                        linear = TRUE))[3]
           
           if (Plot == TRUE)
           {
@@ -176,7 +192,7 @@ PPH.TIN.InterpolationWS <- function(PPH.P, PPH.S, PPH.T1.Pnt, PPH.T2.Pnt, POL, P
             text(CoordsOfInterest, labels = round(Exp.T1,3), pos = 1, cex = 1, font = 2, col = "purple")
           }
           
-          EXP.T1.Li[[i]][wT1[[i]][v]] = Exp.T1
+          EXP.T1.Li[[i]][[day]][wT1[[i]][v]] = Exp.T1
         }
 
       }
@@ -199,7 +215,7 @@ PPH.TIN.InterpolationWS <- function(PPH.P, PPH.S, PPH.T1.Pnt, PPH.T2.Pnt, POL, P
           # do the TIN interpolation
           Exp.T2 = unlist(akima::interp(x = POL.sel@coords[,1], y = POL.sel@coords[,2], z = unlist(POL.sel@data[,1]),
                                         xo = CoordsOfInterest[1], yo = CoordsOfInterest[2], extrap = F, duplicate = "strip",
-                                        linear = FALSE))[3]
+                                        linear = TRUE))[3]
           
           if (Plot == TRUE)
           {
@@ -208,14 +224,14 @@ PPH.TIN.InterpolationWS <- function(PPH.P, PPH.S, PPH.T1.Pnt, PPH.T2.Pnt, POL, P
             text(CoordsOfInterest, labels = round(Exp.T2,3), pos = 1, cex = 1, font = 2, col = "blue")
           }
           
-          EXP.T2.Li[[i]][wT2[[i]][v]] = Exp.T2
+          EXP.T2.Li[[i]][[day]][wT2[[i]][v]] = Exp.T2
         }
 
       }
     } # closing i
   } # closing h
 
-  if (Active.Profile$Dynamics == "dynamic")
+  if (Active.Subprofile$Dynamics == "dynamic")
   {
     return(list(EXP.P.Li, EXP.S.Li, EXP.T1.Li, EXP.T2.Li))
   }

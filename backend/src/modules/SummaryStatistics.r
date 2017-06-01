@@ -21,7 +21,14 @@
 
 ## Load the packages
 
-Plot.Group2 <- function(Profile, DAY.start, DAYS, IND.amount, PlotMinMax, ...)
+#Profile = Active.Type
+#IND.amount = length(PPH.P)
+#PlotMinMax = FALSE
+#DAY.start = 1
+#DAYS = 7
+
+Plot.Group2 <- function(Profile, DAY.start, DAYS, IND.amount, PlotMinMax, ST.DF.P, ST.DF.S, ST.DF.T1, ST.DF.T2,
+                        stats.EXP.P, stats.EXP.S, stats.EXP.T1, stats.EXP.T2, ...)
 {
   if (IND.amount > length(ExposureValue.P))
   {
@@ -30,35 +37,37 @@ Plot.Group2 <- function(Profile, DAY.start, DAYS, IND.amount, PlotMinMax, ...)
     IND.amount = length(ExposureValue.P)
   }
   
-  ST.DF.P = DF.Structure(TIME.P, ExposureValue.P, 100, 60)
-  ST.DF.S = DF.Structure(TIME.S, ExposureValue.S, 100, 60)
-  ST.DF.T1 = DF.Structure(TIME.T1, ExposureValue.T1, 100, 60)
-  ST.DF.T2 = DF.Structure(TIME.T2, ExposureValue.T2, 100, 60)
   
-  stats.EXP.P = DF.Stats(ST.DF.P)
-  
-  E.max = max(stats.EXP.P$maxEXP, na.rm = T)
-  #E.max = max(c(stats.EXP.P$maxEXP, stats.EXP.S$maxEXP, stats.EXP.T1$maxEXP, stats.EXP.T2$maxEXP), na.rm = T)
-  
+  #E.max = max(stats.EXP.P$maxEXP, na.rm = T)
+  E.max = max(c(stats.EXP.P$maxEXP, stats.EXP.S$maxEXP, stats.EXP.T1$maxEXP, stats.EXP.T2$maxEXP), na.rm = T)
+  #E.max = max(stats.EXP$maxEXP, na.rm = T)
+  E.max = max(stats.EXP.HR$maxEXP, na.rm = T)
   
   Col.P = rgb(red=0, green=0.5, blue=0.5, alpha=0.2)
   Col.S = rgb(red=1, green=0.2, blue=0.5, alpha=0.2)
   Col.T1 = rgb(red=0.5, green=0.2, blue=0.5, alpha=0.2)
   Col.T2 = rgb(red=1, green=0.2, blue=0.2, alpha=0.2)
+  Col.HR = rgb(red=0.6, green=0.2, blue=0.2, alpha=0.2)
   
   # point plot with transparency in color
-  with (ST.DF.P, plot(TIME, EXP, pch = "-", cex=1, col = Col.P, ylim=c(0, E.max+20),
+  with (ST.DF.P, plot(TIME, EXP, pch = ".", cex=1, col = Col.P, ylim=c(0, E.max+20),
                         xlab = "Time", ylab = paste(toupper(pol), "concentration (µg/m³)"),
-                        main = paste(Active.Profile$FullName, ":", IND.amount, "out of", length(ExposureValue.P), "individuals")))
+                        main = paste(Active.Subprofile$FullName, ":", IND.amount, "out of", length(ExposureValue.P), "individuals")))
+  with (ST.DF.HR, plot(TIME, EXP, pch = "-", cex=1, col = Col.P, ylim=c(0, E.max+20),
+                      xlab = "Time", ylab = paste(toupper(pol), "concentration (µg/m³)"),
+                      main = paste(Active.Subprofile$FullName, ":", IND.amount, "out of", length(ExposureValue.P), "individuals")))
   
-  with (ST.DF.S, points(TIME, EXP, pch = "-", cex=1, col = Col.S))
-  with (ST.DF.T1, points(TIME, EXP, pch = "-", cex=1, col = Col.T1))
-  with (ST.DF.T2, points(TIME, EXP, pch = "-", cex=1, col = Col.T2))
+  
+  with (ST.DF.S, points(TIME, EXP, pch = ".", cex=1, col = Col.S))
+  with (ST.DF.T1, points(TIME, EXP, pch = ".", cex=1, col = Col.T1))
+  with (ST.DF.T2, points(TIME, EXP, pch = ".", cex=1, col = Col.T2))
   
   mtext(paste(head(ST.DF.P$TIME,1), "-", tail(ST.DF.P$TIME,1)))
+  mtext(paste(head(ST.DF$TIME,1), "-", tail(ST.DF$TIME,1) + 0.001))
 
   #add mean, min and max to plot
   points(as.POSIXct(stats.EXP.P$TIME), stats.EXP.P$meanEXP, col = "orange", pch = "-", cex = 1)
+  points(as.POSIXct(stats.EXP.HR$TIME), stats.EXP.HR$meanEXP, col = "orange", pch = "-", cex = 1)
   
   if (PlotMinMax == TRUE)
   {
@@ -72,7 +81,21 @@ Plot.Group2 <- function(Profile, DAY.start, DAYS, IND.amount, PlotMinMax, ...)
   
   #abline(v=as.POSIXct("2009-03-29 02:00:00", origin = "1970-01-01"), col = "orange") # start summertime / Daylight saving time (DST)
   #abline(v=as.POSIXct("2009-10-25 02:00:00", origin = "1970-01-01"), col = "grey") # start wintertime / Standard time
+  abline(v = as.POSIXct(unlist(PHASES[[1]]), origin = "1970-01-01"), col = Col.T2)
+  
+  #abline(v = Time, col = "grey") # hours
+  abline(v = YearDates, col = "grey") # days
+  
+  abline(v = unlist(PHASES[[1]][YearDates %in% BusinesDates][2]), col = Col.T1) # T1
+  
 
+  Sel = which(YearDates %in% BusinesDates) < DAY.start+DAYS & which(YearDates %in% BusinesDates) >= DAY.start
+  for (h in (PHASES[[1]][YearDates %in% BusinesDates][Sel]))
+  {
+    abline(v = h[2], col = "red") # Leave Primary
+    abline(v = h[4], col = "blue") # Leave Secondary
+  }
+  
 }
 
 Weighted.Dynamic <- function(ExposureValue.C, WEIGHTS.C, CalcType, ...)

@@ -15,15 +15,16 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 ## Check for required packages and install them (incl dependencies) if they are not installed yet.
-list.of.packages <- c("sp", "Hmisc")
+list.of.packages <- c("sp", "Hmisc", "lubridate")
 new.packages <- list.of.packages[!(list.of.packages %in% installed.packages()[,"Package"])]
 if(length(new.packages)) install.packages(new.packages)
 
 ## Load the packages
 library(sp)
 library(Hmisc)
+library(lubridate)
 
-CreateCorrespondingDateAndTime <- function(Active.Type, Active.Profile, PPH.P, YearDates, BusinesDates, WeekendDates, HoliDates,
+CreateCorrespondingDateAndTime <- function(Active.Type, Active.Subprofile, PPH.P, YearDates, BusinesDates, WeekendDates, HoliDates,
                                            TimeVertex.T1, TimeVertex.T2, PPH.T1.PNT.RS, PPH.T2.PNT.RS, ...)
 {
   PHASES = list()
@@ -42,7 +43,7 @@ CreateCorrespondingDateAndTime <- function(Active.Type, Active.Profile, PPH.P, Y
     Time.T1 = list()
     Time.T2 = list()
 
-    if (Active.Profile$Dynamics == "static")
+    if (Active.Subprofile$Dynamics == "static")
     {
       for (d in seq_along(YearDates))
       {
@@ -50,35 +51,49 @@ CreateCorrespondingDateAndTime <- function(Active.Type, Active.Profile, PPH.P, Y
       }
     }
     
-    if (Active.Profile$Dynamics == "dynamic")
+    if (Active.Subprofile$Dynamics == "dynamic")
     {
       days = which(YearDates %in% BusinesDates == TRUE)
       for (d in days)
       {
         Phases[[d]] = c(YearDates[d]+1*60**2,
-                        YearDates[d]+(as.numeric(Active.Profile$TimeLeavingPrimary)/100)*60**2,
+                        YearDates[d]+(as.numeric(Active.Subprofile$TimeLeavingPrimary)/100)*60**2,
                         (tail(TimeVertex.T1[[i]],1)+(d-1)*24*60**2),
-                        YearDates[d]+(as.numeric(Active.Profile$TimeLeavingSecondary)/100)*60**2,
+                        YearDates[d]+(as.numeric(Active.Subprofile$TimeLeavingSecondary)/100)*60**2,
                         (tail(TimeVertex.T2[[i]],1)+(d-1)*24*60**2),
                         YearDates[d]+24*60**2)
         
         Time.P[[d]] = c(seq(Phases[[d]][1], Phases[[d]][2], 1*60**2),
-                        seq(round(Phases[[d]][5], digits ='hours'), Phases[[d]][6], 1*60**2))
+                        seq(ceiling_date(Phases[[d]][5], 'hours'), Phases[[d]][6], 1*60**2))
         
-        Time.S[[d]] = seq(round(Phases[[d]][3], digits='hours'), Phases[[d]][4], 1*60**2)
-        
+        Time.S[[d]] = seq(ceiling_date(Phases[[d]][3], 'hours'), Phases[[d]][4], 1*60**2)
         
 #         PPH.T1.Pnt.eq.rs = RandomSampleRoutes(PPH.T1.Pnt.eq.Li[i], TRUE, 25)
 #         PPH.T2.Pnt.eq.rs = RandomSampleRoutes(PPH.T2.Pnt.eq.Li[i], TRUE, 25)
         
         # Check which points of the line are part of the random selection
-        point.nrs.T1 = which(coordinates(PPH.T1.Pnt.Li[[i]])[,1] %in% coordinates(PPH.T1.PNT.RS[[i]][[d]])[,1] &
-                                    coordinates(PPH.T1.Pnt.Li[[i]])[,2] %in% coordinates(PPH.T1.PNT.RS[[i]][[d]])[,2])
-        point.nrs.T2 = which(coordinates(PPH.T2.Pnt.Li[[i]])[,1] %in% coordinates(PPH.T2.PNT.RS[[i]][[d]])[,1] &
-                               coordinates(PPH.T2.Pnt.Li[[i]])[,2] %in% coordinates(PPH.T2.PNT.RS[[i]][[d]])[,2])
+#         point.nrs.T1 = which(coordinates(PPH.T1.Pnt.Li[[i]])[,1] %in% coordinates(PPH.T1.PNT.RS[[i]][[d]])[,1] &
+#                                     coordinates(PPH.T1.Pnt.Li[[i]])[,2] %in% coordinates(PPH.T1.PNT.RS[[i]][[d]])[,2])
+#         point.nrs.T2 = which(coordinates(PPH.T2.Pnt.Li[[i]])[,1] %in% coordinates(PPH.T2.PNT.RS[[i]][[d]])[,1] &
+#                                coordinates(PPH.T2.Pnt.Li[[i]])[,2] %in% coordinates(PPH.T2.PNT.RS[[i]][[d]])[,2])
         
-        Time.T1[[d]] = TimeVertex.T1[[i]][point.nrs.T1]+(d-1)*24*60**2
-        Time.T2[[d]] = TimeVertex.T2[[i]][point.nrs.T2]+(d-1)*24*60**2
+#         Time.T1[[d]] = TimeVertex.T1[[i]][point.nrs.T1]+(d-1)*24*60**2
+#         Time.T2[[d]] = TimeVertex.T2[[i]][point.nrs.T2]+(d-1)*24*60**2
+        
+        Int.T1 = gIntersects(PPH.T1.Pnt.Li[[i]], PPH.T1.PNT.RS[[i]][[d]], byid = TRUE)
+        Int.T2 = gIntersects(PPH.T2.Pnt.Li[[i]], PPH.T2.PNT.RS[[i]][[d]], byid = TRUE)
+        
+        Sel.T1 = NA
+        Sel.T2 = NA
+        for (r in 1:nrow(Int.T1))
+        {
+          Sel.T1[r] = which(Int.T1[r,])[1]
+          Sel.T2[r] = which(Int.T2[r,])[1]
+        }
+        #length(Sel.T1) == SampSize
+        
+        Time.T1[[d]] = TimeVertex.T1[[i]][Sel.T1]+(d-1)*24*60**2
+        Time.T2[[d]] = TimeVertex.T2[[i]][Sel.T2]+(d-1)*24*60**2
       }
       
       days = which(YearDates %in% WeekendDates == TRUE)

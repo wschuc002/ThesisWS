@@ -145,9 +145,18 @@ RandomSampleRoutesYears <- function(PPH.T.Pnt, Plot, SampSize, YearDates, Busine
           PPH.T.Pnt.eq.rs[[d]] = rbind(PPH.T.Pnt[[i]][1,], PPH.T.Pnt.eq.rs[[d]], PPH.T.Pnt[[i]][length(PPH.T.Pnt[[i]]),])
           
           # Order the points
-          Sel = paste0(coordinates(PPH.T.Pnt[[i]])[,1], coordinates(PPH.T.Pnt[[i]])[,2]) %in% 
-            paste0(coordinates(PPH.T.Pnt.eq.rs[[d]])[,1], coordinates(PPH.T.Pnt.eq.rs[[d]])[,2])
+#           Sel = paste(coordinates(PPH.T.Pnt[[i]])[,1], coordinates(PPH.T.Pnt[[i]])[,2]) %in% 
+#             paste(coordinates(PPH.T.Pnt.eq.rs[[d]])[,1], coordinates(PPH.T.Pnt.eq.rs[[d]])[,2])
           
+          Int = gIntersects(PPH.T.Pnt[[i]], PPH.T.Pnt.eq.rs[[d]], byid = TRUE)
+          
+          Sel = NA
+          for (r in 1:nrow(Int))
+          {
+            Sel[r] = which(Int[r,])[1]
+          }
+          #length(Sel) == SampSize
+
           PPH.T.Pnt.eq.rs[[d]] = PPH.T.Pnt[[i]][Sel,]
           
           if (Plot == TRUE)
