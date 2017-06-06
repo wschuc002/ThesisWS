@@ -15,12 +15,13 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 ## Check for required packages and install them (incl dependencies) if they are not installed yet.
-list.of.packages <- c("rgdal")
+list.of.packages <- c("rgdal", "raster")
 new.packages <- list.of.packages[!(list.of.packages %in% installed.packages()[,"Package"])]
 if(length(new.packages)) install.packages(new.packages)
 
 ## Load the packages
 library(rgdal)
+library(raster)
 
 SaveAsFile <- function(INput, Filename, Format, Active.Type, OverwriteLayer, ...)
 {

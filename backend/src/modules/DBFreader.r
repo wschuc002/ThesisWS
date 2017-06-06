@@ -23,50 +23,36 @@
 
 ## Load the packages
 
-DBFreader <- function(FileType, PhaseType, PPH.P, YearDates, Active.Type, ...)
+DBFreader <- function(FileType, PhaseType, PPH.P, YearDates, Active.Subtype, ...)
 {
   if (PhaseType == "Primary") {PhaseLetter = "P"}
   if (PhaseType == "Secondary") {PhaseLetter = "S"}
   if (PhaseType == "T1") {PhaseLetter = "T1"}
   if (PhaseType == "T2") {PhaseLetter = "T2"}
   
-  if (FileType == "Exposure") {FileString = "ExposureValue_"}
+  if (FileType == "Exposure") {FileString = "EXP_"}
   if (FileType == "Time") {FileString = "TIME_"}
   
   NUM = rep(list(list()), length(PPH.P)) # use same structure
   for (i in seq_along(PPH.P)) # per individual
   #for (i in seq(1,2))
   {
-    DF = read.dbf(file.path("..", "output", Active.Type, paste0(FileString, PhaseLetter, "_" , i, ".dbf")))
+    DF = read.dbf(file.path("..", "output", Active.Subtype, paste0(FileString, PhaseLetter, "_" , i, ".dbf")))
     
     for (d in seq_along(YearDates)) # per day
     {
       if (FileType == "Exposure")
       {
-#         NUM_ = as.numeric(DF[d,]) # Exposure
-#         NUM__ = na.omit(NUM_)
-#         NUM[[i]][[d]] = as.numeric(NUM__)
-#         
         NUM[[i]][[d]] = as.numeric(na.omit(as.numeric(DF[d,]))) # Exposure
-        
       }else{
-        NUM[[i]][[d]] = na.omit(as.POSIXct(as.numeric(DF[d,]), origin = "1970-01-01", tz = "CET")) # TIME
+        NUM[[i]][[d]] = na.omit(as.POSIXct(as.numeric(DF[d,]), origin = "1970-01-01")) # TIME
       }
     }
     
     if (PhaseType != "Primary")
     {
-      NUM[[i]][YearDates %in% WeekendDates] = NA
+      NUM[[i]][which(!(YearDates %in% BusinesDates))] = NA
     }
-#     if (PhaseType == "Primary")
-#     {
-#       NUM[[i]][YearDates %in% YearDates] = na.omit(NUM[[i]][YearDates %in% YearDates]) # remove NA's (at the end)
-#     }else{
-#       NUM[[i]][YearDates %in% BusinesDates] = NUM[[i]][YearDates %in% BusinesDates][!is.na(NUM[[i]][YearDates %in% BusinesDates])]# remove NA's at the end
-#       NUM[[i]][YearDates %in% WeekendDates] = NA
-#     }
-    
-  # for  
-  }
+  } # closing i
  return(NUM)
 }

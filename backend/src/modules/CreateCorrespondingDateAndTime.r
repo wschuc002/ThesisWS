@@ -68,32 +68,17 @@ CreateCorrespondingDateAndTime <- function(Active.Type, Active.Subprofile, PPH.P
         
         Time.S[[d]] = seq(ceiling_date(Phases[[d]][3], 'hours'), Phases[[d]][4], 1*60**2)
         
-#         PPH.T1.Pnt.eq.rs = RandomSampleRoutes(PPH.T1.Pnt.eq.Li[i], TRUE, 25)
-#         PPH.T2.Pnt.eq.rs = RandomSampleRoutes(PPH.T2.Pnt.eq.Li[i], TRUE, 25)
         
-        # Check which points of the line are part of the random selection
-#         point.nrs.T1 = which(coordinates(PPH.T1.Pnt.Li[[i]])[,1] %in% coordinates(PPH.T1.PNT.RS[[i]][[d]])[,1] &
-#                                     coordinates(PPH.T1.Pnt.Li[[i]])[,2] %in% coordinates(PPH.T1.PNT.RS[[i]][[d]])[,2])
-#         point.nrs.T2 = which(coordinates(PPH.T2.Pnt.Li[[i]])[,1] %in% coordinates(PPH.T2.PNT.RS[[i]][[d]])[,1] &
-#                                coordinates(PPH.T2.Pnt.Li[[i]])[,2] %in% coordinates(PPH.T2.PNT.RS[[i]][[d]])[,2])
+        tree.T1 = createTree(coordinates(PPH.T1.Pnt.Li[[i]]))
+        inds.T1 = knnLookup(tree.T1, newdat = coordinates(PPH.T1.PNT.RS[[i]][[d]]), k = 1) # gives the matrix
+        inds.T1 = sort(as.vector(inds.T1))
         
-#         Time.T1[[d]] = TimeVertex.T1[[i]][point.nrs.T1]+(d-1)*24*60**2
-#         Time.T2[[d]] = TimeVertex.T2[[i]][point.nrs.T2]+(d-1)*24*60**2
-        
-        Int.T1 = gIntersects(PPH.T1.Pnt.Li[[i]], PPH.T1.PNT.RS[[i]][[d]], byid = TRUE)
-        Int.T2 = gIntersects(PPH.T2.Pnt.Li[[i]], PPH.T2.PNT.RS[[i]][[d]], byid = TRUE)
-        
-        Sel.T1 = NA
-        Sel.T2 = NA
-        for (r in 1:nrow(Int.T1))
-        {
-          Sel.T1[r] = which(Int.T1[r,])[1]
-          Sel.T2[r] = which(Int.T2[r,])[1]
-        }
-        #length(Sel.T1) == SampSize
-        
-        Time.T1[[d]] = TimeVertex.T1[[i]][Sel.T1]+(d-1)*24*60**2
-        Time.T2[[d]] = TimeVertex.T2[[i]][Sel.T2]+(d-1)*24*60**2
+        tree.T2 = createTree(coordinates(PPH.T2.Pnt.Li[[i]]))
+        inds.T2 = knnLookup(tree.T2, newdat = coordinates(PPH.T2.PNT.RS[[i]][[d]]), k = 1) # gives the matrix
+        inds.T2 = sort(as.vector(inds.T2))
+
+        Time.T1[[d]] = TimeVertex.T1[[i]][inds.T1]+(d-1)*24*60**2
+        Time.T2[[d]] = TimeVertex.T2[[i]][inds.T2]+(d-1)*24*60**2
       }
       
       days = which(YearDates %in% WeekendDates == TRUE)
@@ -110,6 +95,14 @@ CreateCorrespondingDateAndTime <- function(Active.Type, Active.Subprofile, PPH.P
         Phases[[d]] = c(YearDates[d]+1*60**2, YearDates[d]+24*60**2)
         
         Time.P[[d]] = seq(Phases[[d]][1], Phases[[d]][2], 1*60**2)
+      }
+      
+      days = which(!(YearDates %in% BusinesDates))
+      for (d in days)
+      {
+        Time.S[[d]] = NA
+        Time.T1[[d]] = NA
+        Time.T2[[d]] = NA
       }
     }
     

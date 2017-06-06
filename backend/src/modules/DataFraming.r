@@ -22,20 +22,67 @@ if(length(new.packages)) install.packages(new.packages)
 ## Load the packages
 #library(sp)
 
-DF.Structure2 <- function(TIME.P, TIME, ExposureValue, ...)
+#TIME = TIME.T1
+#ExposureValue = ExposureValue.T1
+
+DF.Structure2 <- function(PPH.P, TIME.P, TIME, ExposureValue, ...)
 {
+  ClassTime = class(TIME)
+  ClassExp = class(ExposureValue[[1]])
+  
+  ExposureValue.ul = list()
+  TIME.ul = list()
+  
+  if (ClassExp == "list")
+  {
+    for (i in seq_along(PPH.P))
+    {
+      TIME.ul[[i]] = na.omit(unlist(TIME[[i]]))
+      ExposureValue.ul[[i]] = na.omit(unlist(ExposureValue[[i]]))
+      
+      class(TIME.ul[[i]])
+      class(ExposureValue.ul[[i]])
+      
+      
+      # unlist
+      TIME.ul[[i]] = unlist(TIME[[i]])
+      ExposureValue.ul[[i]] = unlist(ExposureValue[[i]])
+      
+      # remove NAs
+      TIME.ul[[i]] = TIME.ul[[i]][!is.na(TIME.ul[[i]])]
+      ExposureValue.ul[[i]] = ExposureValue.ul[[i]][!is.na(ExposureValue.ul[[i]])]
+    }
+  }
+  
+  #length(ExposureValue.ul[[i]])
+  #length(TIME.ul[[i]])
+  length(ExposureValue.ul[[i]]) - length(TIME.ul[[i]]) == 0
+  
+  for (d in seq_along(ExposureValue[[i]]))
+  {
+    #print(length(ExposureValue[[i]][[d]]))
+    print(length(TIME[[i]][[d]]))
+  }
+  
+  
   ST.DF = list()
   
-  for (i in seq_along(TIME.P))
+  for (i in seq_along(PPH.P))
   {
-    if (class(TIME) == "list")
+    print(i)
+    if (all(ClassTime == "list" & ClassExp == "list"))
     {
-      ST.DF[[i]] = data.frame(unlist(TIME[[i]]), unlist(ExposureValue[[i]]), i)
+      ST.DF[[i]] = data.frame(TIME.ul[[i]], ExposureValue.ul[[i]], i)
     }
     
-    if (class(TIME) == class(TIME.P[[1]][[1]]))
+    if (all(ClassTime == class(TIME.P[[1]][[1]])) & ClassExp == "list")
     {
-      ST.DF[[i]] = data.frame(TIME, unlist(ExposureValue[[i]]), i)
+      ST.DF[[i]] = data.frame(TIME, ExposureValue.ul[[i]], i)
+    }
+    
+    if (all(ClassTime == class(TIME.P[[1]][[1]])) & ClassExp == "numeric")
+    {
+      ST.DF[[i]] = data.frame(TIME, ExposureValue[[i]], i)
     }
     
     colnames(ST.DF[[i]]) = c("TIME", "EXP", "IND")
@@ -43,6 +90,9 @@ DF.Structure2 <- function(TIME.P, TIME, ExposureValue, ...)
     ST.DF[[i]] = ST.DF[[i]][!is.na(ST.DF[[i]]$EXP),]
   }
   ST.DF = do.call(rbind, ST.DF)
+  
+  # Give numbered row names
+  #rownames(ST.DF) = 1:nrow(ST.DF)
 
   return(ST.DF)
 }

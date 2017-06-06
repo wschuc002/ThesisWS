@@ -340,23 +340,18 @@ DetermineAddressGoals_FL <- function(FL.Gemeente, Method.nr, ... )
 # Names.sub = Names
 # FL.primary = 100
 # Plot = TRUE
-# SaveResults = TRUE
+# SaveResults = FALSE
 
 DeterminePPH_FL <- function(CRAB_Doel, Names.sub, FL.primary, OSRM.Level, Active.Type,
-                            Plot, SaveResults, ...)
+                            Plot, SaveResults, Belgium, ...)
 {
   if (Plot == TRUE){plot(Flanders)}
   
   # Create the attribute "object_id" (verplaatsen naar andere functie)
   CRAB_Doel@data["object_id"] = seq.int(nrow(CRAB_Doel@data))
   
-  if (Active.Type == "04.FA")
-  {
-    Primary = subset(CRAB_Doel, CRAB_Doel@data$DOEL == "Agrarische functie")
-  } else{
-    ## Subset: only Primary
-    Primary = subset(CRAB_Doel, CRAB_Doel@data$DOEL == "Woonfunctie")
-  }
+  ## Subset: only Primary
+  Primary = subset(CRAB_Doel, CRAB_Doel@data$DOEL == "Woonfunctie")
   PrimaryAmount = nrow(Primary)
   
   if (PrimaryAmount < FL.primary)
@@ -388,85 +383,111 @@ DeterminePPH_FL <- function(CRAB_Doel, Names.sub, FL.primary, OSRM.Level, Active
     if (Active.Type == "01.OW")
     {
       Secondary = CRAB_Doel[CRAB_Doel@data$DOEL %in% "Economische functie" | CRAB_Doel@data$DOEL %in% "Company" ,]
-      
-      SecondaryPaired = CommutingDistancePairer(Primary_random, Secondary, MaxLinKM = 60,
-                                                SEC.SampleSize = 100, Plot = TRUE)
     }
     
     #Subset: only schools
     if (Active.Type == "03.SP")
     {
       Secondary = CRAB_Doel[CRAB_Doel@data$DOEL %in% "Basisonderwijs",] # CRAB_Doel@data$DOEL %in% "Secundair onderwijs" 
-      
-      #SecondaryPaired = SchoolFinder(Primary_random, Secondary, FALSE)
-      
-      # remove duplicates
-      SEC.NoDup = Secondary[!duplicated(Secondary@coords), ]
-      
-      tree = createTree(coordinates(SEC.NoDup))
-      inds = knnLookup(tree, newdat = coordinates(Primary), k = 1) # gives the matrix
-      inds = as.vector(inds)
-      
-      SecondaryPaired = SEC.NoDup[inds,]
     }
     
-    #     #! Remove the individuals who did not pair
-    #     if (length(PRI) != length(SecondaryPaired))
-    #     {
-    #       head(SecondaryPaired)
-    #       head(PRI)
-    #     }
+  
+    PPH.T1.Li = list()
+    PPH.T2.Li = list()
     
-    if (Plot){points(SecondaryPaired, col = "orange")}
+    Outsiders = seq_along(PPH.P)
+    success = FALSE
+  
+    while(!success) # prevent that routes outside country will pass
+    {
+      #     RS = sample(Outsiders, 1)
+      #     Outsiders = Outsiders[Outsiders < RS]
+      
+      if (Active.Subprofile$Dynamics == "dynamic")
+      {
+        #Subset: only Offices
+        if (Active.Type == "01.OW")
+        {
+          # Secondary = CRAB_Doel[CRAB_Doel@data$DOEL %in% "Economische functie" | CRAB_Doel@data$DOEL %in% "Company" ,]
+          
+          SecondaryPaired = CommutingDistancePairer(Primary_random[Outsiders,], Secondary, MaxLinKM = 60,
+                                                    SEC.SampleSize = 100, Plot = TRUE)
+        }
+        
+        #Subset: only schools
+        if (Active.Type == "03.SP")
+        {
+          # Secondary = CRAB_Doel[CRAB_Doel@data$DOEL %in% "Basisonderwijs",] # CRAB_Doel@data$DOEL %in% "Secundair onderwijs" 
+          
+          #SecondaryPaired = SchoolFinder(Primary_random, Secondary, FALSE)
+          
+          # remove duplicates
+          SEC.NoDup = Secondary[!duplicated(Secondary@coords), ]
+          
+          tree = createTree(coordinates(SEC.NoDup))
+          inds = knnLookup(tree, newdat = coordinates(Primary), k = 1) # gives the matrix
+          inds = as.vector(inds)
+          
+          SecondaryPaired = SEC.NoDup[inds,]
+        }
+        
+        #     #! Remove the individuals who did not pair
+        #     if (length(PRI) != length(SecondaryPaired))
+        #     {
+        #       head(SecondaryPaired)
+        #       head(PRI)
+        #     }
+        
+        if (Plot){points(SecondaryPaired, col = "orange")}
+        
+        # create the routes (New method, works with multiple profiles like bicycle for 03.SP and motorcar for 01.OW)
+        PPH.T = Router.WS2(Active.Type, Primary_random[Outsiders,], SecondaryPaired, OSRM.Level, Plot, Belgium, Outsiders)
+
+        for (i in seq_along(Outsiders))
+        {
+          if (Outsiders[i] %in% Outsiders)
+          {
+            I = Outsiders[i]
+            PPH.T1.Li[[I]] = PPH.T[[1]][i,] #Outwards
+            PPH.T2.Li[[I]] = PPH.T[[2]][i,] #Inwards
+          }
+        }
+          
+        PPH.T1 = do.call(rbind, PPH.T1.Li)
+        PPH.T2 = do.call(rbind, PPH.T2.Li)
+
+        Outsiders = PPH.T[[3]]
+        
+        # mean(PPH.T1@data$distance)
+        # mean(PPH.T2@data$distance)
+        
+        if (length(Outsiders) == 0)
+        {
+          success = TRUE
+          print(paste0("All the routes are now in the safe range."))
+        } else
+        {
+          for (o in seq_along(Outsiders))
+          {
+            print(paste0(Outsiders[o], " is outside safe range. Finding a new pair..."))
+          }
+        }
+      }
+    } # close while
     
-    #! Remove the individuals who drive outside Flanders +250m buffer
     
     if (SaveResults == TRUE)
     {
-      # Save files to hard drive
       if (is.null(Subset.Gemeente))
       {
         SaveAsFile(Primary_random, paste(Active.Type, "Primary", sep = "_"), "GeoJSON", TRUE)
         SaveAsFile(SecondaryPaired, paste(Active.Type, "Secondary", sep = "_"), "GeoJSON", TRUE)
-      } else
-      {
-        SaveAsFile(Primary_random, paste0(Active.Type, "_Primary_", Names.sub), "GeoJSON", TRUE)
-        SaveAsFile(SecondaryPaired, paste0(Active.Type, "_Secondary_", Names.sub), "GeoJSON", TRUE)
-      }
-    }
-    
-#     # create the routes (OLD)
-#     PPH.T = Router(Active.Type, Primary_random, SecondaryPaired, "full", Plot)
-#     
-#     PPH.T = Router(Active.Type, PPH.P[3,], PPH.S[3,], "full", Plot)
-#     
-#     PPH.T1 = PPH.T[[1]] #Outwards
-#     PPH.T2 = PPH.T[[2]] #Inwards
-#     
-#     if (Plot == TRUE)
-#     {
-#       lines(PPH.T1, col = 93)
-#       lines(PPH.T2, col = 94)
-#     }
-    
-    # create the routes (New method, works with multiple profiles like bicycle for 03.SP and motorcar for 01.OW)
-    PPH.T = Router.WS2(Active.Type, Primary_random, SecondaryPaired, OSRM.Level, Plot)
-    
-    PPH.T1 = PPH.T[[1]] #Outwards
-    PPH.T2 = PPH.T[[2]] #Inwards
-    
-    # mean(PPH.T1@data$distance)
-    # mean(PPH.T2@data$distance)
-    
-    
-    if (SaveResults == TRUE)
-    {
-      if (is.null(Subset.Gemeente))
-      {
         SaveAsFile(PPH.T1, paste(Active.Type, paste0("TransportOutwards", Names.sub),substr(OSRM.Level, 1, 1), sep = "_"), "GeoJSON", TRUE)
         SaveAsFile(PPH.T2, paste(Active.Type, paste0("TransportInwards", Names.sub),substr(OSRM.Level, 1, 1), sep = "_"), "GeoJSON", TRUE)
       } else
       {
+        SaveAsFile(Primary_random, paste0(Active.Type, "_Primary_", Names.sub), "GeoJSON", TRUE)
+        SaveAsFile(SecondaryPaired, paste0(Active.Type, "_Secondary_", Names.sub), "GeoJSON", TRUE)
         SaveAsFile(PPH.T1, paste0(Active.Type,"_TransportOutwards_", Names.sub, "_", substr(OSRM.Level, 1, 1)), "GeoJSON", TRUE)
         SaveAsFile(PPH.T2, paste0(Active.Type,"_TransportInwards_", Names.sub, "_", substr(OSRM.Level, 1, 1)), "GeoJSON", TRUE)
       }
@@ -475,88 +496,12 @@ DeterminePPH_FL <- function(CRAB_Doel, Names.sub, FL.primary, OSRM.Level, Active
   }
 }
 
-SchoolFinder <- function(PRI, Secondary, Plot, ...)
-{
-  # Secondary.NoDup = Secondary[!duplicated(Secondary@coords), ]
-  
-  # Create tree
-  tree = createTree(coordinates(Secondary))
-  
-  SecondaryPaired.Li = list()
-  
-  for (i in seq_along(PRI))
-  {
-    # select proximity coordinates
-    inds = knnLookup(tree, newdat = coordinates(PRI[i,]), k = 1) # gives the matrix
-    inds = as.vector(inds)
-    
-    SecondaryPaired.Li[[i]] = Secondary[inds,]
-    
-    if (Plot) {points(SecondaryPaired.Li[[i]], col = "orange")}
-  }
-  SecondaryPaired = do.call(rbind, SecondaryPaired.Li)
 
-  return(SecondaryPaired)
-}
-
-Router <- function(Active.Type, PRI, SecondaryPaired, OSRM.Level, Plot, ...)
-{
-  # Transform RD new -> WGS84 for the route calculation (OSRM)
-  WGS84 = "+init=epsg:4326"
-  src1 = spTransform(PRI, WGS84)
-  dst2 = src1
-  
-  dst1 = spTransform(SecondaryPaired, WGS84)
-  dst1@proj4string = CRS(WGS84)
-  src2 = dst1
-  
-  PPH.T1.Li = list()
-  PPH.T2.Li = list()
-  for (i in seq_along(SecondaryPaired))
-    #for (i in 1:10)
-  {
-    
-    if (Active.Type == "01.OW")
-    {
-      PPH.T1.Li[[i]] = osrmRoute(src = src1[i,], dst = dst1[i,], overview = OSRM.Level, sp = TRUE)
-      PPH.T2.Li[[i]] = osrmRoute(src = src2[i,], dst = dst2[i,], overview = OSRM.Level, sp = TRUE)
-    }
-    
-    if (Active.Type == "03.SP")
-    {
-      PPH.T1.Li[[i]] = route_graphhopper(src1[i,]@coords, dst1[i,]@coords, vehicle = "bike", silent = FALSE)
-      PPH.T2.Li[[i]] = route_graphhopper(dst1[i,]@coords, src1[i,]@coords, vehicle = "bike", silent = FALSE)
-    }
-    
-    PPH.T1.Li[[i]] = spTransform(PPH.T1.Li[[i]], BE_crs)
-    PPH.T2.Li[[i]] = spTransform(PPH.T2.Li[[i]], BE_crs)
-    
-    PPH.T1.Li[[i]]@data$src_CRAB = NA
-    PPH.T1.Li[[i]]@data$dst_CRAB = NA
-    PPH.T1.Li[[i]]@data$src_CRAB = src1[i,]@data$object_id
-    PPH.T1.Li[[i]]@data$dst_CRAB = dst1[i,]@data$object_id
-    
-    PPH.T2.Li[[i]]@data$src_CRAB = PPH.T1.Li[[i]]@data$dst_CRAB
-    PPH.T2.Li[[i]]@data$dst_CRAB = PPH.T1.Li[[i]]@data$src_CRAB
-    
-    if(Plot)
-    {
-      lines(PPH.T1.Li[[i]])
-      lines(PPH.T2.Li[[i]])
-    }
-  }
-  PPH.T1 = do.call(rbind, PPH.T1.Li)
-  PPH.T2 = do.call(rbind, PPH.T2.Li)
-  
-  return(list(PPH.T1, PPH.T2))
-  #PPH.T = list(PPH.T1, PPH.T2)
-}
-
-#PRI = PPH.P
-#SEC = PPH.S
+#PRI = Primary_random[Outsiders,]
+#SEC = SecondaryPaired
 #Plot = TRUE
 #plot(Flanders)
-Router.WS2 <- function(Active.Type, PRI, SEC, OSRM.Level, Plot)
+Router.WS2 <- function(Active.Type, PRI, SEC, OSRM.Level, Plot, Belgium, Outsiders)
 {
   # Transform RD new -> WGS84 for the route calculation (OSRM)
   WGS84 = "+init=epsg:4326"
@@ -579,7 +524,6 @@ Router.WS2 <- function(Active.Type, PRI, SEC, OSRM.Level, Plot)
   {
     for (i in seq_along(PRI))
     {
-      ## Outwards T1
       # build the query
       req <- paste0("http://www.yournavigation.org/api/dev/route.php?",
                      "flat=", src.Li[[t]][i,]@coords[,2], "&flon=", src.Li[[t]][i,]@coords[,1],
@@ -599,13 +543,6 @@ Router.WS2 <- function(Active.Type, PRI, SEC, OSRM.Level, Plot)
       
       lon.nu = co[seq_along(co) %% 2 != 0]
       lat.nu = co[seq_along(co) %% 2 == 0]
-      
-#       lon = str_extract_all(res.Li$Document$Folder$Placemark$LineString$coordinates,
-#                             regex("([^\\n])...[0-9]...(?=[,])")) # works with single coordinate before digit
-#       
-#       lat = str_extract_all(res.Li$Document$Folder$Placemark$LineString$coordinates,
-#                             regex("([^\\n])...[0-9]...(?=[,])"))
-      
       
       if (length(lon.nu) == length(lat.nu))
       {
@@ -630,12 +567,42 @@ Router.WS2 <- function(Active.Type, PRI, SEC, OSRM.Level, Plot)
       {
         stop
       }
-    }
-    if (t == 1) {PPH.T1 = do.call(rbind, PPH.T.Li)}
-    if (t == 2) {PPH.T2 = do.call(rbind, PPH.T.Li)}
+    } # closing i
+    if (t == 1) {PPH.T1_ = do.call(rbind, PPH.T.Li)}
+    if (t == 2) {PPH.T2_ = do.call(rbind, PPH.T.Li)}
+  } # closing t
+  
+  # Check if coordinates are inside of outside Country
+  Outside = NA
+  
+  for (I in seq_along(Outsiders))
+  {
+    Outside[I] = !all(gIntersects(as(rbind(PPH.T1_[I,],PPH.T2_[I,]), "SpatialPoints"), Belgium, byid = TRUE))
   }
-  return(list(PPH.T1,PPH.T2))
+  Outsiders = Outsiders[Outside]
+
+  return(list(PPH.T1_, PPH.T2_, Outsiders))
 }
+
+#   for (i in seq_along(PPH.P))
+#   {
+#     if (i %in% Outsiders)
+#     {
+#       for (I in seq_along(Outsiders))
+#       {
+#         Outside[i] = !all(gIntersects(as(rbind(PPH.T1[I,],PPH.T2[I,]), "SpatialPoints"), Belgium, byid = TRUE))
+#       }
+#     } else
+#     {
+#       Outside[i] = FALSE
+#     }
+#     
+# #     for (I in seq_along(Outsiders))
+# #     {
+# #       Outside[i] = !all(gIntersects(as(rbind(PPH.T1[I,],PPH.T2[I,]), "SpatialPoints"), Belgium, byid = TRUE))
+# #     }
+#   }
+#   Outsiders = which(Outside)
 
 
 # PRI = Primary_random
@@ -707,7 +674,7 @@ CommutingDistancePairer <- function(PRI, SEC, MaxLinKM, SEC.SampleSize, Plot, ..
         distance = as.numeric(res.Li$Document$distance)
         traveltime = as.numeric(res.Li$Document$traveltime)
         
-        DrivingDistance[s] = distance/1000
+        DrivingDistance[s] = distance #/1000 (removed after update 20170606?)
         Probabilities[s] = Commuting$percentage[DrivingDistance[s] > Commuting$km_min &
                                                   DrivingDistance[s] < Commuting$km_max]
 
@@ -816,6 +783,30 @@ CommutingDistancePairer <- function(PRI, SEC, MaxLinKM, SEC.SampleSize, Plot, ..
 }
 
 
+SchoolFinder <- function(PRI, Secondary, Plot, ...)
+{
+  # Secondary.NoDup = Secondary[!duplicated(Secondary@coords), ]
+  
+  # Create tree
+  tree = createTree(coordinates(Secondary))
+  
+  SecondaryPaired.Li = list()
+  
+  for (i in seq_along(PRI))
+  {
+    # select proximity coordinates
+    inds = knnLookup(tree, newdat = coordinates(PRI[i,]), k = 1) # gives the matrix
+    inds = as.vector(inds)
+    
+    SecondaryPaired.Li[[i]] = Secondary[inds,]
+    
+    if (Plot) {points(SecondaryPaired.Li[[i]], col = "orange")}
+  }
+  SecondaryPaired = do.call(rbind, SecondaryPaired.Li)
+  
+  return(SecondaryPaired)
+}
+
 Tester <- function(...)
 {
   Num1 = 1:20
@@ -835,6 +826,60 @@ Tester <- function(...)
 }
 #UITKOMST = Tester()
 #rm(UITKOMST)
+
+Router <- function(Active.Type, PRI, SecondaryPaired, OSRM.Level, Plot, ...)
+{
+  # Transform RD new -> WGS84 for the route calculation (OSRM)
+  WGS84 = "+init=epsg:4326"
+  src1 = spTransform(PRI, WGS84)
+  dst2 = src1
+  
+  dst1 = spTransform(SecondaryPaired, WGS84)
+  dst1@proj4string = CRS(WGS84)
+  src2 = dst1
+  
+  PPH.T1.Li = list()
+  PPH.T2.Li = list()
+  for (i in seq_along(SecondaryPaired))
+    #for (i in 1:10)
+  {
+    
+    if (Active.Type == "01.OW")
+    {
+      PPH.T1.Li[[i]] = osrmRoute(src = src1[i,], dst = dst1[i,], overview = OSRM.Level, sp = TRUE)
+      PPH.T2.Li[[i]] = osrmRoute(src = src2[i,], dst = dst2[i,], overview = OSRM.Level, sp = TRUE)
+    }
+    
+    if (Active.Type == "03.SP")
+    {
+      PPH.T1.Li[[i]] = route_graphhopper(src1[i,]@coords, dst1[i,]@coords, vehicle = "bike", silent = FALSE)
+      PPH.T2.Li[[i]] = route_graphhopper(dst1[i,]@coords, src1[i,]@coords, vehicle = "bike", silent = FALSE)
+    }
+    
+    PPH.T1.Li[[i]] = spTransform(PPH.T1.Li[[i]], BE_crs)
+    PPH.T2.Li[[i]] = spTransform(PPH.T2.Li[[i]], BE_crs)
+    
+    PPH.T1.Li[[i]]@data$src_CRAB = NA
+    PPH.T1.Li[[i]]@data$dst_CRAB = NA
+    PPH.T1.Li[[i]]@data$src_CRAB = src1[i,]@data$object_id
+    PPH.T1.Li[[i]]@data$dst_CRAB = dst1[i,]@data$object_id
+    
+    PPH.T2.Li[[i]]@data$src_CRAB = PPH.T1.Li[[i]]@data$dst_CRAB
+    PPH.T2.Li[[i]]@data$dst_CRAB = PPH.T1.Li[[i]]@data$src_CRAB
+    
+    if(Plot)
+    {
+      lines(PPH.T1.Li[[i]])
+      lines(PPH.T2.Li[[i]])
+    }
+  }
+  PPH.T1 = do.call(rbind, PPH.T1.Li)
+  PPH.T2 = do.call(rbind, PPH.T2.Li)
+  
+  return(list(PPH.T1, PPH.T2))
+  #PPH.T = list(PPH.T1, PPH.T2)
+}
+
 
 IsoChroneSampler <- function(Primary_random, Secondary, Method, Plot, ...)
 {

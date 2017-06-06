@@ -24,6 +24,10 @@
 ##        - Speed and route options for cyclists (School Pupil).
 ##        - ?Introduce "spacetime" package and test is.
 ##        - Documentation
+##        - Routes should not go beyond Flanders Buffer 100m
+
+##        - Interactive graph (optional)
+##        - Air Quality Health Standards Exceedance analysis (optional)
 
 ## Clear the workspace?
 Clear.WorkSpace = FALSE
@@ -66,6 +70,9 @@ source("modules/CreateCorrespondingDateAndTime.r")
 source("modules/DataFraming.r")
 source("modules/SummaryStatistics.r")
 source("modules/util.r")
+source("modules/BiWeekly.r")
+source("modules/ToHourValues.r")
+source("modules/DBFreader.r")
 
 #source("modules/IntersectsBoolean.r")
 #source("modules/ConversionTable.r")
@@ -74,7 +81,6 @@ source("modules/util.r")
 #source("modules/TimePhases.r")
 #source("modules/IncludeWeekends.r")
 #source("modules/SecondaryRelation.r")
-#source("modules/DBFreader.r")
 #source("modules/WeightCR.r")
 #source("modules/RGBtoSingleBand.r")
 #source("modules/TimeDifferenceCalculation.r")
@@ -114,7 +120,7 @@ pol = "no2" # "pm25"
 if (DownloadMode == "FTP")
 {
   out.dir = file.path("..", "data", "IRCELINE_test")
-  ftp.filenames = c("20150101_1_NO2.txt.bz2", "20150101_2_NO2.txt.bz2")
+  ftp.filenames = c("20150101_1_", toupper(pol), ".txt.bz2", "20150101_2_", toupper(pol), ".txt.bz2")
   DownloadInputFilesFromIrcelineFTP(ftp.filenames, ftp.pwd, out.dir)
 }
 
@@ -200,16 +206,31 @@ if (!exists("CRAB_Doel") & !file.exists(dir.P))
 csv.Commuting_in = file.path("..", "data", "BE_FL", "CommutingStats.csv")
 Commuting = fread(csv.Commuting_in, sep=",", header=TRUE)
 
-# Read Flanders polygon (improve unzip)
-gml.Flanders_in = file.path("..", "data", "BE_FL", "Refgew.gml")
-Flanders = readOGR(gml.Flanders_in, layer = "Refgew")
+# # Read Flanders polygon (improve unzip)
+# gml.Flanders_in = file.path("..", "data", "BE_FL", "Refgew.gml")
+# Flanders = readOGR(gml.Flanders_in, layer = "Refgew")
+# Flanders@proj4string = BE_crs
+
+Flanders = getData("GADM",country = "Belgium", level = 1)
+Flanders = Flanders[Flanders@data$NAME_1 == "Vlaanderen",]
+Flanders = spTransform(Flanders, BE_crs)
 Flanders@proj4string = BE_crs
+
+# Read Flanders polygon
+Belgium = getData("GADM",country="Belgium", level = 0)
+Belgium = spTransform(Belgium, BE_crs)
+Belgium@proj4string = BE_crs
+# Create buffer to mimic the range of the RIO-IFDM points
+Belgium = gBuffer(Belgium, byid = F, id = NULL, width = 2000)
+
+# lines(Belgium, col = "red")
+# points(Points.NoVal, col = "lightgray", pch = ".")
 
 ## Determine PPH for the active profile.
 # Check if data already exists. If so, it will not run.
 if (!file.exists(dir.P) & !file.exists(dir.S))
 {
-  DeterminePPH_FL(CRAB_Doel, Names, 25, OSRM.Level, Active.Type, Plot = TRUE, SaveResults = TRUE)
+  DeterminePPH_FL(CRAB_Doel, Names, 100, OSRM.Level, Active.Type, Plot = TRUE, SaveResults = TRUE, Belgium)
 }
 
 # Remove the data in the environment that will not be used from this point.
@@ -246,18 +267,21 @@ OriginalTimezone = Sys.timezone(location = TRUE) # All system settings should be
 Sys.setenv(TZ = "GMT")
 YearDates = YearDates2(year.active)
 
+
+# Official holydays (for all profiles)
+csv.OfficialHolidays_in = file.path("..", "data", "BE", "OfficialHolidays.csv")
+OfficialHolidays = fread(csv.OfficialHolidays_in, sep = ";", header=TRUE)
+
+# School holidays (School Pupils only)
+csv.SchoolHolidays_in = file.path("..", "data", "BE_FL", "SchoolHolidays.csv")
+SchoolHolidays = fread(csv.SchoolHolidays_in, sep = ";", header=TRUE)
+
 if (Active.Type == "01.OW")
 {
-  # Official holydays (for all profiles)
-  csv.OfficialHolidays_in = file.path("..", "data", "BE", "OfficialHolidays.csv")
-  OfficialHolidays = fread(csv.OfficialHolidays_in, sep = ";", header=TRUE)
   HoliDates = as.POSIXct(OfficialHolidays$Datum)
 }
 if (Active.Type == "03.SP")
 {
-  # School holidays (School Pupils only)
-  csv.SchoolHolidays_in = file.path("..", "data", "BE_FL", "SchoolHolidays.csv")
-  SchoolHolidays = fread(csv.SchoolHolidays_in, sep = ";", header=TRUE)
   HoliDates = HolidayGenerator(SchoolHolidays) #2015 only
 }
 
@@ -266,48 +290,56 @@ if (Active.Subprofile$Dynamics == "dynamic")
   BusinesDates = DateType(YearDates, "Workdays", HoliDates)
   WeekendDates = DateType(YearDates, "Weekends")
   
-  
   # Convert Transport to points for equal durations
-  PPH.T1.Pnt.eq.Li = SimplifyRoutes(PPH.T1, TRUE, Factor = 100) # Factor should be desirable resulting amount
+  PPH.T1.Pnt.eq.Li = SimplifyRoutes(PPH.T1, FALSE, Factor = 100) # Factor should be desirable resulting amount
   PPH.T2.Pnt.eq.Li = SimplifyRoutes(PPH.T2, FALSE, Factor = 100)
   
-  Simplify = TRUE
+#   for (i in seq_along(PPH.T1))
+#   {
+#     print(length(PPH.T1.Pnt.eq.Li[[i]]))
+#     print(length(PPH.T2.Pnt.eq.Li[[i]]))
+#   }
   
-  if (Simplify)
-  {
-    PPH.T1.Simp = gSimplify(PPH.T1, 75, topologyPreserve = TRUE)
-    PPH.T2.Simp = gSimplify(PPH.T2, 75, topologyPreserve = TRUE)
-    
-    PPH.T1.Simp.Pnt.Li = list()
-    PPH.T2.Simp.Pnt.Li = list()
-  }
-  PPH.T1.Pnt.Li = list()
-  PPH.T2.Pnt.Li = list()
+#   Simplify = TRUE
+#   
+#   if (Simplify)
+#   {
+#     PPH.T1.Simp = gSimplify(PPH.T1, 75, topologyPreserve = TRUE)
+#     PPH.T2.Simp = gSimplify(PPH.T2, 75, topologyPreserve = TRUE)
+#     
+#     PPH.T1.Simp.Pnt.Li = list()
+#     PPH.T2.Simp.Pnt.Li = list()
+#   }
+
+#   
+#   for (i in seq_along(PPH.T1))
+#   {
+#     if (Simplify)
+#     {
+#       PPH.T1.Simp.Pnt.Li[[i]] = as(PPH.T1.Simp[i,], "SpatialPoints")
+#       PPH.T2.Simp.Pnt.Li[[i]] = as(PPH.T2.Simp[i,], "SpatialPoints")
+#       
+#       points(PPH.T1.Simp.Pnt.Li[[i]], col = "blue")
+#       points(PPH.T2.Simp.Pnt.Li[[i]], col = "blue")
+#     }
+
+#     
+#     points(PPH.T1.Pnt.Li[[i]])
+#     points(PPH.T2.Pnt.Li[[i]])
+#   }
   
-  for (i in seq_along(PPH.T1))
-  {
-    if (Simplify)
-    {
-      PPH.T1.Simp.Pnt.Li[[i]] = as(PPH.T1.Simp[i,], "SpatialPoints")
-      PPH.T2.Simp.Pnt.Li[[i]] = as(PPH.T2.Simp[i,], "SpatialPoints")
-      
-      points(PPH.T1.Simp.Pnt.Li[[i]], col = "blue")
-      points(PPH.T2.Simp.Pnt.Li[[i]], col = "blue")
-    }
-    PPH.T1.Pnt.Li[[i]] = as(PPH.T1[i,], "SpatialPoints")
-    PPH.T2.Pnt.Li[[i]] = as(PPH.T2[i,], "SpatialPoints")
-    
-    points(PPH.T1.Pnt.Li[[i]])
-    points(PPH.T2.Pnt.Li[[i]])
-  }
-  
-  PPH.T1.PNT.RS = RandomSampleRoutesYears(PPH.T1.Pnt.eq.Li, TRUE, 25, YearDates, BusinesDates)
+  PPH.T1.PNT.RS = RandomSampleRoutesYears(PPH.T1.Pnt.eq.Li, FALSE, 25, YearDates, BusinesDates)
   PPH.T2.PNT.RS = RandomSampleRoutesYears(PPH.T2.Pnt.eq.Li, FALSE, 25, YearDates, BusinesDates)
 
+  PPH.T1.Pnt.Li = list()
+  PPH.T2.Pnt.Li = list()
   for (i in seq_along(PPH.P))
   {
-    print(length(PPH.T1.PNT.RS[[i]][[6]]))
-    print(length(PPH.T2.PNT.RS[[i]][[6]]))
+#     print(length(PPH.T1.PNT.RS[[i]][[6]]))
+#     print(length(PPH.T2.PNT.RS[[i]][[6]]))
+    
+    PPH.T1.Pnt.Li[[i]] = as(PPH.T1[i,], "SpatialPoints")
+    PPH.T2.Pnt.Li[[i]] = as(PPH.T2[i,], "SpatialPoints")
   }
   
   # some test plots
@@ -354,28 +386,28 @@ if (Active.Subprofile$Dynamics == "dynamic")  #Active.Profile$Dynamics == "dynam
 }
 
 # Write TIME to disk
-WriteToDisk = FALSE
+WriteToDisk = TRUE
 if (WriteToDisk)
 {
-  SaveAsDBF(TIME.P, "TIME_P", Active.Type)
+  SaveAsDBF(TIME.P, "TIME_P", Active.Subtype)
   
   if (Active.Subprofile$Dynamics == "dynamic")
   {
-    SaveAsDBF(TIME.S, "TIME_S", Active.Type)
-    SaveAsDBF(TIME.T1, "TIME_T1", Active.Type)
-    SaveAsDBF(TIME.T2, "TIME_T2", Active.Type)
+    SaveAsDBF(TIME.S, "TIME_S", Active.Subtype)
+    SaveAsDBF(TIME.T1, "TIME_T1", Active.Subtype)
+    SaveAsDBF(TIME.T2, "TIME_T2", Active.Subtype)
   }
 }
 
 #rm(dir.P, dir.S, dir.T1f, dir.T1s, dir.T2f, dir.T2s)
 
 #Read DBF file with TIME 
-TIME.P = DBFreader("Time", "Primary", PPH.P, YearDates, Active.Type)
+TIME.P = DBFreader("Time", "Primary", PPH.P, YearDates, Active.Subtype)
 if (Active.Subprofile$Dynamics == "dynamic")
 {
-  TIME.S = DBFreader("Time", "Secondary", PPH.P, YearDates, Active.Type)
-  TIME.T1 = DBFreader("Time", "T1", PPH.P, YearDates, Active.Type)
-  TIME.T2 = DBFreader("Time", "T2", PPH.P, YearDates, Active.Type)
+  TIME.S = DBFreader("Time", "Secondary", PPH.P, YearDates, Active.Subtype)
+  TIME.T1 = DBFreader("Time", "T1", PPH.P, YearDates, Active.Subtype)
+  TIME.T2 = DBFreader("Time", "T2", PPH.P, YearDates, Active.Subtype)
 }
 
 ## Read Air Quality data
@@ -419,7 +451,7 @@ if (ExternalDrive)
   PolDir = file.path("..", "data", "BE", "IRCELINE")
 }
 
-txt.Points = ExtractBZ2(pol, PolDir, 1, 50)
+#txt.Points = ExtractBZ2(pol, PolDir, 1, 50)
 
 # Read the base | # Read from compressed bz2 file
 BaseFile = paste0(year.active, "0101_1_", toupper(pol), ".txt")
@@ -457,12 +489,29 @@ rm(Points)
 # Points.AoI.NoDup = Points.AoI[!duplicated(Points.AoI@coords), ]
 # #SaveAsFile(Points.AoI.NoDup, paste("Points_AoI_RIO-IFDM", "CON_20150101_19_NO2", sep = "_"), "GeoJSON", TRUE)
 
+
+Time = seq(as.POSIXct(paste0(year.active,"-01-01 00:00:00")),
+           (as.POSIXct(paste0(year.active+1,"-01-01 00:00:00")) - 1*60**2), 1*60**2) + 1*60**2
+
+# Detect which hours belong to which points
+WHICH = WhichHourForWhichPoint(PPH.P, Time, HOURS.P, HOURS.S, HOURS.T1, HOURS.T2, Print = FALSE) 
+wP = WHICH[[1]]
+if (Active.Subprofile$Dynamics == "dynamic")
+{
+  wS = WHICH[[2]]
+  wT1 = WHICH[[3]]
+  wT2 = WHICH[[4]]
+}
+
+wT2[[3]][1:168]
+
 ## Interpolating the points
 
 start.time = Sys.time()
 ExposureValue.All = PPH.TIN.InterpolationWS(PPH.P, PPH.S, PPH.T1.PNT.RS, PPH.T2.PNT.RS, Points.NoVal, PolDir, Plot = FALSE,
-                                            pol, StartHour = 1, EndHour = 21*24,
-                                            HOURS.P, HOURS.S, HOURS.T1, HOURS.T2, 50)
+                                            pol, StartHour = 5*24+1, EndHour = 6*24,
+                                            HOURS.P, HOURS.S, HOURS.T1, HOURS.T2, 50,
+                                            wP, wS, wT1, wT2)
 ExposureValue.P = ExposureValue.All[[1]]
 if (Active.Subprofile$Dynamics == "dynamic")
 {
@@ -480,14 +529,39 @@ head(ExposureValue.S[[1]])
 head(ExposureValue.T1[[1]])
 head(ExposureValue.T2[[1]])
 
+# Write TIME to disk
+WriteToDisk = TRUE
+if (WriteToDisk)
+{
+  SaveAsDBF(ExposureValue.P, "EXP_P", Active.Subtype)
+  if (Active.Subprofile$Dynamics == "dynamic")
+  {
+    SaveAsDBF(ExposureValue.S, "EXP_S", Active.Subtype)
+    SaveAsDBF(ExposureValue.T1, "EXP_T1", Active.Subtype)
+    SaveAsDBF(ExposureValue.T2, "EXP_T2", Active.Subtype)
+  }
+}
+
+#Read DBF file with Exposurevalues 
+ExposureValue.P = DBFreader("Exposure", "Primary", PPH.P, YearDates, Active.Subtype)
+if (Active.Subprofile$Dynamics == "dynamic")
+{
+  ExposureValue.S = DBFreader("Exposure", "Secondary", PPH.P, YearDates, Active.Subtype)
+  ExposureValue.T1 = DBFreader("Exposure", "T1", PPH.P, YearDates, Active.Subtype)
+  ExposureValue.T2 = DBFreader("Exposure", "T2", PPH.P, YearDates, Active.Subtype)
+}
+
+all(round(ExposureValue.P_[[88]][[46]], 5) == round(ExposureValue.P[[88]][[46]], 5))
+ExposureValue.T1[[88]]
+
 rm(Primary, Primary_random, Secondary, src1, src2, dst1, dst2)
 
 ## Data Frame structure and stats
 
-ST.DF.P = DF.Structure2(TIME.P, TIME.P, ExposureValue.P)
-ST.DF.S = DF.Structure2(TIME.P, TIME.S, ExposureValue.S)
-ST.DF.T1 = DF.Structure2(TIME.P, TIME.T1, ExposureValue.T1)
-ST.DF.T2 = DF.Structure2(TIME.P, TIME.T2, ExposureValue.T2)
+ST.DF.P = DF.Structure2(PPH.P, TIME.P, TIME.P, ExposureValue.P)
+ST.DF.S = DF.Structure2(PPH.P, TIME.P, TIME.S, ExposureValue.S)
+ST.DF.T1 = DF.Structure2(PPH.P[1:41,], TIME.P, TIME.T1, ExposureValue.T1)
+ST.DF.T2 = DF.Structure2(PPH.P, TIME.P, TIME.T2, ExposureValue.T2)
 
 stats.EXP.P = DF.Stats(ST.DF.P)
 stats.EXP.S = DF.Stats(ST.DF.S)
@@ -495,143 +569,75 @@ stats.EXP.T1 = DF.Stats(ST.DF.T1)
 stats.EXP.T2 = DF.Stats(ST.DF.T2)
 
 
+
+
 ## Temporal aggregation
 
-Time = seq(as.POSIXct(paste0(year.active,"-01-01 00:00:00")),
-           (as.POSIXct(paste0(year.active+1,"-01-01 00:00:00")) - 1*60**2), 1*60**2) + 1*60**2
-
-TIME.HR = list()
-ExposureValueCombined = list()
+ExposureValueCombined = ToHourValues(PPH.P, Time, ExposureValue.P, ExposureValue.S, ExposureValue.T1, ExposureValue.T2,
+                                     TIME.P, TIME.S, TIME.T1, TIME.T2, wP, wS, wT1, wT2)
 for (i in seq_along(PPH.P))
 {
-  TIME.HR[[i]] = Time
-  
-  ExposureValueCombined[[i]] = 1:(length(Time))
-  ExposureValueCombined[[i]][ExposureValueCombined[[i]] > 0] = NA
+  print(head(ExposureValueCombined[[i]], 2*24))
 }
-
-#for (h in 1:(24*length(YearDates)))
-for (h in 1:(21*24))
-{
-  print(paste0("Series Hour ", h))
-  day = ceiling(h/24)
-  
-  wP = list()
-  wS = list()
-  wT1 = list()
-  wT2 = list()
-  
-  for (i in seq_along(PPH.P))
-  {
-    wP[[i]] = which(h == HOURS.P[[i]][[day]])
-    wS[[i]] = which(h == HOURS.S[[i]][[day]])
-    wT1[[i]] = which(h == HOURS.T1[[i]][[day]])
-    wT2[[i]] = which(h == HOURS.T2[[i]][[day]])
-    
-    if (length(wP[[i]]) > 0 & !length(wT1[[i]]) > 0 & !length(wT2[[i]]) > 0) # Only P, no hour overlap
-    {
-      ExposureValueCombined[[i]][h] = ExposureValue.P[[i]][[day]][wP[[i]]]
-    }
-    
-    if (length(wS[[i]]) > 0 & !length(wT1[[i]]) > 0 & !length(wT2[[i]]) > 0) # Only S, no hour overlap
-    {
-      ExposureValueCombined[[i]][h] = ExposureValue.S[[i]][[day]][wS[[i]]]
-    }
-    
-    if (length(wT1[[i]]) > 0 & length(wS[[i]]) == 1) # Hour overlap T1 & S
-    {
-      Mean.T1 = mean(ExposureValue.T1[[i]][[day]][wT1[[i]]])
-      Weight.T1 = as.numeric(tail(TIME.T1[[i]][[day]][wT1[[i]]],1) - 
-                               floor_date(tail(TIME.T1[[i]][[day]][wT1[[i]]],1), 'hours')) / 60
-      
-      Weight.S = as.numeric(TIME.S[[i]][[day]][1] - tail(TIME.T1[[i]][[day]][wT1[[i]]],1)) / 60
-      #Weight.T1 + Weight.S # should be 1
-      
-      ExposureValueCombined[[i]][h] = Mean.T1 * Weight.T1 + ExposureValue.S[[i]][[day]][wS[[i]]] * Weight.S
-    }
-    
-    if (length(wT1[[i]]) > 0 & length(wS[[i]]) == 0) # Only T1, no hour overlap
-    {
-      Mean.T1 = mean(ExposureValue.T1[[i]][[day]][wT1[[i]]])
-      
-      ExposureValueCombined[[i]][h] = Mean.T1
-    }
-    
-    
-    if (length(wT2[[i]]) > 0 & length(wP[[i]]) == 1) # Hour overlap T2 & P
-    {
-      Mean.T2 = mean(ExposureValue.T2[[i]][[day]][wT2[[i]]])
-      Weight.T2 = as.numeric(tail(TIME.T2[[i]][[day]][wT2[[i]]],1) -
-                               floor_date(tail(TIME.T2[[i]][[day]][wT2[[i]]],1), 'hours')) / 60
-      
-      Weight.P = as.numeric(TIME.P[[i]][[day]][wP[[i]]] - tail(TIME.T2[[i]][[day]][wT2[[i]]],1)) / 60
-      #Weight.T2 + Weight.P # should be 1
-      
-      ExposureValueCombined[[i]][h] = Mean.T2 * Weight.T2 + ExposureValue.P[[i]][[day]][wP[[i]]] * Weight.P
-    }
-    
-    if (length(wT2[[i]]) > 0 & length(wP[[i]]) == 0) # Only T2, no hour overlap
-    {
-      Mean.T2 = mean(ExposureValue.T2[[i]][[day]][wT2[[i]]])
-      
-      ExposureValueCombined[[i]][h] = Mean.T2
-    }
-    
-    #ExposureValueCombined[[i]]
-  } # closing i
-  
-} # closing h
-
-for (i in seq_along(PPH.P))
-{
-  print(head(ExposureValueCombined[[i]], 21*24))
-}
+head(ExposureValueCombined[[88]], 2*24)
 
 ST.DF.HR = DF.Structure2(TIME.P, Time, ExposureValueCombined)
 stats.EXP.HR = DF.Stats(ST.DF.HR)
 
 
+# Biweekly generator
+BIWEEKLY = BiWeekly(year.active, YearDates, SchoolHolidays, TIME.P)
 
-wP = list()
-wS = list()
-wT1 = list()
-wT2 = list()
+# Subset biweekly
+ST.DF.HR.BiWe = ST.DF.HR[ST.DF.HR$TIME >= BIWEEKLY[[1]][1] & ST.DF.HR$TIME <= BIWEEKLY[[1]][14] |
+                           ST.DF.HR$TIME >= BIWEEKLY[[2]][1] & ST.DF.HR$TIME <= BIWEEKLY[[2]][14] |
+                           ST.DF.HR$TIME >= BIWEEKLY[[3]][1] & ST.DF.HR$TIME <= BIWEEKLY[[3]][14],]
+
+## Individual based calculations
+# personal mean
+
+WS1.INDmean = NA
+WS2.INDmean = NA
+WS1.INDmax = NA
+WS2.INDmax = NA
 
 for (i in seq_along(PPH.P))
-#for (i in 1:2)  
 {
-  P = list()
-  S = list()
-  T1 = list()
-  T2 = list()
-  for (h in seq_along(Time))
-  #for (h in 1:(7*24))
-  {
-    day = ceiling(h/24)
-    print(paste0("Year Hour ", h))
-    print(paste0("Day ", day))
-    
-    P[[h]] = which(h == HOURS.P[[i]][[day]])
-    S[[h]] = which(h == HOURS.S[[i]][[day]])
-    T1[[h]] = which(h == HOURS.T1[[i]][[day]])
-    T2[[h]] = which(h == HOURS.T2[[i]][[day]])
-  }
-  wP[[i]] = P
-  wS[[i]] = S
-  wT1[[i]] = T1
-  wT2[[i]] = T2
+  WS1.INDmean[i] = mean(ST.DF.HR[ST.DF.HR$IND == i,]$EXP)
+  WS2.INDmean[i] = mean(ST.DF.HR.BiWe[ST.DF.HR.BiWe$IND == i,]$EXP)
+  
+  WS1.INDmax[i] = max(ST.DF.HR[ST.DF.HR$IND == i,]$EXP)
+  WS2.INDmax[i] = max(ST.DF.HR.BiWe[ST.DF.HR.BiWe$IND == i,]$EXP)
 }
-wP[[1]]
-wT1[[2]][[33]]
-HOURS.T1[[1]][[2]]
+
+plot(WS1.INDmean, WS2.INDmean, main = paste(Active.Subtype,"WS1 vs. WS2 (µg/m³)", length(PPH.P), "individuals") , pch = "+")
+R.squared = cor(WS1.INDmean, WS2.INDmean)**2
+text(min(WS1.INDmean), max(WS1.INDmean), pos = 1, labels = "R²:", font = 2)
+text(min(WS1.INDmean)+4, max(WS1.INDmean), pos = 1, labels = R.squared)
 
 
+plot(WS1.INDmax, WS2.INDmax, main = "WS1 vs. WS2 (µg/m³)", pch = "+")
+
+
+# Add fit lines
+abline(lm(WS1.INDmean~WS2.INDmean), col="red") # regression line (y~x)
+lines(lowess(WS2.INDmean,WS1.INDmean), col="blue") # lowess line (x,y) 
+
+plot(WS1.INDmean, WS2.INDmean)
+str(summary(M.lm))
 
 # Plotting results
 Ind = 25
 Plot.PersonalExposureGraph(Ind, 2, 5) # (Individual, Start(working)Day, Amount of days)
 
 Plot.Group2(Active.Type, 1, 7, 25, TRUE)
+
+
+
+
+
+
+
 
 
 
@@ -1080,7 +1086,7 @@ Sys.setenv(TZ = OriginalTimezone)
 # # 
 # # # Create buffer of Flanders
 # # Flanders_buff = gBuffer(Flanders, byid = F, id = NULL, width = 5000)
-# # lines(Flanders_buff, col = "blue")
+# # plot(Flanders_buff, col = NULL, add = T)
 # # 
 # # # Read Belgian polygon (improve unzip)
 # # ## Read the input data
