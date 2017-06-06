@@ -223,7 +223,7 @@ Belgium@proj4string = BE_crs
 # Create buffer to mimic the range of the RIO-IFDM points
 Belgium = gBuffer(Belgium, byid = F, id = NULL, width = 2000)
 
-# lines(Belgium, col = "red")
+# plot(Belgium, col = "red")
 # points(Points.NoVal, col = "lightgray", pch = ".")
 
 ## Determine PPH for the active profile.
@@ -366,13 +366,6 @@ if (Active.Subprofile$Dynamics == "dynamic")
 }
 rm(TIME)
 
-DurationCorrection = FALSE
-if (DurationCorrection)
-{
-  PPH.T1@data$duration = PPH.T1@data$duration * 1.2 # duration correction
-  PPH.T2@data$duration = PPH.T2@data$duration * 1.2 # duration correction
-}
-
 # Hours of the year
 HOURS.P = HourOfTheYear7(year.active, TIME.P, 0)
 if (Active.Subprofile$Dynamics == "dynamic")  #Active.Profile$Dynamics == "dynamic"
@@ -390,7 +383,6 @@ WriteToDisk = TRUE
 if (WriteToDisk)
 {
   SaveAsDBF(TIME.P, "TIME_P", Active.Subtype)
-  
   if (Active.Subprofile$Dynamics == "dynamic")
   {
     SaveAsDBF(TIME.S, "TIME_S", Active.Subtype)
@@ -503,13 +495,14 @@ if (Active.Subprofile$Dynamics == "dynamic")
   wT2 = WHICH[[4]]
 }
 
-wT2[[3]][1:168]
+PPH.T1[7,]@data
+wT2[[7]][1:168]
 
 ## Interpolating the points
 
 start.time = Sys.time()
-ExposureValue.All = PPH.TIN.InterpolationWS(PPH.P, PPH.S, PPH.T1.PNT.RS, PPH.T2.PNT.RS, Points.NoVal, PolDir, Plot = FALSE,
-                                            pol, StartHour = 5*24+1, EndHour = 6*24,
+ExposureValue.All = PPH.TIN.InterpolationWS(PPH.P, PPH.S, PPH.T1.PNT.RS, PPH.T2.PNT.RS, Points.NoVal, PolDir, Plot = T,
+                                            pol, StartHour = 1, EndHour = length(Time),
                                             HOURS.P, HOURS.S, HOURS.T1, HOURS.T2, 50,
                                             wP, wS, wT1, wT2)
 ExposureValue.P = ExposureValue.All[[1]]
@@ -560,7 +553,7 @@ rm(Primary, Primary_random, Secondary, src1, src2, dst1, dst2)
 
 ST.DF.P = DF.Structure2(PPH.P, TIME.P, TIME.P, ExposureValue.P)
 ST.DF.S = DF.Structure2(PPH.P, TIME.P, TIME.S, ExposureValue.S)
-ST.DF.T1 = DF.Structure2(PPH.P[1:41,], TIME.P, TIME.T1, ExposureValue.T1)
+ST.DF.T1 = DF.Structure2(PPH.P, TIME.P, TIME.T1, ExposureValue.T1)
 ST.DF.T2 = DF.Structure2(PPH.P, TIME.P, TIME.T2, ExposureValue.T2)
 
 stats.EXP.P = DF.Stats(ST.DF.P)
@@ -579,14 +572,17 @@ for (i in seq_along(PPH.P))
 {
   print(head(ExposureValueCombined[[i]], 2*24))
 }
-head(ExposureValueCombined[[88]], 2*24)
+head(ExposureValueCombined[[88]], 7*24)
 
-ST.DF.HR = DF.Structure2(TIME.P, Time, ExposureValueCombined)
+ST.DF.HR = DF.Structure2(PPH.P, TIME.P, Time, ExposureValueCombined)
 stats.EXP.HR = DF.Stats(ST.DF.HR)
 
 
 # Biweekly generator
-BIWEEKLY = BiWeekly(year.active, YearDates, SchoolHolidays, TIME.P)
+if (!exists("BIWEEKLY"))
+{
+  BIWEEKLY = BiWeekly(year.active, YearDates, SchoolHolidays, TIME.P)
+}
 
 # Subset biweekly
 ST.DF.HR.BiWe = ST.DF.HR[ST.DF.HR$TIME >= BIWEEKLY[[1]][1] & ST.DF.HR$TIME <= BIWEEKLY[[1]][14] |

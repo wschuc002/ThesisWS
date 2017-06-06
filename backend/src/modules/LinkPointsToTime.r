@@ -44,19 +44,19 @@ HolidayGenerator <- function(HolidayPeriods, ...)
 
 
 # PPH.T = PPH.T1
-# PPH.T.SP = PPH.T1.Pnt
+# PPH.T.SP = PPH.T1.Pnt.Li
 # Year = year.active
 # Direction.T = "Outwards"
 # Method = "simplified"
 
-LinkPointsToTime.Transport <- function(Direction.T, PPH.T, PPH.T.SP, Year, Active.Profile, Method, ...)
+LinkPointsToTime.Transport <- function(Direction.T, PPH.T, PPH.T.SP, Year, Active.Subprofile, ...)
 {
   if (Direction.T == "Outwards")
   {
-    StartTime = as.numeric(Active.Profile$TimeLeavingPrimary) / 100
+    StartTime = as.numeric(Active.Subprofile$TimeLeavingPrimary) / 100
   } else
   {
-    StartTime = as.numeric(Active.Profile$TimeLeavingSecondary) / 100
+    StartTime = as.numeric(Active.Subprofile$TimeLeavingSecondary) / 100
   }
   Minutes = (StartTime %% 1) * 100 / 60
   StartTime = StartTime - (StartTime %% 1) + Minutes

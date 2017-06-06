@@ -394,8 +394,9 @@ DeterminePPH_FL <- function(CRAB_Doel, Names.sub, FL.primary, OSRM.Level, Active
   
     PPH.T1.Li = list()
     PPH.T2.Li = list()
+    SecondaryPaired.Li = list()
     
-    Outsiders = seq_along(PPH.P)
+    Outsiders = seq_along(Primary_random)
     success = FALSE
   
     while(!success) # prevent that routes outside country will pass
@@ -411,7 +412,7 @@ DeterminePPH_FL <- function(CRAB_Doel, Names.sub, FL.primary, OSRM.Level, Active
           # Secondary = CRAB_Doel[CRAB_Doel@data$DOEL %in% "Economische functie" | CRAB_Doel@data$DOEL %in% "Company" ,]
           
           SecondaryPaired = CommutingDistancePairer(Primary_random[Outsiders,], Secondary, MaxLinKM = 60,
-                                                    SEC.SampleSize = 100, Plot = TRUE)
+                                                    SEC.SampleSize = 50, Plot = TRUE)
         }
         
         #Subset: only schools
@@ -438,6 +439,8 @@ DeterminePPH_FL <- function(CRAB_Doel, Names.sub, FL.primary, OSRM.Level, Active
         #       head(PRI)
         #     }
         
+        #SecondaryPaired = Secondary[Secondary@data$ID %in% sample(Secondary@data$ID, 100),]
+        
         if (Plot){points(SecondaryPaired, col = "orange")}
         
         # create the routes (New method, works with multiple profiles like bicycle for 03.SP and motorcar for 01.OW)
@@ -450,12 +453,14 @@ DeterminePPH_FL <- function(CRAB_Doel, Names.sub, FL.primary, OSRM.Level, Active
             I = Outsiders[i]
             PPH.T1.Li[[I]] = PPH.T[[1]][i,] #Outwards
             PPH.T2.Li[[I]] = PPH.T[[2]][i,] #Inwards
+            SecondaryPaired.Li[[I]] = SecondaryPaired[i,]
           }
         }
           
         PPH.T1 = do.call(rbind, PPH.T1.Li)
         PPH.T2 = do.call(rbind, PPH.T2.Li)
-
+        SecondaryPaired = do.call(rbind, SecondaryPaired.Li)
+      
         Outsiders = PPH.T[[3]]
         
         # mean(PPH.T1@data$distance)

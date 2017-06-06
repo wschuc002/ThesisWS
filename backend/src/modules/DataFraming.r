@@ -22,8 +22,8 @@ if(length(new.packages)) install.packages(new.packages)
 ## Load the packages
 #library(sp)
 
-#TIME = TIME.T1
-#ExposureValue = ExposureValue.T1
+#TIME = Time
+#ExposureValue = ExposureValueCombined
 
 DF.Structure2 <- function(PPH.P, TIME.P, TIME, ExposureValue, ...)
 {
@@ -49,20 +49,24 @@ DF.Structure2 <- function(PPH.P, TIME.P, TIME, ExposureValue, ...)
       ExposureValue.ul[[i]] = unlist(ExposureValue[[i]])
       
       # remove NAs
-      TIME.ul[[i]] = TIME.ul[[i]][!is.na(TIME.ul[[i]])]
+      TIME.ul[[i]] = TIME.ul[[i]][!is.na(ExposureValue.ul[[i]])]
       ExposureValue.ul[[i]] = ExposureValue.ul[[i]][!is.na(ExposureValue.ul[[i]])]
+      
+      # correction when not the whole year is used
+      #TIME.ul[[i]] = TIME.ul[[i]][!is.na(ExposureValue.ul[[i]])]
+      
     }
   }
   
   #length(ExposureValue.ul[[i]])
   #length(TIME.ul[[i]])
-  length(ExposureValue.ul[[i]]) - length(TIME.ul[[i]]) == 0
+  #length(ExposureValue.ul[[i]]) - length(TIME.ul[[i]]) == 0
   
-  for (d in seq_along(ExposureValue[[i]]))
-  {
-    #print(length(ExposureValue[[i]][[d]]))
-    print(length(TIME[[i]][[d]]))
-  }
+  # for (d in seq_along(ExposureValue[[i]]))
+  # {
+  #   #print(length(ExposureValue[[i]][[d]]))
+  #   print(length(TIME[[i]][[d]]))
+  # }
   
   
   ST.DF = list()
