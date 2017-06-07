@@ -23,7 +23,8 @@
 # library(data.table)
 
 
-WhichHourForWhichPoint <- function(PPH.P, Time, HOURS.P, HOURS.S, HOURS.T1, HOURS.T2, Print = FALSE, ...)
+WhichHourForWhichPoint <- function(PPH.P, Time, HOURS.P, HOURS.S, HOURS.T1, HOURS.T2,
+                                   Print = FALSE, Active.Subprofile, ...)
 {
   wP = list()
   wS = list()
@@ -48,14 +49,20 @@ WhichHourForWhichPoint <- function(PPH.P, Time, HOURS.P, HOURS.S, HOURS.T1, HOUR
         }
       
       P[[h]] = which(h == HOURS.P[[i]][[day]])
-      S[[h]] = which(h == HOURS.S[[i]][[day]])
-      T1[[h]] = which(h == HOURS.T1[[i]][[day]])
-      T2[[h]] = which(h == HOURS.T2[[i]][[day]])
+      if (Active.Subprofile$Dynamics == "dynamic")
+      {
+        S[[h]] = which(h == HOURS.S[[i]][[day]])
+        T1[[h]] = which(h == HOURS.T1[[i]][[day]])
+        T2[[h]] = which(h == HOURS.T2[[i]][[day]])
+      }
     }
     wP[[i]] = P
-    wS[[i]] = S
-    wT1[[i]] = T1
-    wT2[[i]] = T2
+    if (Active.Subprofile$Dynamics == "dynamic")
+    {
+      wS[[i]] = S
+      wT1[[i]] = T1
+      wT2[[i]] = T2
+    }
   }
   
   return(list(wP, wS, wT1, wT2))

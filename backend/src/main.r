@@ -153,9 +153,35 @@ for (Active.Type in unique(ResidentialProfiles$Type))
   print(Active.Type)
 }
 
+# new statistics on Commuting (Office Worker only)
+csv.Commuting_in = file.path("..", "data", "BE_FL", "CommutingStats.csv")
+Commuting = fread(csv.Commuting_in, sep=",", header=TRUE)
+
+# # Read Flanders polygon (improve unzip)
+# gml.Flanders_in = file.path("..", "data", "BE_FL", "Refgew.gml")
+# Flanders = readOGR(gml.Flanders_in, layer = "Refgew")
+# Flanders@proj4string = BE_crs
+
+Flanders = getData("GADM",country = "Belgium", level = 1)
+Flanders = Flanders[Flanders@data$NAME_1 == "Vlaanderen",]
+Flanders = spTransform(Flanders, BE_crs)
+Flanders@proj4string = BE_crs
+
+# Read Flanders polygon
+Belgium = getData("GADM",country="Belgium", level = 0)
+Belgium = spTransform(Belgium, BE_crs)
+Belgium@proj4string = BE_crs
+# Create buffer to mimic the range of the RIO-IFDM points
+Belgium = gBuffer(Belgium, byid = F, id = NULL, width = 2000)
+
+# plot(Belgium, col = "red")
+# points(Points.NoVal, col = "lightgray", pch = ".")
+
+
+
 # Select active Residential Profile
-Active.Type = "01.OW"
-Active.Subtype = "01.OW_WS1"
+Active.Type = "02.HO"
+Active.Subtype = "02.HO_WS1"
 
 Active.Profile = ResidentialProfiles[ResidentialProfiles$Type == Active.Type,]
 Active.Subprofile = ResidentialProfiles[ResidentialProfiles$Subtype == Active.Subtype,]
@@ -197,38 +223,9 @@ if (!exists("CRAB_Doel") & !file.exists(dir.P))
   }
 }
 
-# if (OSRM.Level != "full" & OSRM.Level != "simplified")
-# {
-#   stop(paste("OSRM.Level should be 'full' or 'simplified'."))
-# }
-
-# new statistics on Commuting (Office Worker only)
-csv.Commuting_in = file.path("..", "data", "BE_FL", "CommutingStats.csv")
-Commuting = fread(csv.Commuting_in, sep=",", header=TRUE)
-
-# # Read Flanders polygon (improve unzip)
-# gml.Flanders_in = file.path("..", "data", "BE_FL", "Refgew.gml")
-# Flanders = readOGR(gml.Flanders_in, layer = "Refgew")
-# Flanders@proj4string = BE_crs
-
-Flanders = getData("GADM",country = "Belgium", level = 1)
-Flanders = Flanders[Flanders@data$NAME_1 == "Vlaanderen",]
-Flanders = spTransform(Flanders, BE_crs)
-Flanders@proj4string = BE_crs
-
-# Read Flanders polygon
-Belgium = getData("GADM",country="Belgium", level = 0)
-Belgium = spTransform(Belgium, BE_crs)
-Belgium@proj4string = BE_crs
-# Create buffer to mimic the range of the RIO-IFDM points
-Belgium = gBuffer(Belgium, byid = F, id = NULL, width = 2000)
-
-# plot(Belgium, col = "red")
-# points(Points.NoVal, col = "lightgray", pch = ".")
-
 ## Determine PPH for the active profile.
 # Check if data already exists. If so, it will not run.
-if (!file.exists(dir.P) & !file.exists(dir.S))
+if (!file.exists(dir.P))
 {
   DeterminePPH_FL(CRAB_Doel, Names, 100, OSRM.Level, Active.Type, Plot = TRUE, SaveResults = TRUE, Belgium)
 }
@@ -242,23 +239,27 @@ if (!exists("PPH.P") & file.exists(dir.P))
   PPH.P@proj4string = BE_crs
 }
 
-if (!exists("PPH.S") & file.exists(dir.S))
+if (Active.Subprofile$Dynamics == "dynamic")
 {
-  PPH.S = readOGR(dir.S, layer = 'OGRGeoJSON') # Error: FIDs not unique
-  PPH.S@proj4string = BE_crs
+  if (!exists("PPH.S") & file.exists(dir.S))
+  {
+    PPH.S = readOGR(dir.S, layer = 'OGRGeoJSON') # Error: FIDs not unique
+    PPH.S@proj4string = BE_crs
+  }
+  
+  if (!exists("PPH.T1") & file.exists(dir.T1))
+  {
+    PPH.T1 = readOGR(dir.T1, layer = 'OGRGeoJSON')
+    PPH.T1@proj4string = BE_crs
+  }
+  
+  if (!exists("PPH.T2") & file.exists(dir.T2))
+  {
+    PPH.T2 = readOGR(dir.T2, layer = 'OGRGeoJSON')
+    PPH.T2@proj4string = BE_crs
+  }
 }
 
-if (!exists("PPH.T1") & file.exists(dir.T1))
-{
-  PPH.T1 = readOGR(dir.T1, layer = 'OGRGeoJSON')
-  PPH.T1@proj4string = BE_crs
-}
-
-if (!exists("PPH.T2") & file.exists(dir.T2))
-{
-  PPH.T2 = readOGR(dir.T2, layer = 'OGRGeoJSON')
-  PPH.T2@proj4string = BE_crs
-}
 
 # Set year of pollutant dataset, determine dates and date types (Workdays~Weekends)
 # Sys.setenv(TZ="Europe/Brussels")
@@ -352,14 +353,15 @@ if (Active.Subprofile$Dynamics == "dynamic")
   # Basic time element per vertex
   TimeVertex.T1 = LinkPointsToTime.Transport("Outwards", PPH.T1, PPH.T1.Pnt.Li, year.active, Active.Subprofile)
   TimeVertex.T2 = LinkPointsToTime.Transport("Inwards", PPH.T2, PPH.T2.Pnt.Li, year.active, Active.Subprofile)
+
 }
 
 TIME = CreateCorrespondingDateAndTime(Active.Type, Active.Subprofile, PPH.P, YearDates, BusinesDates, WeekendDates, HoliDates,
                                       TimeVertex.T1, TimeVertex.T2, PPH.T1.PNT.RS, PPH.T2.PNT.RS)
-PHASES = TIME[[1]]
 TIME.P = TIME[[2]]
 if (Active.Subprofile$Dynamics == "dynamic")
 {
+  PHASES = TIME[[1]]
   TIME.S = TIME[[3]]
   TIME.T1 = TIME[[4]]
   TIME.T2 = TIME[[5]]
@@ -382,24 +384,28 @@ if (Active.Subprofile$Dynamics == "dynamic")  #Active.Profile$Dynamics == "dynam
 WriteToDisk = TRUE
 if (WriteToDisk)
 {
-  SaveAsDBF(TIME.P, "TIME_P", Active.Subtype)
+  SaveAsDBF(TIME.P, "Time", "Primary", YearDates, Active.Subtype, FALSE, pol)
   if (Active.Subprofile$Dynamics == "dynamic")
   {
-    SaveAsDBF(TIME.S, "TIME_S", Active.Subtype)
-    SaveAsDBF(TIME.T1, "TIME_T1", Active.Subtype)
-    SaveAsDBF(TIME.T2, "TIME_T2", Active.Subtype)
+    SaveAsDBF(TIME.S, "Time", "Secondary", YearDates, Active.Subtype, FALSE, pol)
+    SaveAsDBF(TIME.T1, "Time", "T1", YearDates, Active.Subtype, FALSE, pol)
+    SaveAsDBF(TIME.T2, "Time", "T2", YearDates, Active.Subtype, FALSE, pol)
+    
+    # SaveAsDBF(TIME.S, "TIME_S", Active.Subtype, FALSE, pol)
+    # SaveAsDBF(TIME.T1, "TIME_T1", Active.Subtype, FALSE, pol)
+    # SaveAsDBF(TIME.T2, "TIME_T2", Active.Subtype, FALSE, pol)
   }
 }
 
 #rm(dir.P, dir.S, dir.T1f, dir.T1s, dir.T2f, dir.T2s)
 
 #Read DBF file with TIME 
-TIME.P = DBFreader("Time", "Primary", PPH.P, YearDates, Active.Subtype)
+TIME.P = DBFreader("Time", "Primary", PPH.P, YearDates, BusinesDates, Active.Subtype)
 if (Active.Subprofile$Dynamics == "dynamic")
 {
-  TIME.S = DBFreader("Time", "Secondary", PPH.P, YearDates, Active.Subtype)
-  TIME.T1 = DBFreader("Time", "T1", PPH.P, YearDates, Active.Subtype)
-  TIME.T2 = DBFreader("Time", "T2", PPH.P, YearDates, Active.Subtype)
+  TIME.S = DBFreader("Time", "Secondary", PPH.P, YearDates, BusinesDates, Active.Subtype)
+  TIME.T1 = DBFreader("Time", "T1", PPH.P, YearDates, BusinesDates, Active.Subtype)
+  TIME.T2 = DBFreader("Time", "T2", PPH.P, YearDates, BusinesDates, Active.Subtype)
 }
 
 ## Read Air Quality data
@@ -486,7 +492,8 @@ Time = seq(as.POSIXct(paste0(year.active,"-01-01 00:00:00")),
            (as.POSIXct(paste0(year.active+1,"-01-01 00:00:00")) - 1*60**2), 1*60**2) + 1*60**2
 
 # Detect which hours belong to which points
-WHICH = WhichHourForWhichPoint(PPH.P, Time, HOURS.P, HOURS.S, HOURS.T1, HOURS.T2, Print = FALSE) 
+WHICH = WhichHourForWhichPoint(PPH.P, Time, HOURS.P, HOURS.S, HOURS.T1, HOURS.T2,
+                               Print = FALSE, Active.Subprofile) 
 wP = WHICH[[1]]
 if (Active.Subprofile$Dynamics == "dynamic")
 {
@@ -495,13 +502,10 @@ if (Active.Subprofile$Dynamics == "dynamic")
   wT2 = WHICH[[4]]
 }
 
-PPH.T1[7,]@data
-wT2[[7]][1:168]
-
 ## Interpolating the points
 
 start.time = Sys.time()
-ExposureValue.All = PPH.TIN.InterpolationWS(PPH.P, PPH.S, PPH.T1.PNT.RS, PPH.T2.PNT.RS, Points.NoVal, PolDir, Plot = T,
+ExposureValue.All = PPH.TIN.InterpolationWS(PPH.P, PPH.S, PPH.T1.PNT.RS, PPH.T2.PNT.RS, Points.NoVal, PolDir, Plot = F,
                                             pol, StartHour = 1, EndHour = length(Time),
                                             HOURS.P, HOURS.S, HOURS.T1, HOURS.T2, 50,
                                             wP, wS, wT1, wT2)
@@ -515,6 +519,27 @@ if (Active.Subprofile$Dynamics == "dynamic")
 end.time = Sys.time()
 print(end.time - start.time)
 
+CalculatedPoints = (length(na.omit(unlist(ExposureValue.P[[1]]))) +
+  length(na.omit(unlist(ExposureValue.S[[1]]))) +
+  length(na.omit(unlist(ExposureValue.T1[[1]]))) +
+  length(na.omit(unlist(ExposureValue.T2[[1]])))) * length(PPH.P)
+
+PointsPerHour = CalculatedPoints/(as.numeric(end.time - start.time))
+PointsPerMinute = CalculatedPoints/(as.numeric(end.time - start.time)*60)
+PointsPerSecond = CalculatedPoints/(as.numeric(end.time - start.time)*60**2)
+
+DesiredNAvalues.S = length(which(!(YearDates %in% BusinesDates)))
+
+DesiredNAvalues.S * length(PPH.P)
+# check
+for (i in seq_along(PPH.P))
+{
+  #cat(paste(i, length(which(is.na(unlist(ExposureValue.P[[i]]))))," "))
+  #cat(paste(i, length(which(is.na(unlist(ExposureValue.S[[i]]))))," "))
+  #cat(paste(i, length(which(is.na(unlist(ExposureValue.T1[[i]]))))," "))
+  cat(paste(i, length(which(is.na(unlist(ExposureValue.T2[[i]]))))," "))
+}
+
 rm(ExposureValue.All)
 
 head(ExposureValue.P[[1]])
@@ -526,25 +551,29 @@ head(ExposureValue.T2[[1]])
 WriteToDisk = TRUE
 if (WriteToDisk)
 {
-  SaveAsDBF(ExposureValue.P, "EXP_P", Active.Subtype)
+  SaveAsDBF(ExposureValue.P, "Exposure", "Primary", YearDates, Active.Subtype, FALSE, pol)
   if (Active.Subprofile$Dynamics == "dynamic")
   {
-    SaveAsDBF(ExposureValue.S, "EXP_S", Active.Subtype)
-    SaveAsDBF(ExposureValue.T1, "EXP_T1", Active.Subtype)
-    SaveAsDBF(ExposureValue.T2, "EXP_T2", Active.Subtype)
+    SaveAsDBF(ExposureValue.S, "Exposure", "Secondary", YearDates, Active.Subtype, FALSE, pol)
+    SaveAsDBF(ExposureValue.T1, "Exposure", "T1", YearDates, Active.Subtype, FALSE, pol)
+    SaveAsDBF(ExposureValue.T2, "Exposure", "T2", YearDates, Active.Subtype, FALSE, pol)
+    
+    # SaveAsDBF(ExposureValue.S, "EXP_S", Active.Subtype, FALSE, pol)
+    # SaveAsDBF(ExposureValue.T1, "EXP_T1", Active.Subtype, FALSE, pol)
+    # SaveAsDBF(ExposureValue.T2, "EXP_T2", Active.Subtype, FALSE, pol)
   }
 }
 
 #Read DBF file with Exposurevalues 
-ExposureValue.P = DBFreader("Exposure", "Primary", PPH.P, YearDates, Active.Subtype)
+ExposureValue.P = DBFreader("Exposure", "Primary", PPH.P, YearDates, BusinesDates, Active.Subtype, pol)
 if (Active.Subprofile$Dynamics == "dynamic")
 {
-  ExposureValue.S = DBFreader("Exposure", "Secondary", PPH.P, YearDates, Active.Subtype)
-  ExposureValue.T1 = DBFreader("Exposure", "T1", PPH.P, YearDates, Active.Subtype)
-  ExposureValue.T2 = DBFreader("Exposure", "T2", PPH.P, YearDates, Active.Subtype)
+  ExposureValue.S = DBFreader("Exposure", "Secondary", PPH.P, YearDates, BusinesDates, Active.Subtype, pol)
+  ExposureValue.T1 = DBFreader("Exposure", "T1", PPH.P, YearDates, BusinesDates, Active.Subtype, pol)
+  ExposureValue.T2 = DBFreader("Exposure", "T2", PPH.P, YearDates, BusinesDates, Active.Subtype, pol)
 }
 
-all(round(ExposureValue.P_[[88]][[46]], 5) == round(ExposureValue.P[[88]][[46]], 5))
+all(round(ExposureValue.P_[[88]][[3]], 5) == round(ExposureValue.P[[88]][[3]], 5))
 ExposureValue.T1[[88]]
 
 rm(Primary, Primary_random, Secondary, src1, src2, dst1, dst2)
@@ -552,30 +581,48 @@ rm(Primary, Primary_random, Secondary, src1, src2, dst1, dst2)
 ## Data Frame structure and stats
 
 ST.DF.P = DF.Structure2(PPH.P, TIME.P, TIME.P, ExposureValue.P)
-ST.DF.S = DF.Structure2(PPH.P, TIME.P, TIME.S, ExposureValue.S)
-ST.DF.T1 = DF.Structure2(PPH.P, TIME.P, TIME.T1, ExposureValue.T1)
-ST.DF.T2 = DF.Structure2(PPH.P, TIME.P, TIME.T2, ExposureValue.T2)
-
 stats.EXP.P = DF.Stats(ST.DF.P)
-stats.EXP.S = DF.Stats(ST.DF.S)
-stats.EXP.T1 = DF.Stats(ST.DF.T1)
-stats.EXP.T2 = DF.Stats(ST.DF.T2)
-
-
-
-
-## Temporal aggregation
-
-ExposureValueCombined = ToHourValues(PPH.P, Time, ExposureValue.P, ExposureValue.S, ExposureValue.T1, ExposureValue.T2,
-                                     TIME.P, TIME.S, TIME.T1, TIME.T2, wP, wS, wT1, wT2)
-for (i in seq_along(PPH.P))
+if (Active.Subprofile$Dynamics == "dynamic")
 {
-  print(head(ExposureValueCombined[[i]], 2*24))
+  ST.DF.S = DF.Structure2(PPH.P, TIME.P, TIME.S, ExposureValue.S)
+  ST.DF.T1 = DF.Structure2(PPH.P, TIME.P, TIME.T1, ExposureValue.T1)
+  ST.DF.T2 = DF.Structure2(PPH.P, TIME.P, TIME.T2, ExposureValue.T2)
+  
+  stats.EXP.S = DF.Stats(ST.DF.S)
+  stats.EXP.T1 = DF.Stats(ST.DF.T1)
+  stats.EXP.T2 = DF.Stats(ST.DF.T2)
 }
-head(ExposureValueCombined[[88]], 7*24)
 
-ST.DF.HR = DF.Structure2(PPH.P, TIME.P, Time, ExposureValueCombined)
-stats.EXP.HR = DF.Stats(ST.DF.HR)
+
+## Temporal aggregation (only for dynamic profiles)
+if (Active.Subprofile$Dynamics == "static")
+{
+  ST.DF.HR = ST.DF.P
+  stats.EXP.HR = stats.EXP.P
+}
+
+if (Active.Subprofile$Dynamics == "dynamic")
+{
+  ExposureValueCombined = ToHourValues(PPH.P, Time, ExposureValue.P, ExposureValue.S, ExposureValue.T1, ExposureValue.T2,
+                                       TIME.P, TIME.S, TIME.T1, TIME.T2, wP, wS, wT1, wT2)
+  for (i in seq_along(PPH.P))
+  {
+    print(head(ExposureValueCombined[[i]], 2*24))
+  }
+  head(ExposureValueCombined[[88]], 7*24)
+  
+  ST.DF.HR = DF.Structure2(PPH.P, TIME.P, Time, ExposureValueCombined)
+  stats.EXP.HR = DF.Stats(ST.DF.HR)
+}
+
+
+
+rm(dir.P, PPH.P)
+if (Active.Subprofile$Dynamics == "dynamic")
+{
+  rm(dir.S, dir.T1, dir.T2)
+  rm(PPH.S, PPH.T1, PPH.T2)
+}
 
 
 # Biweekly generator

@@ -55,8 +55,16 @@ SaveAsFile <- function(INput, Filename, Format, Active.Type, OverwriteLayer, ...
   
 }
 
-SaveAsDBF <- function(INput, Filename, Active.Type, OverwriteLayer, ...)
+SaveAsDBF <- function(INput, FileType, PhaseType, Filename, Active.Type, OverwriteLayer, pol, ...)
 {
+  if (PhaseType == "Primary") {PhaseLetter = "P"}
+  if (PhaseType == "Secondary") {PhaseLetter = "S"}
+  if (PhaseType == "T1") {PhaseLetter = "T1"}
+  if (PhaseType == "T2") {PhaseLetter = "T2"}
+  
+  if (FileType == "Exposure") {FileString = "EXP_"}
+  if (FileType == "Time") {FileString = "TIME_"}
+  
   if (class(INput) == "list")
   {
     Folder = file.path("..", "output", Active.Type)
@@ -73,7 +81,16 @@ SaveAsDBF <- function(INput, Filename, Active.Type, OverwriteLayer, ...)
       COLNAMES = c(1:length(DF))
       colnames(DF) = paste0("C",COLNAMES)
       
-      dbf_out = file.path("..", "output", Active.Type, paste(Filename, i, sep = "_"))
+      if (FileType == "Exposure")
+      {
+        #dbf_out = file.path("..", "output", Active.Type, paste(Filename, i, toupper(pol), sep = "_"))
+        dbf_out = file.path("..", "output", Active.Subtype, paste0(FileString, PhaseLetter, "_" , i, "_", toupper(pol), ".dbf"))
+      }
+      if (FileType == "Time")
+      {
+        dbf_out = file.path("..", "output", Active.Subtype, paste0(FileString, PhaseLetter, "_" , i, "_", ".dbf"))
+      }
+      
       write.dbf(DF, dbf_out, factor2char = TRUE, max_nchar = 254)
     }
   }

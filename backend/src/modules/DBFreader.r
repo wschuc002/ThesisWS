@@ -23,7 +23,10 @@
 
 ## Load the packages
 
-DBFreader <- function(FileType, PhaseType, PPH.P, YearDates, Active.Subtype, ...)
+FileType = "Exposure"
+PhaseType = "Primary"
+
+DBFreader <- function(FileType, PhaseType, PPH.P, YearDates, BusinesDates, Active.Subtype, pol, ...)
 {
   if (PhaseType == "Primary") {PhaseLetter = "P"}
   if (PhaseType == "Secondary") {PhaseLetter = "S"}
@@ -37,7 +40,14 @@ DBFreader <- function(FileType, PhaseType, PPH.P, YearDates, Active.Subtype, ...
   for (i in seq_along(PPH.P)) # per individual
   #for (i in seq(1,2))
   {
-    DF = read.dbf(file.path("..", "output", Active.Subtype, paste0(FileString, PhaseLetter, "_" , i, ".dbf")))
+    if (FileType == "Exposure")
+    {
+      DF = read.dbf(file.path("..", "output", Active.Subtype, paste0(FileString, PhaseLetter, "_" , i, "_", toupper(pol), ".dbf")))
+    }
+    if (FileType == "Time")
+    {
+      DF = read.dbf(file.path("..", "output", Active.Subtype, paste0(FileString, PhaseLetter, "_" , i, "_", ".dbf")))
+    }
     
     for (d in seq_along(YearDates)) # per day
     {
@@ -47,12 +57,19 @@ DBFreader <- function(FileType, PhaseType, PPH.P, YearDates, Active.Subtype, ...
       }else{
         NUM[[i]][[d]] = na.omit(as.POSIXct(as.numeric(DF[d,]), origin = "1970-01-01")) # TIME
       }
+      
+      if (all(is.na(NUM[[i]][[d]])))
+      {
+        NUM[[i]][[d]] = NA
+      }
+      
     }
     
-    if (PhaseType != "Primary")
-    {
-      NUM[[i]][which(!(YearDates %in% BusinesDates))] = NA
-    }
+    # if (PhaseType != "Primary")
+    # {
+    #   NUM[[i]][which(!(YearDates %in% BusinesDates))] = NA
+    # }
+    
   } # closing i
  return(NUM)
 }
