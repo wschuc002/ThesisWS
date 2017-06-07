@@ -409,8 +409,6 @@ DeterminePPH_FL <- function(CRAB_Doel, Names.sub, FL.primary, OSRM.Level, Active
         #Subset: only Offices
         if (Active.Type == "01.OW")
         {
-          # Secondary = CRAB_Doel[CRAB_Doel@data$DOEL %in% "Economische functie" | CRAB_Doel@data$DOEL %in% "Company" ,]
-          
           SecondaryPaired = CommutingDistancePairer(Primary_random[Outsiders,], Secondary, MaxLinKM = 60,
                                                     SEC.SampleSize = 50, Plot = TRUE)
         }
@@ -418,29 +416,16 @@ DeterminePPH_FL <- function(CRAB_Doel, Names.sub, FL.primary, OSRM.Level, Active
         #Subset: only schools
         if (Active.Type == "03.SP")
         {
-          # Secondary = CRAB_Doel[CRAB_Doel@data$DOEL %in% "Basisonderwijs",] # CRAB_Doel@data$DOEL %in% "Secundair onderwijs" 
-          
-          #SecondaryPaired = SchoolFinder(Primary_random, Secondary, FALSE)
-          
           # remove duplicates
           SEC.NoDup = Secondary[!duplicated(Secondary@coords), ]
           
           tree = createTree(coordinates(SEC.NoDup))
-          inds = knnLookup(tree, newdat = coordinates(Primary), k = 1) # gives the matrix
+          inds = knnLookup(tree, newdat = coordinates(Primary_random), k = 1) # gives the matrix
           inds = as.vector(inds)
           
           SecondaryPaired = SEC.NoDup[inds,]
         }
-        
-        #     #! Remove the individuals who did not pair
-        #     if (length(PRI) != length(SecondaryPaired))
-        #     {
-        #       head(SecondaryPaired)
-        #       head(PRI)
-        #     }
-        
-        #SecondaryPaired = Secondary[Secondary@data$ID %in% sample(Secondary@data$ID, 100),]
-        
+
         if (Plot){points(SecondaryPaired, col = "orange")}
         
         # create the routes (New method, works with multiple profiles like bicycle for 03.SP and motorcar for 01.OW)

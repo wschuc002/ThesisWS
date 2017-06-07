@@ -18,13 +18,13 @@
 
 ## TESTED ON WINDOWS 7 (64-bit), 4GB RAM, R v3.3.2, Timezone GMT
 
-## TODO:  - ...
+## TODO:  - Weights in S-T aggregation for overlaps in 03.SP
 ##        - ...
 ##        - Improve SummaryStatistics for profile and phase type comparison.
 ##        - Speed and route options for cyclists (School Pupil).
 ##        - ?Introduce "spacetime" package and test is.
 ##        - Documentation
-##        - Routes should not go beyond Flanders Buffer 100m
+##        - ...
 
 ##        - Interactive graph (optional)
 ##        - Air Quality Health Standards Exceedance analysis (optional)
@@ -157,31 +157,28 @@ for (Active.Type in unique(ResidentialProfiles$Type))
 csv.Commuting_in = file.path("..", "data", "BE_FL", "CommutingStats.csv")
 Commuting = fread(csv.Commuting_in, sep=",", header=TRUE)
 
-# # Read Flanders polygon (improve unzip)
-# gml.Flanders_in = file.path("..", "data", "BE_FL", "Refgew.gml")
-# Flanders = readOGR(gml.Flanders_in, layer = "Refgew")
-# Flanders@proj4string = BE_crs
+# create 'output' folder in case it does not exist
+output.dir = file.path("..", "output")
+if (!dir.exists(output.dir)) { dir.create(output.dir) }
 
-Flanders = getData("GADM",country = "Belgium", level = 1)
+# Read Flanders polygon)
+Flanders = getData("GADM",country = "Belgium", level = 1, path = output.dir)
 Flanders = Flanders[Flanders@data$NAME_1 == "Vlaanderen",]
 Flanders = spTransform(Flanders, BE_crs)
 Flanders@proj4string = BE_crs
 
 # Read Flanders polygon
-Belgium = getData("GADM",country="Belgium", level = 0)
+Belgium = getData("GADM",country="Belgium", level = 0, path = output.dir)
 Belgium = spTransform(Belgium, BE_crs)
 Belgium@proj4string = BE_crs
 # Create buffer to mimic the range of the RIO-IFDM points
 Belgium = gBuffer(Belgium, byid = F, id = NULL, width = 2000)
 
-# plot(Belgium, col = "red")
-# points(Points.NoVal, col = "lightgray", pch = ".")
-
 
 
 # Select active Residential Profile
-Active.Type = "02.HO"
-Active.Subtype = "02.HO_WS1"
+Active.Type = "03.SP"
+Active.Subtype = "03.SP_WS1"
 
 Active.Profile = ResidentialProfiles[ResidentialProfiles$Type == Active.Type,]
 Active.Subprofile = ResidentialProfiles[ResidentialProfiles$Subtype == Active.Subtype,]
@@ -204,10 +201,6 @@ if (Active.Subprofile$Dynamics == "dynamic")
     dir.T2 = file.path("..", "output", paste0(Active.Type,"_TransportInwards_", Names, "_", substr(OSRM.Level, 1, 1)))
   }
 }
-
-# create 'output' folder in case it does not exist
-output.dir = file.path("..", "output")
-if (!dir.exists(output.dir)) { dir.create(output.dir) }
 
 if (!exists("CRAB_Doel") & !file.exists(dir.P))
 {
@@ -280,10 +273,14 @@ SchoolHolidays = fread(csv.SchoolHolidays_in, sep = ";", header=TRUE)
 if (Active.Type == "01.OW")
 {
   HoliDates = as.POSIXct(OfficialHolidays$Datum)
+  SimplifyRemainingPoints = 100 # desirable resulting amount
+  RandomSamplePoints = 25 # desirable resulting amount of points, after random sampling the equal points
 }
 if (Active.Type == "03.SP")
 {
   HoliDates = HolidayGenerator(SchoolHolidays) #2015 only
+  SimplifyRemainingPoints = 10 # should be desirable resulting amount
+  RandomSamplePoints = 5 # desirable resulting amount of points, after random sampling the equal points
 }
 
 if (Active.Subprofile$Dynamics == "dynamic")
@@ -291,61 +288,27 @@ if (Active.Subprofile$Dynamics == "dynamic")
   BusinesDates = DateType(YearDates, "Workdays", HoliDates)
   WeekendDates = DateType(YearDates, "Weekends")
   
-  # Convert Transport to points for equal durations
-  PPH.T1.Pnt.eq.Li = SimplifyRoutes(PPH.T1, FALSE, Factor = 100) # Factor should be desirable resulting amount
-  PPH.T2.Pnt.eq.Li = SimplifyRoutes(PPH.T2, FALSE, Factor = 100)
-  
-#   for (i in seq_along(PPH.T1))
-#   {
-#     print(length(PPH.T1.Pnt.eq.Li[[i]]))
-#     print(length(PPH.T2.Pnt.eq.Li[[i]]))
-#   }
-  
-#   Simplify = TRUE
-#   
-#   if (Simplify)
-#   {
-#     PPH.T1.Simp = gSimplify(PPH.T1, 75, topologyPreserve = TRUE)
-#     PPH.T2.Simp = gSimplify(PPH.T2, 75, topologyPreserve = TRUE)
-#     
-#     PPH.T1.Simp.Pnt.Li = list()
-#     PPH.T2.Simp.Pnt.Li = list()
-#   }
-
-#   
-#   for (i in seq_along(PPH.T1))
-#   {
-#     if (Simplify)
-#     {
-#       PPH.T1.Simp.Pnt.Li[[i]] = as(PPH.T1.Simp[i,], "SpatialPoints")
-#       PPH.T2.Simp.Pnt.Li[[i]] = as(PPH.T2.Simp[i,], "SpatialPoints")
-#       
-#       points(PPH.T1.Simp.Pnt.Li[[i]], col = "blue")
-#       points(PPH.T2.Simp.Pnt.Li[[i]], col = "blue")
-#     }
-
-#     
-#     points(PPH.T1.Pnt.Li[[i]])
-#     points(PPH.T2.Pnt.Li[[i]])
-#   }
-  
-  PPH.T1.PNT.RS = RandomSampleRoutesYears(PPH.T1.Pnt.eq.Li, FALSE, 25, YearDates, BusinesDates)
-  PPH.T2.PNT.RS = RandomSampleRoutesYears(PPH.T2.Pnt.eq.Li, FALSE, 25, YearDates, BusinesDates)
-
   PPH.T1.Pnt.Li = list()
   PPH.T2.Pnt.Li = list()
   for (i in seq_along(PPH.P))
   {
-#     print(length(PPH.T1.PNT.RS[[i]][[6]]))
-#     print(length(PPH.T2.PNT.RS[[i]][[6]]))
-    
     PPH.T1.Pnt.Li[[i]] = as(PPH.T1[i,], "SpatialPoints")
     PPH.T2.Pnt.Li[[i]] = as(PPH.T2[i,], "SpatialPoints")
   }
   
+  # Convert Transport to points for equal durations
+  PPH.T1.Pnt.eq.Li = SimplifyRoutes(PPH.T1, FALSE, Factor = SimplifyRemainingPoints) # Factor should be desirable resulting amount
+  PPH.T2.Pnt.eq.Li = SimplifyRoutes(PPH.T2, FALSE, Factor = SimplifyRemainingPoints)
+  
+  plot(PPH.T1.Pnt.eq.Li[[1]])
+  
+  PPH.T1.PNT.RS = RandomSampleRoutesYears(PPH.T1, PPH.T1.Pnt.eq.Li, FALSE, RandomSamplePoints, YearDates, BusinesDates)
+  PPH.T2.PNT.RS = RandomSampleRoutesYears(PPH.T2, PPH.T2.Pnt.eq.Li, FALSE, RandomSamplePoints, YearDates, BusinesDates)
+
+
   # some test plots
-  i = 5
-  day = 2
+  i = 96
+  day = 5
   plot(PPH.T1[i,])
   points(PPH.T1.Pnt.eq.Li[[i]], col = "blue")
   points(PPH.T1.PNT.RS[[i]][[day]], col = "red")
@@ -353,7 +316,6 @@ if (Active.Subprofile$Dynamics == "dynamic")
   # Basic time element per vertex
   TimeVertex.T1 = LinkPointsToTime.Transport("Outwards", PPH.T1, PPH.T1.Pnt.Li, year.active, Active.Subprofile)
   TimeVertex.T2 = LinkPointsToTime.Transport("Inwards", PPH.T2, PPH.T2.Pnt.Li, year.active, Active.Subprofile)
-
 }
 
 TIME = CreateCorrespondingDateAndTime(Active.Type, Active.Subprofile, PPH.P, YearDates, BusinesDates, WeekendDates, HoliDates,
@@ -370,12 +332,11 @@ rm(TIME)
 
 # Hours of the year
 HOURS.P = HourOfTheYear7(year.active, TIME.P, 0)
-if (Active.Subprofile$Dynamics == "dynamic")  #Active.Profile$Dynamics == "dynamic"
+if (Active.Subprofile$Dynamics == "dynamic")
 {
   HOURS.S = HourOfTheYear7(year.active, TIME.S, 0)
   HOURS.T1 = HourOfTheYear7(year.active, TIME.T1, 0)
   HOURS.T2 = HourOfTheYear7(year.active, TIME.T2, 0)
-  
   HOURS.T1_3d = HourOfTheYear7(year.active, TIME.T1, 3)
   HOURS.T2_3d = HourOfTheYear7(year.active, TIME.T2, 3)
 }
@@ -390,10 +351,6 @@ if (WriteToDisk)
     SaveAsDBF(TIME.S, "Time", "Secondary", YearDates, Active.Subtype, FALSE, pol)
     SaveAsDBF(TIME.T1, "Time", "T1", YearDates, Active.Subtype, FALSE, pol)
     SaveAsDBF(TIME.T2, "Time", "T2", YearDates, Active.Subtype, FALSE, pol)
-    
-    # SaveAsDBF(TIME.S, "TIME_S", Active.Subtype, FALSE, pol)
-    # SaveAsDBF(TIME.T1, "TIME_T1", Active.Subtype, FALSE, pol)
-    # SaveAsDBF(TIME.T2, "TIME_T2", Active.Subtype, FALSE, pol)
   }
 }
 
