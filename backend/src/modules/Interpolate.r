@@ -39,7 +39,7 @@ library(SearchTrees)
 PPH.TIN.InterpolationWS <- function(PPH.P, PPH.S, PPH.T1.Pnt, PPH.T2.Pnt, POL, PolDir, Plot,
                                     pol, StartHour = 1, EndHour = length(YearDates)*24,
                                     HOURS.P, HOURS.S, HOURS.T1, HOURS.T2, NearestPoints,
-                                    wP, wS, wT1, wT2, ...)
+                                    wP, wS, wT1, wT2, Active.Subprofile, ...)
 {
   txt.dr = ExtractBZ2(pol, PolDir, StartHour, EndHour)
   

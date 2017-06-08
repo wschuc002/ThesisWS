@@ -391,7 +391,6 @@ DeterminePPH_FL <- function(CRAB_Doel, Names.sub, FL.primary, OSRM.Level, Active
       Secondary = CRAB_Doel[CRAB_Doel@data$DOEL %in% "Basisonderwijs",] # CRAB_Doel@data$DOEL %in% "Secundair onderwijs" 
     }
     
-  
     PPH.T1.Li = list()
     PPH.T2.Li = list()
     SecondaryPaired.Li = list()
@@ -454,7 +453,7 @@ DeterminePPH_FL <- function(CRAB_Doel, Names.sub, FL.primary, OSRM.Level, Active
         if (length(Outsiders) == 0)
         {
           success = TRUE
-          print(paste0("All the routes are now in the safe range."))
+          print(paste0("All the routes are in the safe range."))
         } else
         {
           for (o in seq_along(Outsiders))
@@ -465,7 +464,26 @@ DeterminePPH_FL <- function(CRAB_Doel, Names.sub, FL.primary, OSRM.Level, Active
       }
     } # close while
     
+    # Fix double IDs in Secondary
     
+    
+    # Order the PPH.S to match [i,]
+    PPH.S.Li = list()
+    for (i in seq_along(Primary_random))
+    {
+      WS = which(SecondaryPaired@data$object_id %in% PPH.T1@data$dst[i])
+      PPH.S.Li[[i]] = SecondaryPaired[WS[1],]
+    }
+    SecondaryPaired = do.call(rbind, PPH.S.Li)
+    
+    # # some test plots
+    # i = 24
+    # day = 5
+    # plot(PPH.T1[i,])
+    # 
+    # points(Primary_random[i,], col = "green", pch = "O")
+    # points(SecondaryPaired[i,], col = "orange", pch = "O")
+
     if (SaveResults == TRUE)
     {
       if (is.null(Subset.Gemeente))

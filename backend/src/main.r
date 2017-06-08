@@ -19,7 +19,7 @@
 ## TESTED ON WINDOWS 7 (64-bit), 4GB RAM, R v3.3.2, Timezone GMT
 
 ## TODO:  - Weights in S-T aggregation for overlaps in 03.SP
-##        - ...
+##        - Check if the right Secondaries were used in 01.OW. If messed up, fix EXP.dbf with code from line 330
 ##        - Improve SummaryStatistics for profile and phase type comparison.
 ##        - Speed and route options for cyclists (School Pupil).
 ##        - ?Introduce "spacetime" package and test is.
@@ -178,7 +178,7 @@ Belgium = gBuffer(Belgium, byid = F, id = NULL, width = 2000)
 
 # Select active Residential Profile
 Active.Type = "03.SP"
-Active.Subtype = "03.SP_WS1"
+Active.Subtype = "03.SP_C1"
 
 Active.Profile = ResidentialProfiles[ResidentialProfiles$Type == Active.Type,]
 Active.Subprofile = ResidentialProfiles[ResidentialProfiles$Subtype == Active.Subtype,]
@@ -237,6 +237,10 @@ if (Active.Subprofile$Dynamics == "dynamic")
   if (!exists("PPH.S") & file.exists(dir.S))
   {
     PPH.S = readOGR(dir.S, layer = 'OGRGeoJSON') # Error: FIDs not unique
+    
+    # dir.S = file.path("..", "output", paste(Active.Type, paste0("Secondary", Names, "_fix", ".geojson"), sep = "_"))
+    # PPH.S = readOGR(dir.S, layer = 'OGRGeoJSON') # Error: FIDs not unique
+    # 
     PPH.S@proj4string = BE_crs
   }
   
@@ -252,7 +256,7 @@ if (Active.Subprofile$Dynamics == "dynamic")
     PPH.T2@proj4string = BE_crs
   }
 }
-
+#rm(PPH.P, PPH.S, PPH.T1, PPH.T2)
 
 # Set year of pollutant dataset, determine dates and date types (Workdays~Weekends)
 # Sys.setenv(TZ="Europe/Brussels")
@@ -310,12 +314,26 @@ if (Active.Subprofile$Dynamics == "dynamic")
   i = 96
   day = 5
   plot(PPH.T1[i,])
+  points(PPH.P[i,], col = "green", pch = "O")
+  points(PPH.S[i,], col = "orange", pch = "O")
+  
   points(PPH.T1.Pnt.eq.Li[[i]], col = "blue")
   points(PPH.T1.PNT.RS[[i]][[day]], col = "red")
   
   # Basic time element per vertex
   TimeVertex.T1 = LinkPointsToTime.Transport("Outwards", PPH.T1, PPH.T1.Pnt.Li, year.active, Active.Subprofile)
   TimeVertex.T2 = LinkPointsToTime.Transport("Inwards", PPH.T2, PPH.T2.Pnt.Li, year.active, Active.Subprofile)
+
+  # Order the PPH.S to match [i,]
+  PPH.S.Li = list()
+  for (i in seq_along(PPH.P))
+  {
+    WS = which(PPH.S@data$object_id %in% PPH.T1@data$dst[i])
+    PPH.S.Li[[i]] = PPH.S[WS[1],]
+  }
+  #points(PPH.S.Li[[i]], col = "purple", pch = "L")
+  PPH.S = do.call(rbind, PPH.S.Li)
+  
 }
 
 TIME = CreateCorrespondingDateAndTime(Active.Type, Active.Subprofile, PPH.P, YearDates, BusinesDates, WeekendDates, HoliDates,
@@ -462,10 +480,11 @@ if (Active.Subprofile$Dynamics == "dynamic")
 ## Interpolating the points
 
 start.time = Sys.time()
-ExposureValue.All = PPH.TIN.InterpolationWS(PPH.P, PPH.S, PPH.T1.PNT.RS, PPH.T2.PNT.RS, Points.NoVal, PolDir, Plot = F,
+ExposureValue.All = PPH.TIN.InterpolationWS(PPH.P, PPH.S, PPH.T1.PNT.RS, PPH.T2.PNT.RS,
+                                            Points.NoVal, PolDir, Plot = F,
                                             pol, StartHour = 1, EndHour = length(Time),
                                             HOURS.P, HOURS.S, HOURS.T1, HOURS.T2, 50,
-                                            wP, wS, wT1, wT2)
+                                            wP, wS, wT1, wT2, Active.Subprofile)
 ExposureValue.P = ExposureValue.All[[1]]
 if (Active.Subprofile$Dynamics == "dynamic")
 {
@@ -475,6 +494,8 @@ if (Active.Subprofile$Dynamics == "dynamic")
 }
 end.time = Sys.time()
 print(end.time - start.time)
+
+
 
 CalculatedPoints = (length(na.omit(unlist(ExposureValue.P[[1]]))) +
   length(na.omit(unlist(ExposureValue.S[[1]]))) +
