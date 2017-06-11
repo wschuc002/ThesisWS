@@ -178,7 +178,7 @@ Belgium = gBuffer(Belgium, byid = F, id = NULL, width = 2000)
 
 # Select active Residential Profile
 Active.Type = "03.SP"
-Active.Subtype = "03.SP_C1"
+Active.Subtype = paste0(Active.Type, "_WS1")
 
 Active.Profile = ResidentialProfiles[ResidentialProfiles$Type == Active.Type,]
 Active.Subprofile = ResidentialProfiles[ResidentialProfiles$Subtype == Active.Subtype,]
@@ -617,19 +617,58 @@ ST.DF.HR.BiWe = ST.DF.HR[ST.DF.HR$TIME >= BIWEEKLY[[1]][1] & ST.DF.HR$TIME <= BI
 ## Individual based calculations
 # personal mean
 
-WS1.INDmean = NA
-WS2.INDmean = NA
-WS1.INDmax = NA
-WS2.INDmax = NA
+OW_WS1.INDmean = NA
+OW_WS2.INDmean = NA
+OW_C1.INDmean = NA
+OW_C2.INDmean = NA
+HO_WS1.INDmean = NA
+HO_WS2.INDmean = NA
+SP_WS1.INDmean = NA
+SP_WS2.INDmean = NA
+SP_C1.INDmean = NA
+SP_C2.INDmean = NA
 
 for (i in seq_along(PPH.P))
 {
-  WS1.INDmean[i] = mean(ST.DF.HR[ST.DF.HR$IND == i,]$EXP)
-  WS2.INDmean[i] = mean(ST.DF.HR.BiWe[ST.DF.HR.BiWe$IND == i,]$EXP)
+  if (Active.Subprofile$Subtype == "01.OW_WS1" | Active.Subprofile$Subtype == "01.OW_WS2")
+  {
+    OW_WS1.INDmean[i] = mean(ST.DF.HR[ST.DF.HR$IND == i,]$EXP)
+    OW_WS2.INDmean[i] = mean(ST.DF.HR.BiWe[ST.DF.HR.BiWe$IND == i,]$EXP)
+    # OW_WS1.INDmax[i] = max(ST.DF.HR[ST.DF.HR$IND == i,]$EXP)
+    # OW_WS2.INDmax[i] = max(ST.DF.HR.BiWe[ST.DF.HR.BiWe$IND == i,]$EXP)
+  }
   
-  WS1.INDmax[i] = max(ST.DF.HR[ST.DF.HR$IND == i,]$EXP)
-  WS2.INDmax[i] = max(ST.DF.HR.BiWe[ST.DF.HR.BiWe$IND == i,]$EXP)
+  if (Active.Subprofile$Subtype == "01.OW_C1" | Active.Subprofile$Subtype == "01.OW_C2")
+  {
+    OW_C1.INDmean[i] = mean(ST.DF.HR[ST.DF.HR$IND == i,]$EXP)
+    OW_C2.INDmean[i] = mean(ST.DF.HR.BiWe[ST.DF.HR.BiWe$IND == i,]$EXP)
+  }
+  
+  if (Active.Subprofile$Subtype == "02.HO_WS1" | Active.Subprofile$Subtype == "02.HO_WS2")
+  {
+    HO_WS1.INDmean[i] = mean(ST.DF.HR[ST.DF.HR$IND == i,]$EXP)
+    HO_WS1.INDmean[i] = mean(ST.DF.HR.BiWe[ST.DF.HR.BiWe$IND == i,]$EXP)
+  }
+  
+  if (Active.Subprofile$Subtype == "03.SP_WS1" | Active.Subprofile$Subtype == "03.SP_WS2")
+  {
+    SP_WS1.INDmean[i] = mean(ST.DF.HR[ST.DF.HR$IND == i,]$EXP)
+    SP_WS2.INDmean[i] = mean(ST.DF.HR.BiWe[ST.DF.HR.BiWe$IND == i,]$EXP)
+  }
+  
+  if (Active.Subprofile$Subtype == "03.SP_C1" | Active.Subprofile$Subtype == "03.SP_C2")
+  {
+    SP_C1.INDmean[i] = mean(ST.DF.HR[ST.DF.HR$IND == i,]$EXP)
+    SP_C2.INDmean[i] = mean(ST.DF.HR.BiWe[ST.DF.HR.BiWe$IND == i,]$EXP)
+  }
 }
+
+plot(OW_C1.INDmean, OW_C2.INDmean, main = paste(Active.Subtype,"C1 vs. C2 (µg/m³)", length(PPH.P), "individuals") , pch = "+")
+R.squared = cor(OW_C1.INDmean, OW_C2.INDmean)**2
+text(min(OW_C1.INDmean), max(OW_C2.INDmean)-1, pos = 1, labels = "R²:", font = 2)
+text(min(OW_C1.INDmean)+5, max(OW_C2.INDmean)-1, pos = 1, labels = R.squared)
+
+
 
 plot(WS1.INDmean, WS2.INDmean, main = paste(Active.Subtype,"WS1 vs. WS2 (µg/m³)", length(PPH.P), "individuals") , pch = "+")
 R.squared = cor(WS1.INDmean, WS2.INDmean)**2
