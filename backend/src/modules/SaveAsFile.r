@@ -88,7 +88,7 @@ SaveAsDBF <- function(INput, FileType, PhaseType, Filename, Active.Type, Overwri
       }
       if (FileType == "Time")
       {
-        dbf_out = file.path("..", "output", Active.Subtype, paste0(FileString, PhaseLetter, "_" , i, "_", ".dbf"))
+        dbf_out = file.path("..", "output", Active.Subtype, paste0(FileString, PhaseLetter, "_" , i, ".dbf"))
       }
       
       write.dbf(DF, dbf_out, factor2char = TRUE, max_nchar = 254)

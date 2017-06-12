@@ -74,8 +74,11 @@ SimplifyRoutes <- function(PPH.T, Plot = FALSE, Factor = 100, ...)
         n = eq[v]
         sel[v] = which(abs(n-duration.driven) == min(abs(n-duration.driven))) +1
       }
+      sel = unique(c(1, sel, length(PPH.T.Pnt))) # add 1st and last
+      
       #make subset of equals
       PPH.T.Pnt.eq = PPH.T.Pnt[sel,]
+      
     } else
     {
       PPH.T.Pnt.eq = PPH.T.Pnt
@@ -94,9 +97,9 @@ SimplifyRoutes <- function(PPH.T, Plot = FALSE, Factor = 100, ...)
 }
 
 
-# PPH.T.Pnt = PPH.T1.Pnt
+# PPH.T = PPH.T1
 # PPH.T.Pnt.eq.Li = PPH.T1.Pnt.eq.Li
-# SampSize = 25
+# SampSize = 5
 
 RandomSampleRoutesYears <- function(PPH.T, PPH.T.Pnt.eq.Li, Plot, SampSize, YearDates, BusinesDates, ...)
 {
@@ -115,8 +118,8 @@ RandomSampleRoutesYears <- function(PPH.T, PPH.T.Pnt.eq.Li, Plot, SampSize, Year
       {
         if (YearDates[d] %in% BusinesDates)
         {
-          # make the random sample
-          PPH.T.Pnt.eq.rs[[d]] = sample(PPH.T.Pnt.eq.Li[[i]], SampSize-2)
+          # make the random sample, excluding beginning and end points
+          PPH.T.Pnt.eq.rs[[d]] = sample(PPH.T.Pnt.eq.Li[[i]][2:(nrow(coordinates(PPH.T.Pnt.eq.Li[[i]]))-1),], SampSize-2)
           
           # add first and last point
           PPH.T.Pnt.eq.rs[[d]] = rbind(PPH.T.Pnt[1,], PPH.T.Pnt.eq.rs[[d]], PPH.T.Pnt[length(PPH.T.Pnt),])
@@ -124,17 +127,26 @@ RandomSampleRoutesYears <- function(PPH.T, PPH.T.Pnt.eq.Li, Plot, SampSize, Year
           # Order the points
           #           Sel = paste(coordinates(PPH.T.Pnt[[i]])[,1], coordinates(PPH.T.Pnt[[i]])[,2]) %in% 
           #             paste(coordinates(PPH.T.Pnt.eq.rs[[d]])[,1], coordinates(PPH.T.Pnt.eq.rs[[d]])[,2])
+#           
+#           Int = gIntersects(PPH.T.Pnt, PPH.T.Pnt.eq.rs[[d]], byid = TRUE)
+#           
+#           Sel = NA
+#           for (r in 1:nrow(Int))
+#           {
+#             Sel[r] = which(Int[r,])[1]
+#           }
+#           #length(Sel) == SampSize
+#           
+#           PPH.T.Pnt.eq.rs[[d]] = PPH.T.Pnt[Sel,]
           
-          Int = gIntersects(PPH.T.Pnt, PPH.T.Pnt.eq.rs[[d]], byid = TRUE)
           
-          Sel = NA
-          for (r in 1:nrow(Int))
-          {
-            Sel[r] = which(Int[r,])[1]
-          }
-          #length(Sel) == SampSize
+          # fix order
+          tree = createTree(coordinates(PPH.T.Pnt.eq.Li[[i]]))
+          inds = knnLookup(tree, newdat = coordinates(PPH.T.Pnt.eq.rs[[d]]), k = 1) # gives the matrix
+          inds = sort(as.vector(inds))
           
-          PPH.T.Pnt.eq.rs[[d]] = PPH.T.Pnt[Sel,]
+          PPH.T.Pnt.eq.rs[[d]] = PPH.T.Pnt.eq.Li[[i]][inds,]
+          
           
           if (Plot == TRUE)
           {
@@ -143,7 +155,7 @@ RandomSampleRoutesYears <- function(PPH.T, PPH.T.Pnt.eq.Li, Plot, SampSize, Year
         }
       } else
       {
-        PPH.T.Pnt.eq.rs[[d]] = PPH.T.Pnt
+        PPH.T.Pnt.eq.rs[[d]] = PPH.T.Pnt.eq.Li[[i]]
         
         if (Plot == TRUE)
         {
@@ -176,6 +188,8 @@ RandomSampleRoutes <- function(PPH.T.Pnt, Plot, SampSize, ...)
       
       # add first and last point
       PPH.T.Pnt.eq.rs.Li[[i]] = rbind(PPH.T.Pnt[[i]][1,], PPH.T.Pnt.eq.rs, PPH.T.Pnt[[i]][length(PPH.T.Pnt[[i]]),])
+      
+      
     } else # no not simplify with a total points that is higher than sample size
     {
       PPH.T.Pnt.eq.rs.Li[[i]] = PPH.T.Pnt[[i]]

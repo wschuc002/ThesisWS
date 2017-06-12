@@ -23,8 +23,8 @@
 
 ## Load the packages
 
-FileType = "Exposure"
-PhaseType = "Primary"
+#FileType = "Exposure"
+#PhaseType = "Primary"
 
 DBFreader <- function(FileType, PhaseType, PPH.P, YearDates, BusinesDates, Active.Subtype, pol, ...)
 {
@@ -46,7 +46,7 @@ DBFreader <- function(FileType, PhaseType, PPH.P, YearDates, BusinesDates, Activ
     }
     if (FileType == "Time")
     {
-      DF = read.dbf(file.path("..", "output", Active.Subtype, paste0(FileString, PhaseLetter, "_" , i, "_", ".dbf")))
+      DF = read.dbf(file.path("..", "output", Active.Subtype, paste0(FileString, PhaseLetter, "_" , i, ".dbf")))
     }
     
     for (d in seq_along(YearDates)) # per day

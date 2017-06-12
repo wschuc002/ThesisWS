@@ -25,7 +25,7 @@
 #IND.amount = length(PPH.P)
 #PlotMinMax = FALSE
 #DAY.start = 1
-#DAYS = 7
+#DAYS = 21
 
 Plot.Group2 <- function(Profile, DAY.start, DAYS, IND.amount, PlotMinMax, ST.DF.P, ST.DF.S, ST.DF.T1, ST.DF.T2,
                         stats.EXP.P, stats.EXP.S, stats.EXP.T1, stats.EXP.T2, ...)
@@ -37,11 +37,21 @@ Plot.Group2 <- function(Profile, DAY.start, DAYS, IND.amount, PlotMinMax, ST.DF.
     IND.amount = length(ExposureValue.P)
   }
   
+  ST.DF.P.sub = ST.DF.P[ST.DF.P$TIME >= YearDates[DAY.start] & ST.DF.P$TIME < YearDates[DAY.start+DAYS],]
+  ST.DF.S.sub = ST.DF.S[ST.DF.S$TIME >= YearDates[DAY.start] & ST.DF.S$TIME < YearDates[DAY.start+DAYS],]
+  ST.DF.T1.sub = ST.DF.T1[ST.DF.T1$TIME >= YearDates[DAY.start] & ST.DF.T1$TIME < YearDates[DAY.start+DAYS],]
+  ST.DF.T2.sub = ST.DF.T2[ST.DF.T2$TIME >= YearDates[DAY.start] & ST.DF.T2$TIME < YearDates[DAY.start+DAYS],]
   
-  #E.max = max(stats.EXP.P$maxEXP, na.rm = T)
-  E.max = max(c(stats.EXP.P$maxEXP, stats.EXP.S$maxEXP, stats.EXP.T1$maxEXP, stats.EXP.T2$maxEXP), na.rm = T)
-  #E.max = max(stats.EXP$maxEXP, na.rm = T)
-  E.max = max(stats.EXP.HR$maxEXP, na.rm = T)
+  stats.EXP.P.sub = DF.Stats(ST.DF.P.sub)
+  stats.EXP.S.sub = DF.Stats(ST.DF.S.sub)
+  
+  ST.DF.HR.sub = ST.DF.HR[ST.DF.HR$TIME >= YearDates[DAY.start] & ST.DF.HR$TIME < YearDates[DAY.start+DAYS],]
+  
+  stats.EXP.HR.sub = DF.Stats(ST.DF.HR.sub)
+  
+  #E.max = max(stats.EXP.P.sub$maxEXP, na.rm = T)
+  #E.max = max(c(stats.EXP.P.sub$maxEXP, stats.EXP.S.sub$maxEXP, stats.EXP.T1.sub$maxEXP, stats.EXP.T2.sub$maxEXP), na.rm = T)
+  E.max = max(stats.EXP.HR.sub$maxEXP, na.rm = T)
   
   Col.P = rgb(red=0, green=0.5, blue=0.5, alpha=0.2)
   Col.S = rgb(red=1, green=0.2, blue=0.5, alpha=0.2)
@@ -50,17 +60,17 @@ Plot.Group2 <- function(Profile, DAY.start, DAYS, IND.amount, PlotMinMax, ST.DF.
   Col.HR = rgb(red=0.6, green=0.2, blue=0.2, alpha=0.2)
   
   # point plot with transparency in color
-  with (ST.DF.P, plot(TIME, EXP, pch = ".", cex=1, col = Col.P, ylim=c(0, E.max+20),
+  with (ST.DF.P.sub, plot(TIME, EXP, pch = "-", cex=1, col = Col.P, ylim=c(0, E.max+20),
                         xlab = "Time", ylab = paste(toupper(pol), "concentration (µg/m³)"),
                         main = paste(Active.Subprofile$FullName, ":", IND.amount, "out of", length(ExposureValue.P), "individuals")))
-  with (ST.DF.HR, plot(TIME, EXP, pch = "-", cex=1, col = Col.P, ylim=c(0, E.max+20),
+  with (ST.DF.HR.sub, plot(TIME, EXP, pch = "-", cex=1, col = Col.P, ylim=c(0, E.max+20),
                       xlab = "Time", ylab = paste(toupper(pol), "concentration (µg/m³)"),
                       main = paste(Active.Subprofile$FullName, ":", IND.amount, "out of", length(ExposureValue.P), "individuals")))
   
   
-  with (ST.DF.S, points(TIME, EXP, pch = ".", cex=1, col = Col.S))
-  with (ST.DF.T1, points(TIME, EXP, pch = ".", cex=1, col = Col.T1))
-  with (ST.DF.T2, points(TIME, EXP, pch = ".", cex=1, col = Col.T2))
+  with (ST.DF.S.sub, points(TIME, EXP, pch = ".", cex=1, col = Col.S))
+  with (ST.DF.T1.sub, points(TIME, EXP, pch = ".", cex=1, col = Col.T1))
+  with (ST.DF.T2.sub, points(TIME, EXP, pch = ".", cex=1, col = Col.T2))
   
   mtext(paste(head(ST.DF.P$TIME,1), "-", tail(ST.DF.P$TIME,1)))
   mtext(paste(head(ST.DF$TIME,1), "-", tail(ST.DF$TIME,1) + 0.001))
