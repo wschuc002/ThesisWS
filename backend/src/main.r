@@ -165,8 +165,8 @@ Belgium = gBuffer(Belgium, byid = F, id = NULL, width = 2000)
 
 
 # Select active Residential Profile
-Active.Type = "03.SP"
-Active.Subtype = paste0(Active.Type, "_WS1")
+Active.Type = "01.OW"
+Active.Subtype = paste0(Active.Type, "_WS","1")
 
 Active.Profile = ResidentialProfiles[ResidentialProfiles$Type == Active.Type,]
 Active.Subprofile = ResidentialProfiles[ResidentialProfiles$Subtype == Active.Subtype,]
@@ -271,6 +271,9 @@ if (Active.Type == "03.SP")
   RandomSamplePoints = 5 # desirable resulting amount of points, after random sampling the equal points
 }
 
+rm(BusinesDates, WeekendDates, PPH.T1.Pnt.Li, PPH.T2.Pnt.Li, PPH.T1.Pnt.eq.Li, PPH.T2.Pnt.eq.Li,
+   PPH.T1.PNT.RS, PPH.T2.PNT.RS, TimeVertex.T1, TimeVertex.T2)
+
 if (Active.Subprofile$Dynamics == "dynamic")
 {
   BusinesDates = DateType(YearDates, "Workdays", HoliDates)
@@ -327,6 +330,8 @@ if (Active.Subprofile$Dynamics == "dynamic")
   
 }
 
+rm(TIME.P, TIME.S, TIME.T1, TIME.T1)
+
 TIME = CreateCorrespondingDateAndTime(Active.Type, Active.Subprofile, PPH.P, YearDates, BusinesDates, WeekendDates, HoliDates,
                                       TimeVertex.T1, TimeVertex.T2, PPH.T1.PNT.RS, PPH.T2.PNT.RS, year.active)
 TIME.P = TIME[[2]]
@@ -338,6 +343,16 @@ if (Active.Subprofile$Dynamics == "dynamic")
   TIME.T2 = TIME[[5]]
 }
 rm(TIME)
+
+#Read DBF file with TIME 
+TIME.P = DBFreader("Time", "Primary", PPH.P, YearDates, BusinesDates, Active.Subtype)
+if (Active.Subprofile$Dynamics == "dynamic")
+{
+  TIME.S = DBFreader("Time", "Secondary", PPH.P, YearDates, BusinesDates, Active.Subtype)
+  TIME.T1 = DBFreader("Time", "T1", PPH.P, YearDates, BusinesDates, Active.Subtype)
+  TIME.T2 = DBFreader("Time", "T2", PPH.P, YearDates, BusinesDates, Active.Subtype)
+}
+
 
 # Hours of the year
 HOURS.P = HourOfTheYear7(year.active, TIME.P, 0)
@@ -366,14 +381,7 @@ if (WriteToDisk)
 
 #rm(dir.P, dir.S, dir.T1f, dir.T1s, dir.T2f, dir.T2s)
 
-#Read DBF file with TIME 
-TIME.P = DBFreader("Time", "Primary", PPH.P, YearDates, BusinesDates, Active.Subtype)
-if (Active.Subprofile$Dynamics == "dynamic")
-{
-  TIME.S = DBFreader("Time", "Secondary", PPH.P, YearDates, BusinesDates, Active.Subtype)
-  TIME.T1 = DBFreader("Time", "T1", PPH.P, YearDates, BusinesDates, Active.Subtype)
-  TIME.T2 = DBFreader("Time", "T2", PPH.P, YearDates, BusinesDates, Active.Subtype)
-}
+
 
 ## Read Air Quality data
 
@@ -510,12 +518,10 @@ if (WriteToDisk)
     SaveAsDBF(ExposureValue.S, "Exposure", "Secondary", YearDates, Active.Subtype, FALSE, pol)
     SaveAsDBF(ExposureValue.T1, "Exposure", "T1", YearDates, Active.Subtype, FALSE, pol)
     SaveAsDBF(ExposureValue.T2, "Exposure", "T2", YearDates, Active.Subtype, FALSE, pol)
-    
-    # SaveAsDBF(ExposureValue.S, "EXP_S", Active.Subtype, FALSE, pol)
-    # SaveAsDBF(ExposureValue.T1, "EXP_T1", Active.Subtype, FALSE, pol)
-    # SaveAsDBF(ExposureValue.T2, "EXP_T2", Active.Subtype, FALSE, pol)
   }
 }
+
+# rm(ExposureValue.P, ExposureValue.S, ExposureValue.T1, ExposureValue.T2)
 
 #Read DBF file with Exposurevalues 
 ExposureValue.P = DBFreader("Exposure", "Primary", PPH.P, YearDates, BusinesDates, Active.Subtype, pol)
@@ -526,12 +532,15 @@ if (Active.Subprofile$Dynamics == "dynamic")
   ExposureValue.T2 = DBFreader("Exposure", "T2", PPH.P, YearDates, BusinesDates, Active.Subtype, pol)
 }
 
-all(round(ExposureValue.P_[[88]][[3]], 5) == round(ExposureValue.P[[88]][[3]], 5))
-ExposureValue.T1[[88]]
-
-rm(Primary, Primary_random, Secondary, src1, src2, dst1, dst2)
+# all(round(ExposureValue.P_[[88]][[3]], 5) == round(ExposureValue.P[[88]][[3]], 5))
+# ExposureValue.T1[[88]]
+# 
+# rm(Primary, Primary_random, Secondary, src1, src2, dst1, dst2)
 
 ## Data Frame structure and stats
+
+rm(ST.DF.P, ST.DF.S, ST.DF.T1, ST.DF.T2,
+   stats.EXP.P, stats.EXP.S, stats.EXP.T1, stats.EXP.T2)
 
 ST.DF.P = DF.Structure2(PPH.P, TIME.P, TIME.P, ExposureValue.P)
 stats.EXP.P = DF.Stats(ST.DF.P)
@@ -558,11 +567,11 @@ if (Active.Subprofile$Dynamics == "dynamic")
 {
   ExposureValueCombined = ToHourValues(PPH.P, Time, ExposureValue.P, ExposureValue.S, ExposureValue.T1, ExposureValue.T2,
                                        TIME.P, TIME.S, TIME.T1, TIME.T2, wP, wS, wT1, wT2)
-  for (i in seq_along(PPH.P))
-  {
-    print(head(ExposureValueCombined[[i]], 5*24))
-  }
-  head(ExposureValueCombined[[68]], 7*24)
+#   for (i in seq_along(PPH.P))
+#   {
+#     print(head(ExposureValueCombined[[i]], 5*24))
+#   }
+#   head(ExposureValueCombined[[66]], 7*24)
   
   ST.DF.HR = DF.Structure2(PPH.P, TIME.P, Time, ExposureValueCombined)
   stats.EXP.HR = DF.Stats(ST.DF.HR)
@@ -592,16 +601,16 @@ ST.DF.HR.BiWe = ST.DF.HR[ST.DF.HR$TIME >= BIWEEKLY[[1]][1] & ST.DF.HR$TIME <= BI
 ## Individual based calculations
 # personal mean
 
-OW_WS1.INDmean = NA
-OW_WS2.INDmean = NA
-OW_C1.INDmean = NA
-OW_C2.INDmean = NA
-HO_WS1.INDmean = NA
-HO_WS2.INDmean = NA
-SP_WS1.INDmean = NA
-SP_WS2.INDmean = NA
-SP_C1.INDmean = NA
-SP_C2.INDmean = NA
+if (!exists("OW_WS1.INDmean")) { OW_WS1.INDmean = NA }
+if (!exists("OW_WS2.INDmean")) { OW_WS2.INDmean = NA }
+if (!exists("OW_C1.INDmean")) { OW_C1.INDmean = NA }
+if (!exists("OW_C2.INDmean")) { OW_C2.INDmean = NA }
+if (!exists("HO_WS1.INDmean")) { HO_WS1.INDmean = NA }
+if (!exists("HO_WS2.INDmean")) { HO_WS2.INDmean = NA }
+if (!exists("SP_WS1.INDmean")) { SP_WS1.INDmean = NA }
+if (!exists("SP_WS2.INDmean")) { SP_WS2.INDmean = NA }
+if (!exists("SP_C1.INDmean")) { SP_C1.INDmean = NA }
+if (!exists("SP_C2.INDmean")) { SP_C2.INDmean = NA }
 
 for (i in seq_along(PPH.P))
 {
@@ -622,7 +631,7 @@ for (i in seq_along(PPH.P))
   if (Active.Subprofile$Subtype == "02.HO_WS1" | Active.Subprofile$Subtype == "02.HO_WS2")
   {
     HO_WS1.INDmean[i] = mean(ST.DF.HR[ST.DF.HR$IND == i,]$EXP)
-    HO_WS1.INDmean[i] = mean(ST.DF.HR.BiWe[ST.DF.HR.BiWe$IND == i,]$EXP)
+    HO_WS2.INDmean[i] = mean(ST.DF.HR.BiWe[ST.DF.HR.BiWe$IND == i,]$EXP)
   }
   
   if (Active.Subprofile$Subtype == "03.SP_WS1" | Active.Subprofile$Subtype == "03.SP_WS2")
@@ -638,10 +647,41 @@ for (i in seq_along(PPH.P))
   }
 }
 
-plot(OW_C1.INDmean, OW_C2.INDmean, main = paste(Active.Subtype,"C1 vs. C2 (µg/m³)", length(PPH.P), "individuals") , pch = "+")
+plot(OW_C1.INDmean, OW_C2.INDmean, main = paste(Active.Type,"C1 vs. C2 (µg/m³)", length(PPH.P), "individuals") , pch = "+")
 R.squared = cor(OW_C1.INDmean, OW_C2.INDmean)**2
 text(min(OW_C1.INDmean), max(OW_C2.INDmean)-1, pos = 1, labels = "R²:", font = 2)
 text(min(OW_C1.INDmean)+5, max(OW_C2.INDmean)-1, pos = 1, labels = R.squared)
+
+plot(SP_WS1.INDmean, SP_WS2.INDmean, main = paste(Active.Type,"WS1 vs. WS2 (µg/m³)", length(PPH.P), "individuals") , pch = "+")
+R.squared = cor(SP_WS1.INDmean, SP_WS2.INDmean)**2
+text(min(SP_WS1.INDmean), max(SP_WS2.INDmean)-1, pos = 1, labels = "R²:", font = 2)
+text(min(SP_WS1.INDmean)+5, max(SP_WS2.INDmean)-1, pos = 1, labels = R.squared)
+
+plot(SP_C1.INDmean, SP_C2.INDmean, main = paste(Active.Type,"C1 vs. C2 (µg/m³)", length(PPH.P), "individuals") , pch = "+")
+R.squared = cor(SP_C1.INDmean, SP_C2.INDmean)**2
+text(min(SP_C1.INDmean), max(SP_C2.INDmean)-1, pos = 1, labels = "R²:", font = 2)
+text(min(SP_C1.INDmean)+5, max(SP_C2.INDmean)-1, pos = 1, labels = R.squared)
+
+
+DF.SP.collect = data.frame(cbind(SP_WS1.INDmean, SP_WS2.INDmean, SP_C1.INDmean, SP_C2.INDmean))
+C.SP = cor(DF.SP.collect)
+corrplot(C.SP, method="ellipse")
+corrplot(C.SP, method="number", number.digits = 5)
+
+DF.HO.collect = data.frame(cbind(HO_WS1.INDmean, HO_WS2.INDmean))
+C.HO = cor(DF.HO.collect)
+corrplot(C.HO, method="ellipse")
+corrplot(C.HO, method="number", number.digits = 5)
+
+
+
+
+
+#? Correlation on HR based values
+DF.WS1.collect = data.frame(cbind(OW_WS1.ST.DF.HR, HO_WS1.ST.DF.HR, SP_WS1.ST.DF.HR))
+C.WS1 = cor(DF.WS1.collect)
+corrplot(C.WS1, method="ellipse")
+corrplot(C.WS1, method="number", number.digits = 5)
 
 
 
