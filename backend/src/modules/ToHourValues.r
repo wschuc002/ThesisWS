@@ -81,13 +81,13 @@ ToHourValues <- function(PPH.P, Time, ExposureValue.P, ExposureValue.S, Exposure
   for (h in 1:length(Time))
   #for (h in (4*24+1):(5*24))
   {
-    print(paste0("Series Hour ", h))
+    #print(paste0("Series Hour ", h))
     day = ceiling(h/24)
 
     for (i in seq_along(PPH.P))
     #for (i in 14)
     {
-      print(paste0("Individual ", i))
+      #print(paste0("Individual ", i))
       
       
       if (length(wP[[i]][[h]]) > 0 & !length(wT1[[i]][[h]]) > 0 & !length(wT2[[i]][[h]]) > 0) # Only P, no hour overlap
@@ -99,6 +99,21 @@ ToHourValues <- function(PPH.P, Time, ExposureValue.P, ExposureValue.S, Exposure
       {
         ExposureValueCombined[[i]][h] = ExposureValue.S[[i]][[day]][wS[[i]][[h]]]
       }
+      
+      if (length(wT1[[i]][[h]]) > 0 & length(wS[[i]][[h]]) == 0) # Only T1, no hour overlap
+      {
+        Mean.T1 = mean(ExposureValue.T1[[i]][[day]][wT1[[i]][[h]]])
+        ExposureValueCombined[[i]][h] = Mean.T1
+        rm(Mean.T1)
+    }
+      
+      if (length(wT2[[i]][[h]]) > 0 & length(wP[[i]][[h]]) == 0) # Only T2, no hour overlap
+      {
+        Mean.T2 = mean(ExposureValue.T2[[i]][[day]][wT2[[i]][[h]]])
+        ExposureValueCombined[[i]][h] = Mean.T2
+        rm(Mean.T2)
+      }
+      
       
       if (length(wT1[[i]][[h]]) > 0 & length(wS[[i]][[h]]) == 1) # Hour overlap T1 & S wP[[i]][[h]]
       {
@@ -123,19 +138,13 @@ ToHourValues <- function(PPH.P, Time, ExposureValue.P, ExposureValue.S, Exposure
         {
           ExposureValueCombined[[i]][h] = sum(EXP.part.T1 * Weight.T1, EXP.part.S * Weight.S)
           
+          rm(EXP.part.T1_1, EXP.part.T1_, EXP.part.T1, Weight.T1_1, Weight.T1_, Weight.T1, EXP.part.S, Weight.S)
         } else
         {
           stop(paste("Weights do not add up to 1.", "Hour:", h, "| Individual:", i))
         }
-          
       }
-      
-      if (length(wT1[[i]][[h]]) > 0 & length(wS[[i]][[h]]) == 0) # Only T1, no hour overlap
-      {
-        Mean.T1 = mean(ExposureValue.T1[[i]][[day]][wT1[[i]][[h]]])
-        
-        ExposureValueCombined[[i]][h] = Mean.T1
-      }
+
       
       if (length(wT2[[i]][[h]]) > 0 & length(wP[[i]][[h]]) > 0) # Hour overlap T2 & P | TIME.P[[i]][[day]][wP[[i]][[h]]]
       {
@@ -143,12 +152,6 @@ ToHourValues <- function(PPH.P, Time, ExposureValue.P, ExposureValue.S, Exposure
         EXP.part.T2_ = ExposureValue.T2[[i]][[day]][wT2[[i]][[h]]][-(1:1)]
         EXP.part.T2 = c(EXP.part.T2_1,EXP.part.T2_)
         
-        #tail(ExposureValue.T2[[i]][[day]][wT2[[i]][[h]]],1)
-        
-        TIME.P[[i]][[day]][wP[[i]][[h]]]
-        TIME.T2[[i]][[day]][wT2[[i]][[h]]]
-        
-
         Weight.T2_1 = as.numeric(difftime(TIME.T2[[i]][[day]][wT2[[i]][[h]]][1],
                                           floor_date(tail(TIME.T2[[i]][[day]][wT2[[i]][[h]]],1), 'hours'), units = "hours"))
         
@@ -179,8 +182,9 @@ ToHourValues <- function(PPH.P, Time, ExposureValue.P, ExposureValue.S, Exposure
         
         if (sum(Weight.T2, Weight.P) == 1) # should be 1
         {
-          ExposureValueCombined[[i]][h] = sum(EXP.part.T1 * Weight.T1, EXP.part.S * Weight.S)
+          ExposureValueCombined[[i]][h] = sum(EXP.part.T2 * Weight.T2, EXP.part.P * Weight.P)
           
+          rm(EXP.part.T2_1, EXP.part.T2_, EXP.part.T2, Weight.T2_1, Weight.T2_, Weight.T2, EXP.part.P, Weight.P_1, Weight.P_, Weight.P)
         } else
         {
           stop(paste("Weights do not add up to 1.", "Hour:", h, "| Individual:", i))
@@ -198,13 +202,7 @@ ToHourValues <- function(PPH.P, Time, ExposureValue.P, ExposureValue.S, Exposure
 #         ExposureValueCombined[[i]][h] = Mean.T2 * Weight.T2 + ExposureValue.P[[i]][[day]][wP[[i]][[h]]] * Weight.P
       }
       
-      if (length(wT2[[i]][[h]]) > 0 & length(wP[[i]][[h]]) == 0) # Only T2, no hour overlap
-      {
-        Mean.T2 = mean(ExposureValue.T2[[i]][[day]][wT2[[i]][[h]]])
-        
-        ExposureValueCombined[[i]][h] = Mean.T2
-      }
-      
+
       #! Hour overlap P and T1 and S
       if (length(wP[[i]][[h]]) == 1 & length(wT1[[i]][[h]]) > 0 & length(wS[[i]][[h]]) > 0) # Hour overlap T1 & P & S
       {
@@ -232,14 +230,16 @@ ToHourValues <- function(PPH.P, Time, ExposureValue.P, ExposureValue.S, Exposure
         Weight.S_ = NA
         for (e in 1:(length(TIME.S[[i]][[day]][wS[[i]][[h]]])-1))
         {
-          Weight.S_[e] = difftime(TIME.S[[i]][[day]][wT1[[i]][[h]]][e+1], TIME.S[[i]][[day]][wT1[[i]][[h]]][e], units = "hours")
+          Weight.S_[e] = difftime(TIME.S[[i]][[day]][wS[[i]][[h]]][e+1], TIME.S[[i]][[day]][wS[[i]][[h]]][e], units = "hours")
         }
         Weight.S = c(Weight.S_1, Weight.S_)
         
-        if (sum(Weight.P, Weight.T1, Weight.S) == 1) # should be 1
+        if (as.character(sum(Weight.P, Weight.T1, Weight.S)) == as.character(1)) # should be 1 # buggy with: (sum(Weight.P, Weight.T1, Weight.S) == 1)
         {
           ExposureValueCombined[[i]][h] = sum(EXP.part.P * Weight.P, EXP.part.T1 * Weight.T1, EXP.part.S * Weight.S)
           
+          rm(EXP.part.P, Weight.P, EXP.part.T1_1, EXP.part.T1_, EXP.part.T1, Weight.T1_1, Weight.T1_, Weight.T1,
+             EXP.part.S, Weight.S_1, Weight.S_, Weight.S)
         } else
         {
           stop(paste("Weights do not add up to 1.", "Hour:", h, "| Individual:", i))
