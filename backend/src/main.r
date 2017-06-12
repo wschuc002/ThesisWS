@@ -74,18 +74,6 @@ source("modules/BiWeekly.r")
 source("modules/ToHourValues.r")
 source("modules/DBFreader.r")
 
-#source("modules/IntersectsBoolean.r")
-#source("modules/ConversionTable.r")
-#source("modules/PersonalLocationToLocationID.r")
-#source("modules/ReadIDF5files.r")
-#source("modules/TimePhases.r")
-#source("modules/IncludeWeekends.r")
-#source("modules/SecondaryRelation.r")
-#source("modules/WeightCR.r")
-#source("modules/RGBtoSingleBand.r")
-#source("modules/TimeDifferenceCalculation.r")
-#source("modules/CumulativeExposure.r")
-
 ### Download data from OneDrive or irceline ftp server
 DownloadMode = "OneDrive" # "FPT"
 
@@ -236,11 +224,7 @@ if (Active.Subprofile$Dynamics == "dynamic")
 {
   if (!exists("PPH.S") & file.exists(dir.S))
   {
-    PPH.S = readOGR(dir.S, layer = 'OGRGeoJSON') # Error: FIDs not unique
-    
-    # dir.S = file.path("..", "output", paste(Active.Type, paste0("Secondary", Names, "_fix", ".geojson"), sep = "_"))
-    # PPH.S = readOGR(dir.S, layer = 'OGRGeoJSON') # Error: FIDs not unique
-    # 
+    PPH.S = readOGR(dir.S, layer = 'OGRGeoJSON')
     PPH.S@proj4string = BE_crs
   }
   
@@ -292,6 +276,7 @@ if (Active.Subprofile$Dynamics == "dynamic")
   BusinesDates = DateType(YearDates, "Workdays", HoliDates)
   WeekendDates = DateType(YearDates, "Weekends")
   
+  
   PPH.T1.Pnt.Li = list()
   PPH.T2.Pnt.Li = list()
   for (i in seq_along(PPH.P))
@@ -306,38 +291,44 @@ if (Active.Subprofile$Dynamics == "dynamic")
   
   plot(PPH.T1.Pnt.eq.Li[[1]])
   
+  # set.seed(12345)
   PPH.T1.PNT.RS = RandomSampleRoutesYears(PPH.T1, PPH.T1.Pnt.eq.Li, FALSE, RandomSamplePoints, YearDates, BusinesDates)
   PPH.T2.PNT.RS = RandomSampleRoutesYears(PPH.T2, PPH.T2.Pnt.eq.Li, FALSE, RandomSamplePoints, YearDates, BusinesDates)
-
-
+  
+  
   # some test plots
-  i = 96
+  i = 88
   day = 5
   plot(PPH.T1[i,])
+  points(PPH.T1.Pnt.Li[[i]], pch = "+", col = "gray")
+  points(PPH.T1.Pnt.Li[[i]][1,], pch = "O", col = "gray")
   points(PPH.P[i,], col = "green", pch = "O")
   points(PPH.S[i,], col = "orange", pch = "O")
   
   points(PPH.T1.Pnt.eq.Li[[i]], col = "blue")
+  points(PPH.T1.Pnt.eq.Li[[i]][4,], col = "blue", pch = "O")
+  
   points(PPH.T1.PNT.RS[[i]][[day]], col = "red")
+  points(PPH.T1.PNT.RS[[i]][[day]][5,], col = "red", pch = "O")
   
   # Basic time element per vertex
   TimeVertex.T1 = LinkPointsToTime.Transport("Outwards", PPH.T1, PPH.T1.Pnt.Li, year.active, Active.Subprofile)
   TimeVertex.T2 = LinkPointsToTime.Transport("Inwards", PPH.T2, PPH.T2.Pnt.Li, year.active, Active.Subprofile)
-
-  # Order the PPH.S to match [i,]
-  PPH.S.Li = list()
-  for (i in seq_along(PPH.P))
-  {
-    WS = which(PPH.S@data$object_id %in% PPH.T1@data$dst[i])
-    PPH.S.Li[[i]] = PPH.S[WS[1],]
-  }
-  #points(PPH.S.Li[[i]], col = "purple", pch = "L")
-  PPH.S = do.call(rbind, PPH.S.Li)
+  
+  #   # Order the PPH.S to match [i,]
+  #   PPH.S.Li = list()
+  #   for (i in seq_along(PPH.P))
+  #   {
+  #     WS = which(PPH.S@data$object_id %in% PPH.T1@data$dst[i])
+  #     PPH.S.Li[[i]] = PPH.S[WS[1],]
+  #   }
+  #   #points(PPH.S.Li[[i]], col = "purple", pch = "L")
+  #   PPH.S = do.call(rbind, PPH.S.Li)
   
 }
 
 TIME = CreateCorrespondingDateAndTime(Active.Type, Active.Subprofile, PPH.P, YearDates, BusinesDates, WeekendDates, HoliDates,
-                                      TimeVertex.T1, TimeVertex.T2, PPH.T1.PNT.RS, PPH.T2.PNT.RS)
+                                      TimeVertex.T1, TimeVertex.T2, PPH.T1.PNT.RS, PPH.T2.PNT.RS, year.active)
 TIME.P = TIME[[2]]
 if (Active.Subprofile$Dynamics == "dynamic")
 {
@@ -361,14 +352,15 @@ if (Active.Subprofile$Dynamics == "dynamic")
 
 # Write TIME to disk
 WriteToDisk = TRUE
+OW = FALSE
 if (WriteToDisk)
 {
-  SaveAsDBF(TIME.P, "Time", "Primary", YearDates, Active.Subtype, FALSE, pol)
+  SaveAsDBF(TIME.P, "Time", "Primary", YearDates, Active.Subtype, OW, pol)
   if (Active.Subprofile$Dynamics == "dynamic")
   {
-    SaveAsDBF(TIME.S, "Time", "Secondary", YearDates, Active.Subtype, FALSE, pol)
-    SaveAsDBF(TIME.T1, "Time", "T1", YearDates, Active.Subtype, FALSE, pol)
-    SaveAsDBF(TIME.T2, "Time", "T2", YearDates, Active.Subtype, FALSE, pol)
+    SaveAsDBF(TIME.S, "Time", "Secondary", YearDates, Active.Subtype, OW, pol)
+    SaveAsDBF(TIME.T1, "Time", "T1", YearDates, Active.Subtype, OW, pol)
+    SaveAsDBF(TIME.T2, "Time", "T2", YearDates, Active.Subtype, OW, pol)
   }
 }
 
@@ -445,24 +437,6 @@ colnames(Points.NoVal@data) = NA
 Points.NoVal@data[,1] = NA
 rm(Points)
 
-# for (p in 1:length(txt.Points))
-# {
-#   Values = fread(txt.Points[p], sep=";", header=TRUE, select = "values") #[Points.T,]
-#   
-#   Points.AoI_test@data = cbind(Points.AoI_test@data, Values)
-# }
-# ColNames = paste0("CON_", regmatches(txt.Points, regexpr(paste0("[0-9]*_[0-9]*_", toupper(pol)), txt.Points)))
-# Points.AoI_test@data[,1] = NULL
-# colnames(Points.AoI_test@data) = ColNames
-# 
-# spplot(Points.AoI_test, colnames(Points.AoI_test@data)[25])
-
-# # Remove duplicates
-# #Points.AoI.Dups = Points.AoI[duplicated(Points.AoI@coords), ]
-# Points.AoI.NoDup = Points.AoI[!duplicated(Points.AoI@coords), ]
-# #SaveAsFile(Points.AoI.NoDup, paste("Points_AoI_RIO-IFDM", "CON_20150101_19_NO2", sep = "_"), "GeoJSON", TRUE)
-
-
 Time = seq(as.POSIXct(paste0(year.active,"-01-01 00:00:00")),
            (as.POSIXct(paste0(year.active+1,"-01-01 00:00:00")) - 1*60**2), 1*60**2) + 1*60**2
 
@@ -481,8 +455,9 @@ if (Active.Subprofile$Dynamics == "dynamic")
 
 start.time = Sys.time()
 ExposureValue.All = PPH.TIN.InterpolationWS(PPH.P, PPH.S, PPH.T1.PNT.RS, PPH.T2.PNT.RS,
-                                            Points.NoVal, PolDir, Plot = F,
-                                            pol, StartHour = 1, EndHour = length(Time),
+                                            Points.NoVal, PolDir, Plot = FALSE, pol,
+                                            StartHour = 1, EndHour = length(Time),
+                                            #StartHour = 5*24+1, EndHour = 6*24,
                                             HOURS.P, HOURS.S, HOURS.T1, HOURS.T2, 50,
                                             wP, wS, wT1, wT2, Active.Subprofile)
 ExposureValue.P = ExposureValue.All[[1]]
@@ -585,9 +560,9 @@ if (Active.Subprofile$Dynamics == "dynamic")
                                        TIME.P, TIME.S, TIME.T1, TIME.T2, wP, wS, wT1, wT2)
   for (i in seq_along(PPH.P))
   {
-    print(head(ExposureValueCombined[[i]], 2*24))
+    print(head(ExposureValueCombined[[i]], 5*24))
   }
-  head(ExposureValueCombined[[88]], 7*24)
+  head(ExposureValueCombined[[68]], 7*24)
   
   ST.DF.HR = DF.Structure2(PPH.P, TIME.P, Time, ExposureValueCombined)
   stats.EXP.HR = DF.Stats(ST.DF.HR)
@@ -921,6 +896,34 @@ NumericWS = 1:10
 ## Undo system settings changes
 Sys.setenv(TZ = OriginalTimezone)
 
+#source("modules/IntersectsBoolean.r")
+#source("modules/ConversionTable.r")
+#source("modules/PersonalLocationToLocationID.r")
+#source("modules/ReadIDF5files.r")
+#source("modules/TimePhases.r")
+#source("modules/IncludeWeekends.r")
+#source("modules/SecondaryRelation.r")
+#source("modules/WeightCR.r")
+#source("modules/RGBtoSingleBand.r")
+#source("modules/TimeDifferenceCalculation.r")
+#source("modules/CumulativeExposure.r")
+
+# for (p in 1:length(txt.Points))
+# {
+#   Values = fread(txt.Points[p], sep=";", header=TRUE, select = "values") #[Points.T,]
+#   
+#   Points.AoI_test@data = cbind(Points.AoI_test@data, Values)
+# }
+# ColNames = paste0("CON_", regmatches(txt.Points, regexpr(paste0("[0-9]*_[0-9]*_", toupper(pol)), txt.Points)))
+# Points.AoI_test@data[,1] = NULL
+# colnames(Points.AoI_test@data) = ColNames
+# 
+# spplot(Points.AoI_test, colnames(Points.AoI_test@data)[25])
+
+# # Remove duplicates
+# #Points.AoI.Dups = Points.AoI[duplicated(Points.AoI@coords), ]
+# Points.AoI.NoDup = Points.AoI[!duplicated(Points.AoI@coords), ]
+# #SaveAsFile(Points.AoI.NoDup, paste("Points_AoI_RIO-IFDM", "CON_20150101_19_NO2", sep = "_"), "GeoJSON", TRUE)
 
 
 
