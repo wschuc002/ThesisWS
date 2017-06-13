@@ -15,17 +15,45 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 ## Check for required packages and install them (incl dependencies) if they are not installed yet.
-# list.of.packages <- c("rhdf5", "raster")
-# new.packages <- list.of.packages[!(list.of.packages %in% installed.packages()[,"Package"])]
-# #if(length(new.packages)) install.packages(new.packages)
+list.of.packages <- c("corrplot")
+new.packages <- list.of.packages[!(list.of.packages %in% installed.packages()[,"Package"])]
+if(length(new.packages)) install.packages(new.packages)
 
 ## Load the packages
+library(corrplot)
+
+
+CorPlotTable <- function(GroupName, CorType, WS1, WS2, C1 = -9999, C2 = -9999, ...)
+{
+  if (all(C1 == -9999 & C2 == -9999))
+  {
+    collect = data.frame(cbind(WS1, WS2))
+  } else
+  {
+    collect = data.frame(cbind(WS1, WS2, C1, C2))
+  }
+  
+  C = cor(collect)
+  C_squared = C**2
+  
+  if (CorType == "Ellipse")
+  {
+    corrplot(C, method="ellipse", type = "upper",
+             mar = c(1, 1, 1, 1))
+  }
+  
+  if (CorType == "Numbers")
+  {
+    corrplot(C_squared, method="number", number.digits = 5, title = paste(GroupName, "R²"), #type = "upper"
+             umber.cex = 1, mar = c(1, 0, 1, 0), tl.srt = 90)
+  }
+}
 
 #Profile = Active.Type
 #IND.amount = length(PPH.P)
 #PlotMinMax = FALSE
-#DAY.start = 1
-#DAYS = 21
+#DAY.start = 5
+#DAYS = 1 #length(YearDates)-1
 
 Plot.Group2 <- function(Profile, DAY.start, DAYS, IND.amount, PlotMinMax, ST.DF.P, ST.DF.S, ST.DF.T1, ST.DF.T2,
                         stats.EXP.P, stats.EXP.S, stats.EXP.T1, stats.EXP.T2, ...)
@@ -37,21 +65,28 @@ Plot.Group2 <- function(Profile, DAY.start, DAYS, IND.amount, PlotMinMax, ST.DF.
     IND.amount = length(ExposureValue.P)
   }
   
-  ST.DF.P.sub = ST.DF.P[ST.DF.P$TIME >= YearDates[DAY.start] & ST.DF.P$TIME < YearDates[DAY.start+DAYS],]
-  ST.DF.S.sub = ST.DF.S[ST.DF.S$TIME >= YearDates[DAY.start] & ST.DF.S$TIME < YearDates[DAY.start+DAYS],]
-  ST.DF.T1.sub = ST.DF.T1[ST.DF.T1$TIME >= YearDates[DAY.start] & ST.DF.T1$TIME < YearDates[DAY.start+DAYS],]
-  ST.DF.T2.sub = ST.DF.T2[ST.DF.T2$TIME >= YearDates[DAY.start] & ST.DF.T2$TIME < YearDates[DAY.start+DAYS],]
+  
+  ST.DF.HR = OW_WS1.ST.DF.HR
+  
+  
+  ST.DF.P.sub = ST.DF.P[ST.DF.P$TIME > YearDates[DAY.start] & ST.DF.P$TIME <= YearDates[DAY.start+DAYS],]
+  ST.DF.S.sub = ST.DF.S[ST.DF.S$TIME > YearDates[DAY.start] & ST.DF.S$TIME <= YearDates[DAY.start+DAYS],]
+  ST.DF.T1.sub = ST.DF.T1[ST.DF.T1$TIME > YearDates[DAY.start] & ST.DF.T1$TIME <= YearDates[DAY.start+DAYS],]
+  ST.DF.T2.sub = ST.DF.T2[ST.DF.T2$TIME > YearDates[DAY.start] & ST.DF.T2$TIME <= YearDates[DAY.start+DAYS],]
   
   stats.EXP.P.sub = DF.Stats(ST.DF.P.sub)
   stats.EXP.S.sub = DF.Stats(ST.DF.S.sub)
+  stats.EXP.T1.sub = DF.Stats(ST.DF.T1.sub)
+  stats.EXP.T2.sub = DF.Stats(ST.DF.T2.sub)
   
-  ST.DF.HR.sub = ST.DF.HR[ST.DF.HR$TIME >= YearDates[DAY.start] & ST.DF.HR$TIME < YearDates[DAY.start+DAYS],]
   
+  ST.DF.HR.sub = ST.DF.HR[ST.DF.HR$TIME > YearDates[DAY.start] & ST.DF.HR$TIME <= YearDates[DAY.start+DAYS],]
   stats.EXP.HR.sub = DF.Stats(ST.DF.HR.sub)
   
   #E.max = max(stats.EXP.P.sub$maxEXP, na.rm = T)
-  #E.max = max(c(stats.EXP.P.sub$maxEXP, stats.EXP.S.sub$maxEXP, stats.EXP.T1.sub$maxEXP, stats.EXP.T2.sub$maxEXP), na.rm = T)
+  E.max = max(c(stats.EXP.P.sub$maxEXP, stats.EXP.S.sub$maxEXP, stats.EXP.T1.sub$maxEXP, stats.EXP.T2.sub$maxEXP), na.rm = T)
   E.max = max(stats.EXP.HR.sub$maxEXP, na.rm = T)
+  E.max = 100
   
   Col.P = rgb(red=0, green=0.5, blue=0.5, alpha=0.2)
   Col.S = rgb(red=1, green=0.2, blue=0.5, alpha=0.2)
@@ -63,17 +98,22 @@ Plot.Group2 <- function(Profile, DAY.start, DAYS, IND.amount, PlotMinMax, ST.DF.
   with (ST.DF.P.sub, plot(TIME, EXP, pch = "-", cex=1, col = Col.P, ylim=c(0, E.max+20),
                         xlab = "Time", ylab = paste(toupper(pol), "concentration (µg/m³)"),
                         main = paste(Active.Subprofile$FullName, ":", IND.amount, "out of", length(ExposureValue.P), "individuals")))
+  
   with (ST.DF.HR.sub, plot(TIME, EXP, pch = "-", cex=1, col = Col.P, ylim=c(0, E.max+20),
                       xlab = "Time", ylab = paste(toupper(pol), "concentration (µg/m³)"),
-                      main = paste(Active.Subprofile$FullName, ":", IND.amount, "out of", length(ExposureValue.P), "individuals")))
+                      main = paste(Active.Subprofile$FullName, ":", IND.amount, "out of", length(PPH.P), "individuals")))
+  
+  with (OW_C2.ST.DF.HR, plot(TIME, EXP, pch = ".", cex=1, col = Col.HR, ylim=c(0, E.max+20),
+                            xlab = "Time", ylab = paste(toupper(pol), "Biweekly concentration (µg/m³)"),
+                            main = paste(Active.Subprofile$Type, ":", IND.amount, "out of", length(ExposureValue.P), "individuals")))
   
   
-  with (ST.DF.S.sub, points(TIME, EXP, pch = ".", cex=1, col = Col.S))
+  with (ST.DF.S.sub, points(TIME, EXP, pch = "-", cex=1, col = Col.S))
   with (ST.DF.T1.sub, points(TIME, EXP, pch = ".", cex=1, col = Col.T1))
   with (ST.DF.T2.sub, points(TIME, EXP, pch = ".", cex=1, col = Col.T2))
   
-  mtext(paste(head(ST.DF.P$TIME,1), "-", tail(ST.DF.P$TIME,1)))
-  mtext(paste(head(ST.DF$TIME,1), "-", tail(ST.DF$TIME,1) + 0.001))
+  mtext(paste(head(ST.DF.P.sub$TIME,1), "-", tail(ST.DF.P.sub$TIME,1) + 0.001))
+  mtext(paste(head(ST.DF.HR.sub$TIME,1), "-", tail(ST.DF.HR.sub$TIME,1) + 0.001))
 
   #add mean, min and max to plot
   points(as.POSIXct(stats.EXP.P$TIME), stats.EXP.P$meanEXP, col = "orange", pch = "-", cex = 1)

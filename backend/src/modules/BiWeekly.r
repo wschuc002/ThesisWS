@@ -31,11 +31,6 @@ BiWeekly <- function(year.active, YearDates, SchoolHolidays, TIME.P, ... )
   WinterStart1 = as.POSIXct(paste0(year.active-1,"-12-22 00:00:00"))
   WinterStart2 = as.POSIXct(paste0(year.active,"-12-22 00:00:00"))
   
-#   SpringPeriod.TF = YearDates >= SpringStart & YearDates < SummerStart
-#   SummerPeriod.TF = YearDates >= SummerStart & YearDates < AutumnStart
-#   AutumnPeriod.TF = YearDates >= AutumnStart & YearDates < WinterStart
-#   WinterPeriod.TF = YearDates >= WinterStart | YearDates < SpringStart
-  
   # Exclude Holidays for Winter, Spring and Summer
   # school holiday periods
   SchoolHolidayPeriods = SchoolHolidays[nchar(SchoolHolidays$End) != 0]
