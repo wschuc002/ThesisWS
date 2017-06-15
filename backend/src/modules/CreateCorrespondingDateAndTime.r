@@ -29,7 +29,12 @@ library(lubridate)
 CreateCorrespondingDateAndTime <- function(Active.Type, Active.Subprofile, PPH.P, YearDates, BusinesDates, WeekendDates, HoliDates,
                                            TimeVertex.T1, TimeVertex.T2, PPH.T1.PNT.RS, PPH.T2.PNT.RS, Year, ...)
 {
-
+  PHASES = list()
+  TIME.P = list()
+  TIME.S = list()
+  TIME.T1 = list()
+  TIME.T2 = list()
+  
   for (i in seq_along(PPH.P))
   #for (i in 1:20)
   {

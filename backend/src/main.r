@@ -154,11 +154,15 @@ Flanders = getData("GADM",country = "Belgium", level = 1, path = output.dir)
 Flanders = Flanders[Flanders@data$NAME_1 == "Vlaanderen",]
 Flanders = spTransform(Flanders, BE_crs)
 Flanders@proj4string = BE_crs
+Flanders@data$NAME_1_EN = "Flanders"
+#SaveAsFile(Flanders, "Flanders", "GeoJSON", TRUE)
 
-# Read Flanders polygon
+# Read Belgium polygon
 Belgium = getData("GADM",country="Belgium", level = 0, path = output.dir)
 Belgium = spTransform(Belgium, BE_crs)
 Belgium@proj4string = BE_crs
+#SaveAsFile(Belgium, "Belgium", "GeoJSON", FALSE)
+
 # Create buffer to mimic the range of the RIO-IFDM points
 Belgium = gBuffer(Belgium, byid = F, id = NULL, width = 2000)
 
@@ -307,19 +311,55 @@ if (Active.Subprofile$Dynamics == "dynamic")
   PPH.T2.PNT.RS = RandomSampleRoutesYears(PPH.T2, PPH.T2.Pnt.eq.Li, FALSE, RandomSamplePoints, YearDates, BusinesDates)
   
   # some test plots
-  i = 88
-  day = 5
+  i = 82
+  day = 6
   plot(PPH.T1[i,])
   points(PPH.T1.Pnt.Li[[i]], pch = "+", col = "gray")
   points(PPH.T1.Pnt.Li[[i]][1,], pch = "O", col = "gray")
   points(PPH.P[i,], col = "green", pch = "O")
   points(PPH.S[i,], col = "orange", pch = "O")
   
+  Clr.RIO = rgb(red=0.8, green=0.8, blue=0.8, alpha=0.75)
+  # points(Points.NoVal, pch = "+", col = Clr.RIO)
+  
   points(PPH.T1.Pnt.eq.Li[[i]], col = "blue")
   points(PPH.T1.Pnt.eq.Li[[i]][4,], col = "blue", pch = "O")
   
   points(PPH.T1.PNT.RS[[i]][[day]], col = "red")
   points(PPH.T1.PNT.RS[[i]][[day]][5,], col = "red", pch = "O")
+  
+  # select proximity coordinates
+  inds = knnLookup(tree, newdat = coordinates(PPH.P[i,]), k = 50) # gives the matrix
+  inds = as.vector(inds)
+  POL.sel = POL[inds,]
+  points(POL.sel, pch = "+", col = Clr.RIO)
+  
+  inds = knnLookup(tree, newdat = coordinates(PPH.S[i,]), k = 50) # gives the matrix
+  inds = as.vector(inds)
+  POL.sel = POL[inds,]
+  points(POL.sel, pch = "+", col = Clr.RIO)
+  
+  inds = knnLookup(tree, newdat = coordinates(PPH.T1.PNT.RS[[i]][[day]]), k = 50) # gives the matrix
+  inds = as.vector(inds)
+  POL.sel = POL[inds,]
+  points(POL.sel, pch = "+", col = Clr.RIO)
+  
+  CoordsOfInterest = PPH.T1.Pnt[[i]][[day]][v,]@coords
+  inds = knnLookup(tree, newdat = CoordsOfInterest, k = NearestPoints)
+  inds = as.vector(inds)
+  POL.sel = POL[inds,]
+  plot(POL.sel, pch = "+", col = Clr.RIO)
+  Exp.T1 = unlist(akima::interp(x = POL.sel@coords[,1], y = POL.sel@coords[,2], z = unlist(POL.sel@data[,1]),
+                                xo = CoordsOfInterest[1], yo = CoordsOfInterest[2], extrap = FALSE, duplicate = "strip",
+                                linear = TRUE))[3]
+  
+  points(PPH.T1.PNT.RS[[i]][[day]][17], col="purple", font = 2, pch = 19)
+  text(PPH.T1.PNT.RS[[i]][[day]][17], labels = round(Exp.T1,3), pos = 1, cex = 1, font = 2, col = "purple")
+  
+  
+  
+  points(PPH.T1.PNT.RS[[i]][[day]][17])
+  
   
   # Basic time element per vertex
   TimeVertex.T1 = LinkPointsToTime.Transport("Outwards", PPH.T1, PPH.T1.Pnt.Li, year.active, Active.Subprofile)
@@ -447,6 +487,7 @@ colnames(Points.NoVal@data) = NA
 Points.NoVal@data[,1] = NA
 rm(Points)
 
+# SaveAsFile(Points.NoVal, "RIO_IFDM", "GeoJSON", TRUE)
 
 # Detect which hours belong to which points | change name systematically to HoP (Hour of Point) = HoP.P etc.
 HOP = WhichHourForWhichPoint(PPH.P, Time, HOURS.P, HOURS.S, HOURS.T1, HOURS.T2,
