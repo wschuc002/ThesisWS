@@ -91,7 +91,17 @@ SaveAsDBF <- function(INput, FileType, PhaseType, Filename, Active.Type, Overwri
         dbf_out = file.path("..", "output", Active.Subtype, paste0(FileString, PhaseLetter, "_" , i, ".dbf"))
       }
       
-      write.dbf(DF, dbf_out, factor2char = TRUE, max_nchar = 254)
+      # write
+      if (file.exists(dbf_out))
+      {
+        if (OverwriteLayer)
+        {
+          write.dbf(DF, dbf_out, factor2char = TRUE, max_nchar = 254)
+        }
+      } else
+      {
+        write.dbf(DF, dbf_out, factor2char = TRUE, max_nchar = 254)
+      }
     }
   }
   
@@ -109,6 +119,6 @@ SaveAsDBF <- function(INput, FileType, PhaseType, Filename, Active.Type, Overwri
     colnames(DF) = paste0("C",COLNAMES)
     
     dbf_out = file.path(Temp_dir, Filename)
-    write.dbf(DF, dbf_out, factor2char = TRUE, max_nchar = 254)
+    write.dbf(DF, dbf_out, factor2char = TRUE, max_nchar = 254, over)
   }
 }

@@ -22,7 +22,7 @@
 ## Load the packages
 #library(data.table)
 
-BiWeekly <- function(year.active, YearDates, SchoolHolidays, TIME.P, ... )
+BiWeekly <- function(year.active, YearDates, SchoolHolidays, Time, SetSeedNr, ... )
 {
   # Define Winter, Spring and Summer
   SpringStart = as.POSIXct(paste0(year.active,"-03-20 00:00:00"))
@@ -79,14 +79,14 @@ BiWeekly <- function(year.active, YearDates, SchoolHolidays, TIME.P, ... )
   SpringPossibleStartDays = SpringPossibleStartDays[!is.na(SpringPossibleStartDays)]
   SummerPossibleStartDays = SummerPossibleStartDays[!is.na(SummerPossibleStartDays)]
   
-  class(WinterPossibleStartDays) = class(TIME.P[[1]][[1]])
-  class(SpringPossibleStartDays) = class(TIME.P[[1]][[1]])
-  class(SummerPossibleStartDays) = class(TIME.P[[1]][[1]])
+  class(WinterPossibleStartDays) = class(Time[[1]][[1]])
+  class(SpringPossibleStartDays) = class(Time[[1]][[1]])
+  class(SummerPossibleStartDays) = class(Time[[1]][[1]])
   
   # Randomly select a date
-  WinterDate.RS = sample(WinterPossibleStartDays,1)
-  SpringDate.RS = sample(SpringPossibleStartDays,1)
-  SummerDate.RS = sample(SummerPossibleStartDays,1)
+  set.seed(SetSeedNr); WinterDate.RS = sample(WinterPossibleStartDays,1)
+  set.seed(SetSeedNr); SpringDate.RS = sample(SpringPossibleStartDays,1)
+  set.seed(SetSeedNr); SummerDate.RS = sample(SummerPossibleStartDays,1)
   
   # Generate Biweekly periods
   BiWeeklyWinter = seq(WinterDate.RS, WinterDate.RS + 14*24*60**2, 1*24*60**2)

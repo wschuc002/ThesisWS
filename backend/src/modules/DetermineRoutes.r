@@ -338,12 +338,12 @@ DetermineAddressGoals_FL <- function(FL.Gemeente, Method.nr, ... )
 
 
 # Names.sub = Names
-# FL.primary = 100
-# Plot = TRUE
+# FL.primary = 1000
+# Plot = FALSE
 # SaveResults = FALSE
 
-DeterminePPH_FL <- function(CRAB_Doel, Names.sub, FL.primary, OSRM.Level, Active.Type,
-                            Plot, SaveResults, Belgium, ...)
+DeterminePPH_FL <- function(CRAB_Doel, Names.sub, FL.primary, Active.Type,
+                            Plot, SaveResults, Belgium, SetSeedNr, ...)
 {
   if (Plot == TRUE){plot(Flanders)}
   
@@ -361,7 +361,7 @@ DeterminePPH_FL <- function(CRAB_Doel, Names.sub, FL.primary, OSRM.Level, Active
   }
   
   ## Pick x random redidence object_id and make a subset
-  keeps_RS_Re = sample(Primary@data$object_id, FL.primary)
+  set.seed(SetSeedNr); keeps_RS_Re = sample(Primary@data$object_id, FL.primary)
   Primary_random = Primary[Primary@data$object_id %in% keeps_RS_Re,]
   
   if (Plot){points(Primary_random, col = "green")}
@@ -409,7 +409,7 @@ DeterminePPH_FL <- function(CRAB_Doel, Names.sub, FL.primary, OSRM.Level, Active
         if (Active.Type == "01.OW")
         {
           SecondaryPaired = CommutingDistancePairer(Primary_random[Outsiders,], Secondary, MaxLinKM = 60,
-                                                    SEC.SampleSize = 50, Plot = TRUE)
+                                                    SEC.SampleSize = 50, Plot, SetSeedNr)
         }
         
         #Subset: only schools
@@ -428,7 +428,7 @@ DeterminePPH_FL <- function(CRAB_Doel, Names.sub, FL.primary, OSRM.Level, Active
         if (Plot){points(SecondaryPaired, col = "orange")}
         
         # create the routes (New method, works with multiple profiles like bicycle for 03.SP and motorcar for 01.OW)
-        PPH.T = Router.WS2(Active.Type, Primary_random[Outsiders,], SecondaryPaired, OSRM.Level, Plot, Belgium, Outsiders)
+        PPH.T = Router.WS2(Active.Type, Primary_random[Outsiders,], SecondaryPaired, Plot, Belgium, Outsiders)
 
         for (i in seq_along(Outsiders))
         {
@@ -453,12 +453,12 @@ DeterminePPH_FL <- function(CRAB_Doel, Names.sub, FL.primary, OSRM.Level, Active
         if (length(Outsiders) == 0)
         {
           success = TRUE
-          print(paste0("All the routes are in the safe range."))
+          print(paste0("All the routes are in the safe air quality data range."))
         } else
         {
           for (o in seq_along(Outsiders))
           {
-            print(paste0(Outsiders[o], " is outside safe range. Finding a new pair..."))
+            print(paste0(Outsiders[o], " is outside safe air quality data range. Finding a new pair..."))
           }
         }
       }
@@ -490,14 +490,14 @@ DeterminePPH_FL <- function(CRAB_Doel, Names.sub, FL.primary, OSRM.Level, Active
       {
         SaveAsFile(Primary_random, paste(Active.Type, "Primary", sep = "_"), "GeoJSON", TRUE)
         SaveAsFile(SecondaryPaired, paste(Active.Type, "Secondary", sep = "_"), "GeoJSON", TRUE)
-        SaveAsFile(PPH.T1, paste(Active.Type, paste0("TransportOutwards", Names.sub),substr(OSRM.Level, 1, 1), sep = "_"), "GeoJSON", TRUE)
-        SaveAsFile(PPH.T2, paste(Active.Type, paste0("TransportInwards", Names.sub),substr(OSRM.Level, 1, 1), sep = "_"), "GeoJSON", TRUE)
+        SaveAsFile(PPH.T1, paste(Active.Type, paste0("TransportOutwards", Names.sub), sep = "_"), "GeoJSON", TRUE)
+        SaveAsFile(PPH.T2, paste(Active.Type, paste0("TransportInwards", Names.sub), sep = "_"), "GeoJSON", TRUE)
       } else
       {
         SaveAsFile(Primary_random, paste0(Active.Type, "_Primary_", Names.sub), "GeoJSON", TRUE)
         SaveAsFile(SecondaryPaired, paste0(Active.Type, "_Secondary_", Names.sub), "GeoJSON", TRUE)
-        SaveAsFile(PPH.T1, paste0(Active.Type,"_TransportOutwards_", Names.sub, "_", substr(OSRM.Level, 1, 1)), "GeoJSON", TRUE)
-        SaveAsFile(PPH.T2, paste0(Active.Type,"_TransportInwards_", Names.sub, "_", substr(OSRM.Level, 1, 1)), "GeoJSON", TRUE)
+        SaveAsFile(PPH.T1, paste0(Active.Type,"_TransportOutwards_", Names.sub), "GeoJSON", TRUE)
+        SaveAsFile(PPH.T2, paste0(Active.Type,"_TransportInwards_", Names.sub), "GeoJSON", TRUE)
       }
     }
     #Secondary_Selected = IsoChroneSampler(Primary_random[1,], Secondary, "driving duration", TRUE)
@@ -509,9 +509,9 @@ DeterminePPH_FL <- function(CRAB_Doel, Names.sub, FL.primary, OSRM.Level, Active
 #SEC = SecondaryPaired
 #Plot = TRUE
 #plot(Flanders)
-Router.WS2 <- function(Active.Type, PRI, SEC, OSRM.Level, Plot, Belgium, Outsiders)
+Router.WS2 <- function(Active.Type, PRI, SEC, Plot, Belgium, Outsiders)
 {
-  # Transform RD new -> WGS84 for the route calculation (OSRM)
+  # Transform RD new -> WGS84 for the route calculation
   WGS84 = "+init=epsg:4326"
   
   src.Li = list(spTransform(PRI, WGS84), spTransform(SEC, WGS84))
@@ -540,6 +540,9 @@ Router.WS2 <- function(Active.Type, PRI, SEC, OSRM.Level, Plot, Belgium, Outside
       
       # Sending the query
       resRaw <- RCurl::getURL(utils::URLencode(req), useragent = "'osrm' R package")
+      
+      # pauze, to prevent server ban
+      Sys.sleep(0.5)
       
       # Extract coordinates and data
       res.Li = xmlToList(resRaw)
@@ -618,12 +621,12 @@ Router.WS2 <- function(Active.Type, PRI, SEC, OSRM.Level, Plot, Belgium, Outside
 # MaxLinKM = 60
 # Plot = TRUE
 # SEC.SampleSize = 100
-CommutingDistancePairer <- function(PRI, SEC, MaxLinKM, SEC.SampleSize, Plot, ...)
+CommutingDistancePairer <- function(PRI, SEC, MaxLinKM, SEC.SampleSize, Plot, SetSeedNr, ...)
 {
   # remove duplicates
   SEC.NoDup = SEC[!duplicated(SEC@coords), ]
   
-  # Transform RD new -> WGS84 for the route calculation (OSRM)
+  # Transform RD new -> WGS84 for the route calculation
   WGS84 = "+init=epsg:4326"
   src <- spTransform(PRI, WGS84)
   
@@ -650,7 +653,7 @@ CommutingDistancePairer <- function(PRI, SEC, MaxLinKM, SEC.SampleSize, Plot, ..
       print(paste("Starting with ", p, "of", length(PRI)))
       
       # Random sampling the Secondaries
-      SEC.ids = sample(SEC.NoDup@data$object_id, size = SEC.SampleSize)
+      set.seed(SetSeedNr); SEC.ids = sample(SEC.NoDup@data$object_id, size = SEC.SampleSize)
       SEC.rs = SEC.NoDup[SEC.NoDup@data$object_id %in% SEC.ids,]
       
       # Calculate linear distances
@@ -676,6 +679,9 @@ CommutingDistancePairer <- function(PRI, SEC, MaxLinKM, SEC.SampleSize, Plot, ..
         
         # Sending the query
         resRaw <- RCurl::getURL(utils::URLencode(req), useragent = "'osrm' R package")
+        
+        # pauze, to prevent server ban
+        Sys.sleep(0.5)
         
         # Extract coordinates and data
         res.Li = xmlToList(resRaw)
@@ -750,7 +756,7 @@ CommutingDistancePairer <- function(PRI, SEC, MaxLinKM, SEC.SampleSize, Plot, ..
     
     Probabilities[is.na(Probabilities)] = 0
     
-    SEC.sel = sample(DrivingDistance, size = 1, prob = Probabilities)
+    set.seed(SetSeedNr); SEC.sel = sample(DrivingDistance, size = 1, prob = Probabilities)
     SEC.Pared = SEC.rsSP[DrivingDistance %in% SEC.sel,]
     SEC.id = SEC.ids[DrivingDistance %in% SEC.sel]
     

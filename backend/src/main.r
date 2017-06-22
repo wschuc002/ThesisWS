@@ -1,6 +1,6 @@
 # Main script for determining Primary (residence), Secondary (workplace) and
-# Transport routes from BAG data to combine these with air quality data NO2 and
-# PM2.5.
+# Transport routes from address data to combine these with high resolution
+# air quality data NO2 and PM2.5 to produce individual exposure values.
 # Copyright (C) 2017 William Schuch
 #
 # This program is free software: you can redistribute it and/or modify
@@ -184,34 +184,60 @@ OfficialHolidays = fread(csv.OfficialHolidays_in, sep = ";", header=TRUE)
 csv.SchoolHolidays_in = file.path("..", "data", "BE_FL", "SchoolHolidays.csv")
 SchoolHolidays = fread(csv.SchoolHolidays_in, sep = ";", header=TRUE)
 
+# Set the seed for reproducible results
+ReproduceMode = FALSE
+if (ReproduceMode)
+{
+  # Separate SeedNr to prevent PPH.P being identical for all profiles
+  SeedNr.BiWeekly = 123
+} else
+{
+  SeedNr.BiWeekly = NULL
+}
+
+# Biweekly generator
+if (!exists("BIWEEKLY"))
+{
+  BIWEEKLY = BiWeekly(year.active, YearDates, SchoolHolidays, Time, SeedNr.BiWeekly)
+}
 
 # End of general code
 # - - - 
 # Beginning of profile based code
 
 # Select active Residential Profile
-Active.Type = "01.OW"
+Active.Type = "01.OW" # "01.OW" "02.HO" or "03.SP"
 Active.Subtype = paste0(Active.Type, "_WS","1")
 
 Active.Profile = ResidentialProfiles[ResidentialProfiles$Type == Active.Type,]
 Active.Subprofile = ResidentialProfiles[ResidentialProfiles$Subtype == Active.Subtype,]
 
-OSRM.Level = "full" # "simplified" or "full" version of vectors in routes (OSRM package)
+# Set the seed for reproducible results
+ReproduceMode = TRUE
+if (ReproduceMode)
+{
+  # Separate SeedNr to prevent PPH.P being identical for all profiles
+  Active.SetSeedNr = Active.Subprofile$SeedNr
+} else
+{
+  Active.SetSeedNr = NULL
+}
+
+#OSRM.Level = "full" # "simplified" or "full" version of vectors in routes (OSRM package)
 
 dir.P = file.path("..", "output", paste(Active.Type, paste0("Primary", Names,".geojson"), sep = "_"))
-
 if (Active.Subprofile$Dynamics == "dynamic")
 {
   dir.S = file.path("..", "output", paste(Active.Type, paste0("Secondary", Names,".geojson"), sep = "_"))
   
   if (is.null(Subset.Gemeente))
   {
-    dir.T1 = file.path("..", "output", paste(Active.Type, paste0("TransportOutwards", Names, "_", substr(OSRM.Level, 1, 1), ".geojson"), sep = "_"))
-    dir.T2 = file.path("..", "output", paste(Active.Type, paste0("TransportInwards", Names, "_", substr(OSRM.Level, 1, 1), ".geojson"), sep = "_"))
+    dir.T1 = file.path("..", "output", paste(Active.Type, paste0("TransportOutwards", Names, ".geojson"), sep = "_"))
+    dir.T2 = file.path("..", "output", paste(Active.Type, paste0("TransportInwards", Names, ".geojson"), sep = "_"))
   } else
   {
-    dir.T1 = file.path("..", "output", paste0(Active.Type,"_TransportOutwards_", Names, "_", substr(OSRM.Level, 1, 1)))
-    dir.T2 = file.path("..", "output", paste0(Active.Type,"_TransportInwards_", Names, "_", substr(OSRM.Level, 1, 1)))
+    dir.T1 = file.path("..", "output", paste0(Active.Type,"_TransportOutwards_", Names, "_"))
+    dir.T2 = file.path("..", "output", paste0(Active.Type,"_TransportInwards_", Names, "_"))
   }
 }
 
@@ -233,8 +259,10 @@ if (!exists("CRAB_Doel") & !file.exists(dir.P))
 # Check if data already exists. If so, it will not run.
 if (!file.exists(dir.P))
 {
-  DeterminePPH_FL(CRAB_Doel, Names, 100, OSRM.Level, Active.Type, Plot = TRUE, SaveResults = TRUE, Belgium)
+  DeterminePPH_FL(CRAB_Doel, Names, 1000, Active.Type,
+                  Plot = TRUE, SaveResults = TRUE, Belgium, Active.SetSeedNr)
 }
+#14:00 - 22:30
 
 # Remove the data in the environment that will not be used from this point.
 #rm(CRAB_Doel, KEY.InputData, DownloadMode, keyInputData.dir, Filenames)
@@ -304,61 +332,56 @@ if (Active.Subprofile$Dynamics == "dynamic")
   PPH.T1.Pnt.eq.Li = SimplifyRoutes(PPH.T1, FALSE, Factor = SimplifyRemainingPoints) # Factor should be desirable resulting amount
   PPH.T2.Pnt.eq.Li = SimplifyRoutes(PPH.T2, FALSE, Factor = SimplifyRemainingPoints)
   
-  plot(PPH.T1.Pnt.eq.Li[[1]])
-  
-  # set.seed(12345)
   PPH.T1.PNT.RS = RandomSampleRoutesYears(PPH.T1, PPH.T1.Pnt.eq.Li, FALSE, RandomSamplePoints, YearDates, BusinesDates)
   PPH.T2.PNT.RS = RandomSampleRoutesYears(PPH.T2, PPH.T2.Pnt.eq.Li, FALSE, RandomSamplePoints, YearDates, BusinesDates)
   
-  # some test plots
-  i = 82
-  day = 6
-  plot(PPH.T1[i,])
-  points(PPH.T1.Pnt.Li[[i]], pch = "+", col = "gray")
-  points(PPH.T1.Pnt.Li[[i]][1,], pch = "O", col = "gray")
-  points(PPH.P[i,], col = "green", pch = "O")
-  points(PPH.S[i,], col = "orange", pch = "O")
-  
-  Clr.RIO = rgb(red=0.8, green=0.8, blue=0.8, alpha=0.75)
-  # points(Points.NoVal, pch = "+", col = Clr.RIO)
-  
-  points(PPH.T1.Pnt.eq.Li[[i]], col = "blue")
-  points(PPH.T1.Pnt.eq.Li[[i]][4,], col = "blue", pch = "O")
-  
-  points(PPH.T1.PNT.RS[[i]][[day]], col = "red")
-  points(PPH.T1.PNT.RS[[i]][[day]][5,], col = "red", pch = "O")
-  
-  # select proximity coordinates
-  inds = knnLookup(tree, newdat = coordinates(PPH.P[i,]), k = 50) # gives the matrix
-  inds = as.vector(inds)
-  POL.sel = POL[inds,]
-  points(POL.sel, pch = "+", col = Clr.RIO)
-  
-  inds = knnLookup(tree, newdat = coordinates(PPH.S[i,]), k = 50) # gives the matrix
-  inds = as.vector(inds)
-  POL.sel = POL[inds,]
-  points(POL.sel, pch = "+", col = Clr.RIO)
-  
-  inds = knnLookup(tree, newdat = coordinates(PPH.T1.PNT.RS[[i]][[day]]), k = 50) # gives the matrix
-  inds = as.vector(inds)
-  POL.sel = POL[inds,]
-  points(POL.sel, pch = "+", col = Clr.RIO)
-  
-  CoordsOfInterest = PPH.T1.Pnt[[i]][[day]][v,]@coords
-  inds = knnLookup(tree, newdat = CoordsOfInterest, k = NearestPoints)
-  inds = as.vector(inds)
-  POL.sel = POL[inds,]
-  plot(POL.sel, pch = "+", col = Clr.RIO)
-  Exp.T1 = unlist(akima::interp(x = POL.sel@coords[,1], y = POL.sel@coords[,2], z = unlist(POL.sel@data[,1]),
-                                xo = CoordsOfInterest[1], yo = CoordsOfInterest[2], extrap = FALSE, duplicate = "strip",
-                                linear = TRUE))[3]
-  
-  points(PPH.T1.PNT.RS[[i]][[day]][17], col="purple", font = 2, pch = 19)
-  text(PPH.T1.PNT.RS[[i]][[day]][17], labels = round(Exp.T1,3), pos = 1, cex = 1, font = 2, col = "purple")
-  
-  
-  
-  points(PPH.T1.PNT.RS[[i]][[day]][17])
+  # # some test plots
+  # i = 82
+  # day = 6
+  # plot(PPH.T1[i,])
+  # points(PPH.T1.Pnt.Li[[i]], pch = "+", col = "gray")
+  # points(PPH.T1.Pnt.Li[[i]][1,], pch = "O", col = "gray")
+  # points(PPH.P[i,], col = "green", pch = "O")
+  # points(PPH.S[i,], col = "orange", pch = "O")
+  # 
+  # Clr.RIO = rgb(red=0.8, green=0.8, blue=0.8, alpha=0.75)
+  # # points(Points.NoVal, pch = "+", col = Clr.RIO)
+  # 
+  # points(PPH.T1.Pnt.eq.Li[[i]], col = "blue")
+  # points(PPH.T1.Pnt.eq.Li[[i]][4,], col = "blue", pch = "O")
+  # 
+  # points(PPH.T1.PNT.RS[[i]][[day]], col = "red")
+  # points(PPH.T1.PNT.RS[[i]][[day]][5,], col = "red", pch = "O")
+  # 
+  # # select proximity coordinates
+  # inds = knnLookup(tree, newdat = coordinates(PPH.P[i,]), k = 50) # gives the matrix
+  # inds = as.vector(inds)
+  # POL.sel = POL[inds,]
+  # points(POL.sel, pch = "+", col = Clr.RIO)
+  # 
+  # inds = knnLookup(tree, newdat = coordinates(PPH.S[i,]), k = 50) # gives the matrix
+  # inds = as.vector(inds)
+  # POL.sel = POL[inds,]
+  # points(POL.sel, pch = "+", col = Clr.RIO)
+  # 
+  # inds = knnLookup(tree, newdat = coordinates(PPH.T1.PNT.RS[[i]][[day]]), k = 50) # gives the matrix
+  # inds = as.vector(inds)
+  # POL.sel = POL[inds,]
+  # points(POL.sel, pch = "+", col = Clr.RIO)
+  # 
+  # CoordsOfInterest = PPH.T1.Pnt[[i]][[day]][v,]@coords
+  # inds = knnLookup(tree, newdat = CoordsOfInterest, k = NearestPoints)
+  # inds = as.vector(inds)
+  # POL.sel = POL[inds,]
+  # plot(POL.sel, pch = "+", col = Clr.RIO)
+  # Exp.T1 = unlist(akima::interp(x = POL.sel@coords[,1], y = POL.sel@coords[,2], z = unlist(POL.sel@data[,1]),
+  #                               xo = CoordsOfInterest[1], yo = CoordsOfInterest[2], extrap = FALSE, duplicate = "strip",
+  #                               linear = TRUE))[3]
+  # 
+  # points(PPH.T1.PNT.RS[[i]][[day]][17], col="purple", font = 2, pch = 19)
+  # text(PPH.T1.PNT.RS[[i]][[day]][17], labels = round(Exp.T1,3), pos = 1, cex = 1, font = 2, col = "purple")
+  # 
+  # points(PPH.T1.PNT.RS[[i]][[day]][17])
   
   
   # Basic time element per vertex
@@ -388,6 +411,19 @@ if (Active.Subprofile$Dynamics == "dynamic")
   TIME.T2 = TIME[[5]]
 }
 
+# Write TIME to disk
+WriteToDisk = TRUE
+OW = TRUE
+if (WriteToDisk)
+{
+  SaveAsDBF(TIME.P, "Time", "Primary", YearDates, Active.Subtype, OW, pol)
+  if (Active.Subprofile$Dynamics == "dynamic")
+  {
+    SaveAsDBF(TIME.S, "Time", "Secondary", YearDates, Active.Subtype, OW, pol)
+    SaveAsDBF(TIME.T1, "Time", "T1", YearDates, Active.Subtype, OW, pol)
+    SaveAsDBF(TIME.T2, "Time", "T2", YearDates, Active.Subtype, OW, pol)
+  }
+}
 
 #Read DBF file with TIME 
 TIME.P = DBFreader("Time", "Primary", PPH.P, YearDates, BusinesDates, Active.Subtype)
@@ -410,19 +446,7 @@ if (Active.Subprofile$Dynamics == "dynamic")
 }
 
 
-# Write TIME to disk
-WriteToDisk = FALSE
-OW = FALSE
-if (WriteToDisk)
-{
-  SaveAsDBF(TIME.P, "Time", "Primary", YearDates, Active.Subtype, OW, pol)
-  if (Active.Subprofile$Dynamics == "dynamic")
-  {
-    SaveAsDBF(TIME.S, "Time", "Secondary", YearDates, Active.Subtype, OW, pol)
-    SaveAsDBF(TIME.T1, "Time", "T1", YearDates, Active.Subtype, OW, pol)
-    SaveAsDBF(TIME.T2, "Time", "T2", YearDates, Active.Subtype, OW, pol)
-  }
-}
+
 
 #rm(dir.P, dir.S, dir.T1f, dir.T1s, dir.T2f, dir.T2s)
 
@@ -491,7 +515,7 @@ rm(Points)
 
 # Detect which hours belong to which points | change name systematically to HoP (Hour of Point) = HoP.P etc.
 HOP = WhichHourForWhichPoint(PPH.P, Time, HOURS.P, HOURS.S, HOURS.T1, HOURS.T2,
-                               Print = FALSE, Active.Subprofile) 
+                             Print = FALSE, Active.Subprofile) 
 wP = HOP[[1]] # HoP.P = HOP[[1]]
 if (Active.Subprofile$Dynamics == "dynamic")
 {
@@ -503,12 +527,13 @@ if (Active.Subprofile$Dynamics == "dynamic")
 ## Interpolating the points
 
 start.time = Sys.time()
-ExposureValue.All = PPH.TIN.InterpolationWS(PPH.P, PPH.S, PPH.T1.PNT.RS, PPH.T2.PNT.RS,
+ExposureValue.All = PPH.TIN.InterpolationWS(PPH.P[1:25,], PPH.S, PPH.T1.PNT.RS, PPH.T2.PNT.RS,
                                             Points.NoVal, PolDir, Plot = FALSE, pol,
                                             StartHour = 1, EndHour = length(Time),
                                             #StartHour = 5*24+1, EndHour = 6*24,
-                                            HOURS.P, HOURS.S, HOURS.T1, HOURS.T2, 50,
-                                            wP, wS, wT1, wT2, Active.Subprofile) # HoP.P, HoP.S, HoP.T1, HoP.T2, Active.Subprofile)
+                                            #StartHour = 1, EndHour = 21*24,
+                                            HOURS.P[1:25], HOURS.S, HOURS.T1, HOURS.T2, 50,
+                                            wP[1:25], wS, wT1, wT2, Active.Subprofile) # HoP.P, HoP.S, HoP.T1, HoP.T2, Active.Subprofile)
 ExposureValue.P = ExposureValue.All[[1]]
 if (Active.Subprofile$Dynamics == "dynamic")
 {
@@ -519,20 +544,6 @@ if (Active.Subprofile$Dynamics == "dynamic")
 end.time = Sys.time()
 print(end.time - start.time)
 
-
-# Write ExposureValues to disk
-WriteToDisk = FALSE
-OW = FALSE
-if (WriteToDisk)
-{
-  SaveAsDBF(ExposureValue.P, "Exposure", "Primary", YearDates, Active.Subtype, FALSE, pol)
-  if (Active.Subprofile$Dynamics == "dynamic")
-  {
-    SaveAsDBF(ExposureValue.S, "Exposure", "Secondary", YearDates, Active.Subtype, FALSE, pol)
-    SaveAsDBF(ExposureValue.T1, "Exposure", "T1", YearDates, Active.Subtype, FALSE, pol)
-    SaveAsDBF(ExposureValue.T2, "Exposure", "T2", YearDates, Active.Subtype, FALSE, pol)
-  }
-}
 
 #Read DBF file with Exposurevalues 
 ExposureValue.P = DBFreader("Exposure", "Primary", PPH.P, YearDates, BusinesDates, Active.Subtype, pol)
@@ -573,11 +584,11 @@ if (Active.Subprofile$Dynamics == "dynamic")
 {
   ExposureValueCombined = ToHourValues(PPH.P, Time, ExposureValue.P, ExposureValue.S, ExposureValue.T1, ExposureValue.T2,
                                        TIME.P, TIME.S, TIME.T1, TIME.T2, wP, wS, wT1, wT2)
-#   for (i in seq_along(PPH.P))
-#   {
-#     print(head(ExposureValueCombined[[i]], 5*24))
-#   }
-#   head(ExposureValueCombined[[66]], 7*24)
+  #   for (i in seq_along(PPH.P))
+  #   {
+  #     print(head(ExposureValueCombined[[i]], 5*24))
+  #   }
+  #   head(ExposureValueCombined[[66]], 7*24)
   
   ST.DF.HR = DF.Structure2(PPH.P, TIME.P, Time, ExposureValueCombined)
   stats.EXP.HR = DF.Stats(ST.DF.HR)
@@ -600,11 +611,7 @@ if (Active.Subprofile$Dynamics == "dynamic")
 }
 
 
-# Biweekly generator
-if (!exists("BIWEEKLY"))
-{
-  BIWEEKLY = BiWeekly(year.active, YearDates, SchoolHolidays, TIME.P)
-}
+
 
 # Subset biweekly
 ST.DF.HR.BiWe = ST.DF.HR[ST.DF.HR$TIME >= BIWEEKLY[[1]][1] & ST.DF.HR$TIME <= BIWEEKLY[[1]][14] |
@@ -651,7 +658,7 @@ if (Active.Subprofile$Subtype == "01.OW_C1" | Active.Subprofile$Subtype == "01.O
     OW_C2.INDmean[i] = mean(ST.DF.HR.BiWe[ST.DF.HR.BiWe$IND == i,]$EXP)
   }
 }
-  
+
 if (Active.Subprofile$Subtype == "02.HO_WS1" | Active.Subprofile$Subtype == "02.HO_WS2")
 {
   HO_WS1.ST.DF.HR = ST.DF.HR
@@ -1020,6 +1027,65 @@ length(which(ExposureValueDiff[[3]] == T))
 NumericWS = 1:10
 
 
+# #Fix for 24th hours (temporal)
+# wP_1 = list()
+# tering = list()
+# for (i in seq_along(TIME.P))
+# {
+#   for (h in seq_along(Time))
+#   {
+#     tering[[h]] = 1
+#   }
+#   wP_1[[i]] = tering 
+# }
+# HOURS.P_1 = HourOfTheYear7(year.active, TIME.P_1, 0)
+# 
+# 
+# ExposureValue.All = PPH.TIN.InterpolationWS(PPH.P, PPH.S, PPH.T1.PNT.RS, PPH.T2.PNT.RS,
+#                                             Points.NoVal, PolDir, Plot = FALSE, pol,
+#                                             StartHour = 1, EndHour = length(Time),
+#                                             #StartHour = 5*24+1, EndHour = 6*24,
+#                                             #StartHour = 1, EndHour = 2*24,
+#                                             HOURS.P_1, HOURS.S, HOURS.T1, HOURS.T2, 50,
+#                                             wP_1, wS, wT1, wT2, Active.Subprofile) # HoP.P, HoP.S, HoP.T1, HoP.T2, Active.Subprofile)
+# 
+# ExposureValue.P_1 = ExposureValue.All[[1]]
+# 
+# # combine _1 with the rest
+# Exposurevalue.PWS = list()
+# intermediate = list()
+# for (i in seq_along(PPH.P))
+# {
+#   for (d in seq_along(ExposureValue.P[[i]]))
+#   {
+#     intermediate[[d]] = c(ExposureValue.P_1[[i]][[d]], ExposureValue.P[[i]][[d]])
+#     #remove NA's / last value
+#     intermediate[[d]] = head(intermediate[[d]], 24)
+#   }
+#   Exposurevalue.PWS[[i]] = intermediate
+# }
+# 
+# WriteToDisk = TRUE
+# OW = TRUE
+# if (WriteToDisk)
+# {
+#   SaveAsDBF(Exposurevalue.PWS, "Exposure", "Primary",
+#             YearDates, Active.Subtype, OW, pol)
+# }
+# 
+# # Write ExposureValues to disk
+# WriteToDisk = TRUE
+# OW = TRUE
+# if (WriteToDisk)
+# {
+#   SaveAsDBF(ExposureValue.P, "Exposure", "Primary", YearDates, Active.Subtype, OW, pol)
+#   if (Active.Subprofile$Dynamics == "dynamic")
+#   {
+#     SaveAsDBF(ExposureValue.S, "Exposure", "Secondary", YearDates, Active.Subtype, OW, pol)
+#     SaveAsDBF(ExposureValue.T1, "Exposure", "T1", YearDates, Active.Subtype, OW, pol)
+#     SaveAsDBF(ExposureValue.T2, "Exposure", "T2", YearDates, Active.Subtype, OW, pol)
+#   }
+# }
 
 ## Undo system settings changes
 Sys.setenv(TZ = OriginalTimezone)

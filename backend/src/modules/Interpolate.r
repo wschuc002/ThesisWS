@@ -30,8 +30,8 @@ library(SearchTrees)
 #POL = Points.NoVal
 #HOURS = HOURS.T2
 #Plot = TRUE
-#StartHour = (5-1)*24 + 1
-#EndHour = 6*24
+#StartHour = 1 #(5-1)*24 + 1
+#EndHour = 2*24
 #NearestPoints = 50
 #PPH.T1.Pnt = PPH.T1.PNT.RS
 #PPH.T2.Pnt = PPH.T2.PNT.RS
@@ -73,25 +73,27 @@ PPH.TIN.InterpolationWS <- function(PPH.P, PPH.S, PPH.T1.Pnt, PPH.T2.Pnt, POL, P
       }
     }
   }
-
+  
   for (h in seq_along(StartHour:EndHour))
-  #for (h in 1:1)
+    #for (h in unlist(HOURS.P[[1]])[unlist(HOURS.P[[1]]) >= StartHour &
+    #                                 unlist(HOURS.P[[1]]) <= EndHour])
+    #for (h in 1:1)
   {
     hr = h+StartHour-1
     day = ceiling(hr/24)
-    print(paste0("Series Hour ", h))
+    print(paste0("\n" ,"Series Hour ", h))
     print(paste0("Year Hour ", hr))
     print(paste0("Day ", day))
     print(txt.dr[h])
-
+    
     POL.h = fread(txt.dr[h], sep=";", header=TRUE, select = "values")
     POL@data = POL.h
     
     for (i in seq_along(PPH.P))
-    #for (i in 42)
+      #for (i in 42)
     {
       cat(paste(i," "))
-
+      
       if (length(wP[[i]][[hr]]) > 0)
       {
         # select proximity coordinates
@@ -102,7 +104,7 @@ PPH.TIN.InterpolationWS <- function(PPH.P, PPH.S, PPH.T1.Pnt, PPH.T2.Pnt, POL, P
         
         # do the TIN interpolation
         Exp.P = unlist(akima::interp(x = POL.sel@coords[,1], y = POL.sel@coords[,2], z = unlist(POL.sel@data[,1]),
-                                           xo = PPH.P[i,]@coords[,1], yo = PPH.P[i,]@coords[,2], extrap = FALSE, duplicate = "strip",
+                                     xo = PPH.P[i,]@coords[,1], yo = PPH.P[i,]@coords[,2], extrap = FALSE, duplicate = "strip",
                                      linear = TRUE))[3]
         if (Plot == TRUE)
         {
@@ -817,6 +819,5 @@ TestCode <- function(...)
   x = krige(log(zinc)~x+y, meuse, meuse.grid, nmax=3)
   spplot(x[1],col.regions=bpy.colors(),
          sp.layout=list("sp.points", meuse)) 
-  
   
 }
