@@ -259,7 +259,7 @@ if (!exists("CRAB_Doel") & !file.exists(dir.P))
 # Check if data already exists. If so, it will not run.
 if (!file.exists(dir.P))
 {
-  DeterminePPH_FL(CRAB_Doel, Names, 1000, Active.Type,
+  DeterminePPH_FL(CRAB_Doel, Names, 60, Active.Type,
                   Plot = TRUE, SaveResults = TRUE, Belgium, Active.SetSeedNr)
 }
 #14:00 - 22:30

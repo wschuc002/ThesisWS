@@ -339,8 +339,9 @@ DetermineAddressGoals_FL <- function(FL.Gemeente, Method.nr, ... )
 
 # Names.sub = Names
 # FL.primary = 1000
-# Plot = FALSE
+# Plot = TRUE
 # SaveResults = FALSE
+# SetSeedNr = Active.SetSeedNr
 
 DeterminePPH_FL <- function(CRAB_Doel, Names.sub, FL.primary, Active.Type,
                             Plot, SaveResults, Belgium, SetSeedNr, ...)
@@ -397,7 +398,8 @@ DeterminePPH_FL <- function(CRAB_Doel, Names.sub, FL.primary, Active.Type,
     
     Outsiders = seq_along(Primary_random)
     success = FALSE
-  
+    IterationNr = 0
+    
     while(!success) # prevent that routes outside country will pass
     {
       #     RS = sample(Outsiders, 1)
@@ -409,7 +411,7 @@ DeterminePPH_FL <- function(CRAB_Doel, Names.sub, FL.primary, Active.Type,
         if (Active.Type == "01.OW")
         {
           SecondaryPaired = CommutingDistancePairer(Primary_random[Outsiders,], Secondary, MaxLinKM = 60,
-                                                    SEC.SampleSize = 50, Plot, SetSeedNr)
+                                                    SEC.SampleSize = 100, Plot, SetSeedNr, IterationNr)
         }
         
         #Subset: only schools
@@ -459,6 +461,7 @@ DeterminePPH_FL <- function(CRAB_Doel, Names.sub, FL.primary, Active.Type,
           for (o in seq_along(Outsiders))
           {
             print(paste0(Outsiders[o], " is outside safe air quality data range. Finding a new pair..."))
+            IterationNr = IterationNr + 1
           }
         }
       }
@@ -621,7 +624,7 @@ Router.WS2 <- function(Active.Type, PRI, SEC, Plot, Belgium, Outsiders)
 # MaxLinKM = 60
 # Plot = TRUE
 # SEC.SampleSize = 100
-CommutingDistancePairer <- function(PRI, SEC, MaxLinKM, SEC.SampleSize, Plot, SetSeedNr, ...)
+CommutingDistancePairer <- function(PRI, SEC, MaxLinKM, SEC.SampleSize, Plot, SetSeedNr, IterationNr, ...)
 {
   # remove duplicates
   SEC.NoDup = SEC[!duplicated(SEC@coords), ]
@@ -643,17 +646,19 @@ CommutingDistancePairer <- function(PRI, SEC, MaxLinKM, SEC.SampleSize, Plot, Se
     TypeOfTransport = "bicycle"
   }
   
+  IterationNr = 0
   
   for (p in seq_along(PRI))
-  #for (p in 1:10)  # p = 1
+  #for (p in 50:60)  # p = 1
   {
     success = FALSE
     while(!success)
     {
       print(paste("Starting with ", p, "of", length(PRI)))
+      if (IterationNr > 0){print(paste("Iteration:", IterationNr))}
       
       # Random sampling the Secondaries
-      set.seed(SetSeedNr); SEC.ids = sample(SEC.NoDup@data$object_id, size = SEC.SampleSize)
+      set.seed(SetSeedNr+IterationNr); SEC.ids = sample(SEC.NoDup@data$object_id, size = SEC.SampleSize)
       SEC.rs = SEC.NoDup[SEC.NoDup@data$object_id %in% SEC.ids,]
       
       # Calculate linear distances
