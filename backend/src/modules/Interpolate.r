@@ -81,7 +81,8 @@ PPH.TIN.InterpolationWS <- function(PPH.P, PPH.S, PPH.T1.Pnt, PPH.T2.Pnt, POL, P
   {
     hr = h+StartHour-1
     day = ceiling(hr/24)
-    print(paste0("\n" ,"Series Hour ", h))
+    cat("\n")
+    print(paste0("Series Hour ", h))
     print(paste0("Year Hour ", hr))
     print(paste0("Day ", day))
     print(txt.dr[h])

@@ -19,9 +19,8 @@
 ## TESTED ON WINDOWS 7 (64-bit), 4GB RAM, R v3.3.2, Timezone GMT
 
 ## TODO:  - Weights in S-T aggregation for overlaps in 03.SP
-##        - Check if the right Secondaries were used in 01.OW. If messed up, fix EXP.dbf with code from line 330
 ##        - Improve SummaryStatistics for profile and phase type comparison.
-##        - Speed and route options for cyclists (School Pupil).
+##        - ...
 ##        - ?Introduce "spacetime" package and test is.
 ##        - Documentation
 ##        - ...
@@ -206,7 +205,7 @@ if (!exists("BIWEEKLY"))
 # Beginning of profile based code
 
 # Select active Residential Profile
-Active.Type = "01.OW" # "01.OW" "02.HO" or "03.SP"
+Active.Type = "03.SP" # "01.OW" "02.HO" or "03.SP"
 Active.Subtype = paste0(Active.Type, "_WS","1")
 
 Active.Profile = ResidentialProfiles[ResidentialProfiles$Type == Active.Type,]
@@ -259,7 +258,7 @@ if (!exists("CRAB_Doel") & !file.exists(dir.P))
 # Check if data already exists. If so, it will not run.
 if (!file.exists(dir.P))
 {
-  DeterminePPH_FL(CRAB_Doel, Names, 60, Active.Type,
+  DeterminePPH_FL(CRAB_Doel, Names, 1000, Active.Type,
                   Plot = TRUE, SaveResults = TRUE, Belgium, Active.SetSeedNr)
 }
 #14:00 - 22:30
@@ -315,6 +314,13 @@ if (Active.Type == "03.SP")
   WeekendDates = DateType(YearDates, "Weekends")
 }
 
+# split time in half
+YearDates = YearDates[1:182]
+BusinesDates = BusinesDates[BusinesDates <= tail(YearDates,1)]
+WeekendDates = WeekendDates[WeekendDates <= tail(YearDates,1)]
+Time = Time[Time <= tail(YearDates,1)]
+
+
 rm(PPH.T1.Pnt.Li, PPH.T2.Pnt.Li, PPH.T1.Pnt.eq.Li, PPH.T2.Pnt.eq.Li,
    PPH.T1.PNT.RS, PPH.T2.PNT.RS, TimeVertex.T1, TimeVertex.T2)
 
@@ -332,12 +338,12 @@ if (Active.Subprofile$Dynamics == "dynamic")
   PPH.T1.Pnt.eq.Li = SimplifyRoutes(PPH.T1, FALSE, Factor = SimplifyRemainingPoints) # Factor should be desirable resulting amount
   PPH.T2.Pnt.eq.Li = SimplifyRoutes(PPH.T2, FALSE, Factor = SimplifyRemainingPoints)
   
-  PPH.T1.PNT.RS = RandomSampleRoutesYears(PPH.T1, PPH.T1.Pnt.eq.Li, FALSE, RandomSamplePoints, YearDates, BusinesDates)
-  PPH.T2.PNT.RS = RandomSampleRoutesYears(PPH.T2, PPH.T2.Pnt.eq.Li, FALSE, RandomSamplePoints, YearDates, BusinesDates)
+  PPH.T1.PNT.RS = RandomSampleRoutesYears(PPH.T1, PPH.T1.Pnt.eq.Li, FALSE, RandomSamplePoints, YearDates, BusinesDates, Active.SetSeedNr)
+  PPH.T2.PNT.RS = RandomSampleRoutesYears(PPH.T2, PPH.T2.Pnt.eq.Li, FALSE, RandomSamplePoints, YearDates, BusinesDates, Active.SetSeedNr)
   
   # # some test plots
-  # i = 82
-  # day = 6
+  # i = 10
+  # day = 5
   # plot(PPH.T1[i,])
   # points(PPH.T1.Pnt.Li[[i]], pch = "+", col = "gray")
   # points(PPH.T1.Pnt.Li[[i]][1,], pch = "O", col = "gray")
@@ -350,7 +356,7 @@ if (Active.Subprofile$Dynamics == "dynamic")
   # points(PPH.T1.Pnt.eq.Li[[i]], col = "blue")
   # points(PPH.T1.Pnt.eq.Li[[i]][4,], col = "blue", pch = "O")
   # 
-  # points(PPH.T1.PNT.RS[[i]][[day]], col = "red")
+  # points(PPH.T1.PNT.RS[[i]][[day]], col = "orange")
   # points(PPH.T1.PNT.RS[[i]][[day]][5,], col = "red", pch = "O")
   # 
   # # select proximity coordinates
@@ -441,11 +447,9 @@ if (Active.Subprofile$Dynamics == "dynamic")
   HOURS.S = HourOfTheYear7(year.active, TIME.S, 0)
   HOURS.T1 = HourOfTheYear7(year.active, TIME.T1, 0)
   HOURS.T2 = HourOfTheYear7(year.active, TIME.T2, 0)
-  HOURS.T1_3d = HourOfTheYear7(year.active, TIME.T1, 3)
-  HOURS.T2_3d = HourOfTheYear7(year.active, TIME.T2, 3)
+  #HOURS.T1_3d = HourOfTheYear7(year.active, TIME.T1, 3)
+  #HOURS.T2_3d = HourOfTheYear7(year.active, TIME.T2, 3)
 }
-
-
 
 
 #rm(dir.P, dir.S, dir.T1f, dir.T1s, dir.T2f, dir.T2s)
@@ -523,17 +527,18 @@ if (Active.Subprofile$Dynamics == "dynamic")
   wT1 = HOP[[3]] # HoP.T1 = HOP[[3]]
   wT2 = HOP[[4]] # HoP.T2 = HOP[[4]]
 }
+rm(HOP)
 
 ## Interpolating the points
 
 start.time = Sys.time()
-ExposureValue.All = PPH.TIN.InterpolationWS(PPH.P[1:25,], PPH.S, PPH.T1.PNT.RS, PPH.T2.PNT.RS,
+ExposureValue.All = PPH.TIN.InterpolationWS(PPH.P, PPH.S, PPH.T1.PNT.RS, PPH.T2.PNT.RS,
                                             Points.NoVal, PolDir, Plot = FALSE, pol,
                                             StartHour = 1, EndHour = length(Time),
                                             #StartHour = 5*24+1, EndHour = 6*24,
-                                            #StartHour = 1, EndHour = 21*24,
-                                            HOURS.P[1:25], HOURS.S, HOURS.T1, HOURS.T2, 50,
-                                            wP[1:25], wS, wT1, wT2, Active.Subprofile) # HoP.P, HoP.S, HoP.T1, HoP.T2, Active.Subprofile)
+                                            #StartHour = 1, EndHour = 1*24,
+                                            HOURS.P, HOURS.S, HOURS.T1, HOURS.T2, 50,
+                                            wP, wS, wT1, wT2, Active.Subprofile) # HoP.P, HoP.S, HoP.T1, HoP.T2, Active.Subprofile)
 ExposureValue.P = ExposureValue.All[[1]]
 if (Active.Subprofile$Dynamics == "dynamic")
 {
