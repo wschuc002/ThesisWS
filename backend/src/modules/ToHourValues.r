@@ -24,8 +24,10 @@
 
 
 WhichHourForWhichPoint <- function(PPH.P, Time, HOURS.P, HOURS.S, HOURS.T1, HOURS.T2,
-                                   Print = FALSE, Active.Subprofile, ...)
+                                   Print = FALSE, Active.Subprofile, DaySplit, ...)
 {
+  if (!exists("DaySplit")) {DaySplit = 0}
+  
   wP = list()
   wS = list()
   wT1 = list()
@@ -38,22 +40,26 @@ WhichHourForWhichPoint <- function(PPH.P, Time, HOURS.P, HOURS.S, HOURS.T1, HOUR
     S = list()
     T1 = list()
     T2 = list()
-    for (h in seq_along(Time))
+    
+    #for (h in seq_along(Time))
+    for (h in seq_along(Time)+(DaySplit*24))
       #for (h in 1:(7*24))
     {
       day = ceiling(h/24)
       if (Print)
         {
+          print(paste0("Hour ", h-(DaySplit*24)))
+          print(paste0("Day ", day-DaySplit))
           print(paste0("Year Hour ", h))
-          print(paste0("Day ", day))
+          print(paste0("Year Day ", day))
         }
       
-      P[[h]] = which(h == HOURS.P[[i]][[day]])
+      P[[h-(DaySplit*24)]] = which(h == HOURS.P[[i]][[day-DaySplit]])
       if (Active.Subprofile$Dynamics == "dynamic")
       {
-        S[[h]] = which(h == HOURS.S[[i]][[day]])
-        T1[[h]] = which(h == HOURS.T1[[i]][[day]])
-        T2[[h]] = which(h == HOURS.T2[[i]][[day]])
+        S[[h-(DaySplit*24)]] = which(h == HOURS.S[[i]][[day-DaySplit]])
+        T1[[h-(DaySplit*24)]] = which(h == HOURS.T1[[i]][[day-DaySplit]])
+        T2[[h-(DaySplit*24)]] = which(h == HOURS.T2[[i]][[day-DaySplit]])
       }
     }
     wP[[i]] = P

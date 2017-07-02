@@ -55,8 +55,13 @@ SaveAsFile <- function(INput, Filename, Format, Active.Type, OverwriteLayer, ...
   
 }
 
-SaveAsDBF <- function(INput, FileType, PhaseType, Filename, Active.Type, OverwriteLayer, pol, ...)
+# seq = Seq[p]
+# FolderName = paste0(Active.Subtype, "_", f )
+# OverwriteLayer = TRUE
+
+SaveAsDBF <- function(INput, FileType, PhaseType, Filename, FolderName, OverwriteLayer, pol, seq, ...)
 {
+  
   if (PhaseType == "Primary") {PhaseLetter = "P"}
   if (PhaseType == "Secondary") {PhaseLetter = "S"}
   if (PhaseType == "T1") {PhaseLetter = "T1"}
@@ -67,10 +72,18 @@ SaveAsDBF <- function(INput, FileType, PhaseType, Filename, Active.Type, Overwri
   
   if (class(INput) == "list")
   {
-    Folder = file.path("..", "output", Active.Type)
+    # if (exists("f"))
+    # {
+    #   Folder = file.path("..", "output", paste0(Active.Subtype, "_", f))
+    # } else
+    # {
+    #   Folder = file.path("..", "output", Active.Subtype)
+    # }
+    
+    Folder = file.path("..", "output", FolderName)
     if (!dir.exists(Folder))
     {
-      dir.create(file.path("..", "output", Active.Type))
+      dir.create(Folder)
     }
     
     for (i in seq_along(INput))
@@ -83,12 +96,11 @@ SaveAsDBF <- function(INput, FileType, PhaseType, Filename, Active.Type, Overwri
       
       if (FileType == "Exposure")
       {
-        #dbf_out = file.path("..", "output", Active.Type, paste(Filename, i, toupper(pol), sep = "_"))
-        dbf_out = file.path("..", "output", Active.Subtype, paste0(FileString, PhaseLetter, "_" , i, "_", toupper(pol), ".dbf"))
+        dbf_out = file.path(Folder, paste0(FileString, PhaseLetter, "_" , i+seq, "_", toupper(pol), ".dbf"))
       }
       if (FileType == "Time")
       {
-        dbf_out = file.path("..", "output", Active.Subtype, paste0(FileString, PhaseLetter, "_" , i, ".dbf"))
+        dbf_out = file.path(Folder, paste0(FileString, PhaseLetter, "_" , i+seq, ".dbf"))
       }
       
       # write
