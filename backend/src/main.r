@@ -314,16 +314,6 @@ if (Active.Type == "03.SP")
   WeekendDates = DateType(YearDates, "Weekends")
 }
 
-# split time in half
-YearDates = YearDates[1:182]
-BusinesDates = BusinesDates[BusinesDates <= tail(YearDates,1)]
-WeekendDates = WeekendDates[WeekendDates <= tail(YearDates,1)]
-Time = Time[Time <= tail(YearDates,1)]
-
-
-rm(PPH.T1.Pnt.Li, PPH.T2.Pnt.Li, PPH.T1.Pnt.eq.Li, PPH.T2.Pnt.eq.Li,
-   PPH.T1.PNT.RS, PPH.T2.PNT.RS, TimeVertex.T1, TimeVertex.T2)
-
 if (Active.Subprofile$Dynamics == "dynamic")
 {
   PPH.T1.Pnt.Li = list()
@@ -338,8 +328,163 @@ if (Active.Subprofile$Dynamics == "dynamic")
   PPH.T1.Pnt.eq.Li = SimplifyRoutes(PPH.T1, FALSE, Factor = SimplifyRemainingPoints) # Factor should be desirable resulting amount
   PPH.T2.Pnt.eq.Li = SimplifyRoutes(PPH.T2, FALSE, Factor = SimplifyRemainingPoints)
   
-  PPH.T1.PNT.RS = RandomSampleRoutesYears(PPH.T1, PPH.T1.Pnt.eq.Li, FALSE, RandomSamplePoints, YearDates, BusinesDates, Active.SetSeedNr)
-  PPH.T2.PNT.RS = RandomSampleRoutesYears(PPH.T2, PPH.T2.Pnt.eq.Li, FALSE, RandomSamplePoints, YearDates, BusinesDates, Active.SetSeedNr)
+  # Basic time element per vertex
+  TimeVertex.T1 = LinkPointsToTime.Transport("Outwards", PPH.T1, PPH.T1.Pnt.Li, year.active, Active.Subprofile)
+  TimeVertex.T2 = LinkPointsToTime.Transport("Inwards", PPH.T2, PPH.T2.Pnt.Li, year.active, Active.Subprofile)
+}
+
+
+#gc()
+
+# split time in half (only dynamic)
+Fragments = 10 # 1 or 2
+DaySplit = length(YearDates)/Fragments
+SeqFragment = floor(seq(0, length(YearDates), DaySplit))
+
+if (Fragments > 1)
+{
+  for (f in 1:Fragments)
+  {
+    YearDates.Sub = YearDates2(year.active)[SeqFragment[f]:SeqFragment[f+1]]
+    BusinesDates.Sub = BusinesDates[BusinesDates >= YearDates.Sub[1] &
+                                      BusinesDates <= tail(YearDates.Sub,1)]
+    WeekendDates.Sub = WeekendDates[WeekendDates >= YearDates.Sub[1] &
+                                      WeekendDates <= tail(YearDates.Sub,1)]
+    Time.Sub = Time[Time >= YearDates.Sub[1] & Time <= tail(YearDates.Sub,1)]
+    
+    
+    if (f == 1)
+    {
+      YearDates = YearDates2(year.active)[1:DaySplit]
+      BusinesDates = DateType(YearDates, "Workdays", HoliDates)[DateType(YearDates, "Workdays", HoliDates) <= tail(YearDates,1)]
+      WeekendDates = DateType(YearDates, "Weekends")[DateType(YearDates, "Weekends") <= tail(YearDates,1)]
+      Time = Time[Time <= tail(YearDates,1)]
+    }
+    if (f == 2)
+    {
+      YearDates = YearDates2(year.active)[(DaySplit+1):length(YearDates2(year.active))]
+      BusinesDates = DateType(YearDates, "Workdays", HoliDates)[DateType(YearDates, "Workdays", HoliDates) >= head(YearDates,1)]
+      WeekendDates = DateType(YearDates, "Weekends")[DateType(YearDates, "Weekends") >= head(YearDates,1)]
+      Time = Time[Time >= head(YearDates,1)]
+    }
+    
+    if (exists("PPH.T1.PNT.RS")) {rm(PPH.T1.PNT.RS)}
+    if (exists("PPH.T2.PNT.RS")) {rm(PPH.T2.PNT.RS)}
+    
+    if (Active.Subprofile$Dynamics == "dynamic")
+    {
+      PPH.T1.PNT.RS = RandomSampleRoutesYears(PPH.T1, PPH.T1.Pnt.eq.Li, FALSE, RandomSamplePoints,
+                                              YearDates, BusinesDates, Active.SetSeedNr, f)
+      PPH.T2.PNT.RS = RandomSampleRoutesYears(PPH.T2, PPH.T2.Pnt.eq.Li, FALSE, RandomSamplePoints,
+                                              YearDates, BusinesDates, Active.SetSeedNr, f)
+    }
+    
+    Parts = 5
+    StepSize = length(PPH.P)/Parts
+    Seq = c(0,seq(StepSize, length(PPH.P), StepSize))
+    
+    for (p in (1:Parts))
+    {
+      if (exists("TIME.P")) {rm(TIME.P)}
+      if (exists("TIME.S")) {rm(TIME.S)}
+      if (exists("TIME.T1")) {rm(TIME.T1)}
+      if (exists("TIME.T2")) {rm(TIME.T2)}
+      
+      TIME = CreateCorrespondingDateAndTime(Active.Type, Active.Subprofile, PPH.P[(Seq[p]+1):(Seq[p+1]),], YearDates, BusinesDates, WeekendDates, HoliDates,
+                                            TimeVertex.T1, TimeVertex.T2, PPH.T1.PNT.RS, PPH.T2.PNT.RS, year.active, Seq[p], DaySplit)
+      TIME.P = TIME[[2]]
+      if (Active.Subprofile$Dynamics == "dynamic")
+      {
+        PHASES = TIME[[1]]
+        TIME.S = TIME[[3]]
+        TIME.T1 = TIME[[4]]
+        TIME.T2 = TIME[[5]]
+      }
+      
+      # Write TIME to disk
+      WriteToDisk = TRUE
+      OW = TRUE
+      if (WriteToDisk)
+      {
+        SaveAsDBF(TIME.P, "Time", "Primary", YearDates,
+                  paste0(Active.Subtype, "_", f), OW, pol, Seq[p])
+        if (Active.Subprofile$Dynamics == "dynamic")
+        {
+          SaveAsDBF(TIME.S, "Time", "Secondary", YearDates,
+                    paste0(Active.Subtype, "_", f), OW, pol, Seq[p])
+          SaveAsDBF(TIME.T1, "Time", "T1", YearDates,
+                    paste0(Active.Subtype, "_", f), OW, pol, Seq[p])
+          SaveAsDBF(TIME.T2, "Time", "T2", YearDates,
+                    paste0(Active.Subtype, "_", f), OW, pol, Seq[p])
+        }
+      }
+      
+      
+    } # closing p(arts)
+    
+    if (exists("TIME.P")) {rm(TIME.P)}
+    if (exists("TIME.S")) {rm(TIME.S)}
+    if (exists("TIME.T1")) {rm(TIME.T1)}
+    if (exists("TIME.T2")) {rm(TIME.T2)}
+    
+    # attach TIME
+    TIME.P = DBFreader("Time", "Primary", PPH.P, YearDates, BusinesDates, paste0(Active.Subtype,"_", f))
+    if (Active.Subprofile$Dynamics == "dynamic")
+    {
+      TIME.S = DBFreader("Time", "Secondary", PPH.P, YearDates, BusinesDates, paste0(Active.Subtype,"_", f))
+      TIME.T1 = DBFreader("Time", "T1", PPH.P, YearDates, BusinesDates, paste0(Active.Subtype,"_", f))
+      TIME.T2 = DBFreader("Time", "T2", PPH.P, YearDates, BusinesDates, paste0(Active.Subtype,"_", f))
+    }
+    
+    # Hours of the year
+    HOURS.P = HourOfTheYear7(year.active, TIME.P, 0)
+    if (Active.Subprofile$Dynamics == "dynamic")
+    {
+      HOURS.S = HourOfTheYear7(year.active, TIME.S, 0)
+      HOURS.T1 = HourOfTheYear7(year.active, TIME.T1, 0)
+      HOURS.T2 = HourOfTheYear7(year.active, TIME.T2, 0)
+    }
+    
+    
+    
+    
+  } # closing f(ragments)
+  
+  # YearDates = YearDates2(year.active)
+  # BusinesDates = DateType(YearDates, "Workdays", HoliDates)
+  # WeekendDates = DateType(YearDates, "Weekends")
+  
+  # attach
+  
+  #Read DBF file with TIME 
+  TIME.P = DBFreader("Time", "Primary", PPH.P, YearDates, BusinesDates, paste0(Active.Subtype,"_", f))
+  if (Active.Subprofile$Dynamics == "dynamic")
+  {
+    TIME.S = DBFreader("Time", "Secondary", PPH.P, YearDates, BusinesDates, paste0(Active.Subtype,"_", f))
+    TIME.T1 = DBFreader("Time", "T1", PPH.P, YearDates, BusinesDates, paste0(Active.Subtype,"_", f))
+    TIME.T2 = DBFreader("Time", "T2", PPH.P, YearDates, BusinesDates, paste0(Active.Subtype,"_", f))
+  }
+  
+  # Hours of the year
+  HOURS.P = HourOfTheYear7(year.active, TIME.P, 0)
+  if (Active.Subprofile$Dynamics == "dynamic")
+  {
+    HOURS.S = HourOfTheYear7(year.active, TIME.S, 0)
+    HOURS.T1 = HourOfTheYear7(year.active, TIME.T1, 0)
+    HOURS.T2 = HourOfTheYear7(year.active, TIME.T2, 0)
+  }
+  
+  # Detect which hours belong to which points | change name systematically to HoP (Hour of Point) = HoP.P etc.
+  HOP = WhichHourForWhichPoint(PPH.P, Time, HOURS.P, HOURS.S, HOURS.T1, HOURS.T2,
+                               Print = FALSE, Active.Subprofile, DaySplit) 
+  HoP.P = HOP[[1]]
+  if (Active.Subprofile$Dynamics == "dynamic")
+  {
+    HoP.S = HOP[[2]]
+    HoP.T1 = HOP[[3]]
+    HoP.T2 = HOP[[4]]
+  }
+  rm(HOP)
   
   # # some test plots
   # i = 10
@@ -390,9 +535,6 @@ if (Active.Subprofile$Dynamics == "dynamic")
   # points(PPH.T1.PNT.RS[[i]][[day]][17])
   
   
-  # Basic time element per vertex
-  TimeVertex.T1 = LinkPointsToTime.Transport("Outwards", PPH.T1, PPH.T1.Pnt.Li, year.active, Active.Subprofile)
-  TimeVertex.T2 = LinkPointsToTime.Transport("Inwards", PPH.T2, PPH.T2.Pnt.Li, year.active, Active.Subprofile)
   
   #   # Order the PPH.S to match [i,]
   #   PPH.S.Li = list()
@@ -404,32 +546,32 @@ if (Active.Subprofile$Dynamics == "dynamic")
   #   #points(PPH.S.Li[[i]], col = "purple", pch = "L")
   #   PPH.S = do.call(rbind, PPH.S.Li)
   
-}
-
-TIME = CreateCorrespondingDateAndTime(Active.Type, Active.Subprofile, PPH.P, YearDates, BusinesDates, WeekendDates, HoliDates,
-                                      TimeVertex.T1, TimeVertex.T2, PPH.T1.PNT.RS, PPH.T2.PNT.RS, year.active)
-TIME.P = TIME[[2]]
-if (Active.Subprofile$Dynamics == "dynamic")
-{
-  PHASES = TIME[[1]]
-  TIME.S = TIME[[3]]
-  TIME.T1 = TIME[[4]]
-  TIME.T2 = TIME[[5]]
-}
-
-# Write TIME to disk
-WriteToDisk = TRUE
-OW = TRUE
-if (WriteToDisk)
-{
-  SaveAsDBF(TIME.P, "Time", "Primary", YearDates, Active.Subtype, OW, pol)
+  ## Interpolating the points
+  start.time = Sys.time()
+  ExposureValue.All = PPH.TIN.InterpolationWS(PPH.P, PPH.S, PPH.T1.PNT.RS, PPH.T2.PNT.RS,
+                                              Points.NoVal, PolDir, Plot = FALSE, pol,
+                                              #StartHour = 1, EndHour = length(Time),
+                                              StartHour = 1+(SeqFragment[f]+1-1)*24, EndHour = 8760,
+                                              #StartHour = 5*24+1, EndHour = 6*24,
+                                              #StartHour = 1, EndHour = 1*24,
+                                              #StartHour = 1+SeqFragment[f]*24, EndHour = SeqFragment[f]*24+24,
+                                              #StartHour = 1+(SeqFragment[f]+65-1)*24, EndHour = (SeqFragment[f]+66-1)*24,
+                                              HOURS.P, HOURS.S, HOURS.T1, HOURS.T2, 50,
+                                              HoP.P, HoP.S, HoP.T1, HoP.T2, Active.Subprofile, SeqFragment[f])
+  ExposureValue.P = ExposureValue.All[[1]]
   if (Active.Subprofile$Dynamics == "dynamic")
   {
-    SaveAsDBF(TIME.S, "Time", "Secondary", YearDates, Active.Subtype, OW, pol)
-    SaveAsDBF(TIME.T1, "Time", "T1", YearDates, Active.Subtype, OW, pol)
-    SaveAsDBF(TIME.T2, "Time", "T2", YearDates, Active.Subtype, OW, pol)
+    ExposureValue.S = ExposureValue.All[[2]]
+    ExposureValue.T1 = ExposureValue.All[[3]]
+    ExposureValue.T2 = ExposureValue.All[[4]]
   }
+  rm(ExposureValue.All)
+  end.time = Sys.time()
+  print(end.time - start.time)
+  
+  
 }
+
 
 #Read DBF file with TIME 
 TIME.P = DBFreader("Time", "Primary", PPH.P, YearDates, BusinesDates, Active.Subtype)
@@ -450,6 +592,10 @@ if (Active.Subprofile$Dynamics == "dynamic")
   #HOURS.T1_3d = HourOfTheYear7(year.active, TIME.T1, 3)
   #HOURS.T2_3d = HourOfTheYear7(year.active, TIME.T2, 3)
 }
+
+#install.packages("pryr")
+library(pryr)
+mem_used()
 
 
 #rm(dir.P, dir.S, dir.T1f, dir.T1s, dir.T2f, dir.T2s)
@@ -506,14 +652,11 @@ if (!file.exists(txt.Points))
 {
   bunzip2(bz2.Points_in, txt.Points, remove = FALSE, skip = TRUE)
 }
-Points = fread(txt.Points, sep=";", header=TRUE)
-coordinates(Points) = ~x+y
-Points@proj4string = BE_crs
-
-Points.NoVal = Points
+Points.NoVal = fread(txt.Points, sep=";", header=TRUE)
+coordinates(Points.NoVal) = ~x+y
 colnames(Points.NoVal@data) = NA
 Points.NoVal@data[,1] = NA
-rm(Points)
+Points.NoVal@proj4string = BE_crs
 
 # SaveAsFile(Points.NoVal, "RIO_IFDM", "GeoJSON", TRUE)
 
@@ -549,6 +692,19 @@ if (Active.Subprofile$Dynamics == "dynamic")
 end.time = Sys.time()
 print(end.time - start.time)
 
+# Write EXP to disk
+WriteToDisk = TRUE
+OW = TRUE
+if (WriteToDisk)
+{
+  SaveAsDBF(ExposureValue.P, "Exposure", "Primary", YearDates, Active.Subtype, OW, pol)
+  if (Active.Subprofile$Dynamics == "dynamic")
+  {
+    SaveAsDBF(ExposureValue.S, "Exposure", "Secondary", YearDates, Active.Subtype, OW, pol)
+    SaveAsDBF(ExposureValue.T1, "Exposure", "T1", YearDates, Active.Subtype, OW, pol)
+    SaveAsDBF(ExposureValue.T2, "Exposure", "T2", YearDates, Active.Subtype, OW, pol)
+  }
+}
 
 #Read DBF file with Exposurevalues 
 ExposureValue.P = DBFreader("Exposure", "Primary", PPH.P, YearDates, BusinesDates, Active.Subtype, pol)
