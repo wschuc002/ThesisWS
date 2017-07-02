@@ -27,7 +27,7 @@ library(lubridate)
 #Year = year.active
 
 CreateCorrespondingDateAndTime <- function(Active.Type, Active.Subprofile, PPH.P, YearDates, BusinesDates, WeekendDates, HoliDates,
-                                           TimeVertex.T1, TimeVertex.T2, PPH.T1.PNT.RS, PPH.T2.PNT.RS, Year, ...)
+                                           TimeVertex.T1, TimeVertex.T2, PPH.T1.PNT.RS, PPH.T2.PNT.RS, Year, seq, DaySplit, ...)
 {
   PHASES = list()
   TIME.P = list()
@@ -36,7 +36,7 @@ CreateCorrespondingDateAndTime <- function(Active.Type, Active.Subprofile, PPH.P
   TIME.T2 = list()
   
   for (i in seq_along(PPH.P))
-  #for (i in 1:20)
+  #for (i in 1:750)
   {
     Phases = list()
     Time.P = list()
@@ -66,14 +66,14 @@ CreateCorrespondingDateAndTime <- function(Active.Type, Active.Subprofile, PPH.P
       #Leave.S.StartTime = as.POSIXct(paste0(Year,"-01-01"))+Leave.S.StartTime*60**2
       
       
-      days = which(YearDates %in% BusinesDates == TRUE)
+      days = which(YearDates %in% BusinesDates)
       for (d in days)
       {
         Phases[[d]] = c(YearDates[d]+1*60**2, # start day [1]
                         YearDates[d]+Leave.P.StartTime*60**2, # leave P [2]
-                        (tail(TimeVertex.T1[[i]],1)+(d-1)*24*60**2), # arrive S [3]
+                        (tail(TimeVertex.T1[[i+seq]],1)+(d+DaySplit-1)*24*60**2), # arrive S [3]
                         YearDates[d]+Leave.S.StartTime*60**2, # leave S [4]
-                        (tail(TimeVertex.T2[[i]],1)+(d-1)*24*60**2), #arrive P [5]
+                        (tail(TimeVertex.T2[[i+seq]],1)+(d+DaySplit-1)*24*60**2), #arrive P [5]
                         YearDates[d]+24*60**2) # end day [6]
         
         Time.P[[d]] = c(seq(Phases[[d]][1], Phases[[d]][2], 1*60**2),
@@ -96,8 +96,8 @@ CreateCorrespondingDateAndTime <- function(Active.Type, Active.Subprofile, PPH.P
         inds.T2 = knnLookup(tree.T2, newdat = coordinates(PPH.T2.PNT.RS[[i]][[d]]), k = 1) # gives the matrix
         inds.T2 = sort(as.vector(inds.T2))
 
-        Time.T1[[d]] = TimeVertex.T1[[i]][inds.T1]+(d-1)*24*60**2
-        Time.T2[[d]] = TimeVertex.T2[[i]][inds.T2]+(d-1)*24*60**2
+        Time.T1[[d]] = TimeVertex.T1[[i+seq]][inds.T1]+(d+DaySplit-1)*24*60**2
+        Time.T2[[d]] = TimeVertex.T2[[i+seq]][inds.T2]+(d+DaySplit-1)*24*60**2
       }
       
       days = which(YearDates %in% WeekendDates == TRUE)
