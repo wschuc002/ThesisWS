@@ -101,8 +101,16 @@ SimplifyRoutes <- function(PPH.T, Plot = FALSE, Factor = 100, ...)
 # PPH.T.Pnt.eq.Li = PPH.T1.Pnt.eq.Li
 # SampSize = 5
 
-RandomSampleRoutesYears <- function(PPH.T, PPH.T.Pnt.eq.Li, Plot, SampSize, YearDates, BusinesDates, Active.SetSeedNr, ...)
+RandomSampleRoutesYears <- function(PPH.T, PPH.T.Pnt.eq.Li, Plot, SampSize, YearDates, BusinesDates, Active.SetSeedNr, f, ...)
 {
+  if (f == 2)
+  {
+    Start = floor(length(YearDates2(year.active))/Fragments)
+  } else
+  {
+    Start = 0
+  }
+  
   if (Plot == TRUE){plot(Flanders)}
   
   PPH.T.Pnt.eq.rs.Li = list()
@@ -124,7 +132,7 @@ RandomSampleRoutesYears <- function(PPH.T, PPH.T.Pnt.eq.Li, Plot, SampSize, Year
             PPH.T.Pnt.eq.rs[[d]] = sample(PPH.T.Pnt.eq.Li[[i]][2:(nrow(coordinates(PPH.T.Pnt.eq.Li[[i]]))-1),], SampSize-2)
           } else
           {
-            set.seed(Active.SetSeedNr + d); PPH.T.Pnt.eq.rs[[d]] = sample(PPH.T.Pnt.eq.Li[[i]][2:(nrow(coordinates(PPH.T.Pnt.eq.Li[[i]]))-1),], SampSize-2)
+            set.seed(Active.SetSeedNr + d + Start); PPH.T.Pnt.eq.rs[[d]] = sample(PPH.T.Pnt.eq.Li[[i]][2:(nrow(coordinates(PPH.T.Pnt.eq.Li[[i]]))-1),], SampSize-2)
           }
           
           # add first and last point
