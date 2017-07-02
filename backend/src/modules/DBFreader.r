@@ -71,5 +71,6 @@ DBFreader <- function(FileType, PhaseType, PPH.P, YearDates, BusinesDates, Activ
     # }
     
   } # closing i
- return(NUM)
+  odbcCloseAll()
+  return(NUM)
 }

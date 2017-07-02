@@ -39,7 +39,7 @@ library(SearchTrees)
 PPH.TIN.InterpolationWS <- function(PPH.P, PPH.S, PPH.T1.Pnt, PPH.T2.Pnt, POL, PolDir, Plot,
                                     pol, StartHour = 1, EndHour = length(YearDates)*24,
                                     HOURS.P, HOURS.S, HOURS.T1, HOURS.T2, NearestPoints,
-                                    wP, wS, wT1, wT2, Active.Subprofile, ...)
+                                    wP, wS, wT1, wT2, Active.Subprofile, seq, ...)
 {
   txt.dr = ExtractBZ2(pol, PolDir, StartHour, EndHour)
   
@@ -81,10 +81,15 @@ PPH.TIN.InterpolationWS <- function(PPH.P, PPH.S, PPH.T1.Pnt, PPH.T2.Pnt, POL, P
   {
     hr = h+StartHour-1
     day = ceiling(hr/24)
+    dayS = day-(ceiling(StartHour/24)-1)
+    dayS2 = ceiling(hr/24)-seq
+    
     cat("\n")
     print(paste0("Series Hour ", h))
     print(paste0("Year Hour ", hr))
     print(paste0("Day ", day))
+    print(paste0("Series Day ", dayS))
+    print(paste0("Series2 Day ", dayS2))
     print(txt.dr[h])
     
     POL.h = fread(txt.dr[h], sep=";", header=TRUE, select = "values")
@@ -95,7 +100,7 @@ PPH.TIN.InterpolationWS <- function(PPH.P, PPH.S, PPH.T1.Pnt, PPH.T2.Pnt, POL, P
     {
       cat(paste(i," "))
       
-      if (length(wP[[i]][[hr]]) > 0)
+      if (length(wP[[i]][[hr-seq*24]]) > 0)
       {
         # select proximity coordinates
         inds = knnLookup(tree, newdat = coordinates(PPH.P[i,]), k = NearestPoints) # gives the matrix
@@ -115,12 +120,12 @@ PPH.TIN.InterpolationWS <- function(PPH.P, PPH.S, PPH.T1.Pnt, PPH.T2.Pnt, POL, P
           text(PPH.P[i,], labels = round(Exp.P,3), pos = 1, cex = 1, col = 11, font = 2)
         }
         
-        EXP.P.Li[[i]][[day]][wP[[i]][[hr]]] = Exp.P
+        EXP.P.Li[[i]][[dayS]][wP[[i]][[hr-seq*24]]] = Exp.P
       }
       
       if (Active.Subprofile$Dynamics == "dynamic")
       {
-        if (length(wS[[i]][[hr]]) > 0)
+        if (length(wS[[i]][[hr-seq*24]]) > 0)
         {
           # select proximity coordinates
           inds = knnLookup(tree, newdat = coordinates(PPH.S[i,]), k = NearestPoints) # gives the matrix
@@ -140,18 +145,18 @@ PPH.TIN.InterpolationWS <- function(PPH.P, PPH.S, PPH.T1.Pnt, PPH.T2.Pnt, POL, P
             text(PPH.S[i,], labels = round(Exp.S,3), pos = 1, cex = 1, col = "orange", font = 2)
           }
           
-          EXP.S.Li[[i]][[day]][wS[[i]][[hr]]] = Exp.S
+          EXP.S.Li[[i]][[dayS]][wS[[i]][[hr-seq*24]]] = Exp.S
         }
         
-        if (length(wT1[[i]][[hr]]) > 0)
+        if (length(wT1[[i]][[hr-seq*24]]) > 0)
         {
-          day = ceiling(hr/24)
-          if (Plot == TRUE){ plot(POL[as.vector(knnLookup(tree, newdat = coordinates(PPH.T1.Pnt[[i]][[day]]), k = NearestPoints)),]) }
+          #day = ceiling(hr/24)
+          if (Plot == TRUE){ plot(POL[as.vector(knnLookup(tree, newdat = coordinates(PPH.T1.Pnt[[i]][[dayS2]]), k = NearestPoints)),]) }
           
           for (v in seq_along(wT1[[i]][[hr]]))
           {
             # select proximity coordinates
-            CoordsOfInterest = PPH.T1.Pnt[[i]][[day]][v,]@coords
+            CoordsOfInterest = PPH.T1.Pnt[[i]][[dayS2]][v,]@coords
             inds = knnLookup(tree, newdat = CoordsOfInterest, k = NearestPoints)
             inds = as.vector(inds)
             
@@ -171,22 +176,22 @@ PPH.TIN.InterpolationWS <- function(PPH.P, PPH.S, PPH.T1.Pnt, PPH.T2.Pnt, POL, P
               text(CoordsOfInterest, labels = round(Exp.T1,3), pos = 1, cex = 1, font = 2, col = "purple")
             }
             
-            EXP.T1.Li[[i]][[day]][wT1[[i]][[hr]][v]] = Exp.T1
+            EXP.T1.Li[[i]][[dayS]][wT1[[i]][[hr-seq*24]][v]] = Exp.T1
             
             
           }
           
         }
         
-        if (length(wT2[[i]][[hr]]) > 0)
+        if (length(wT2[[i]][[hr-seq*24]]) > 0)
         {
           day = ceiling(hr/24)
-          if (Plot == TRUE){ plot(POL[as.vector(knnLookup(tree, newdat = coordinates(PPH.T2.Pnt[[i]][[day]]), k = NearestPoints)),]) }
+          if (Plot == TRUE){ plot(POL[as.vector(knnLookup(tree, newdat = coordinates(PPH.T2.Pnt[[i]][[dayS2]]), k = NearestPoints)),]) }
           
           for (v in seq_along(wT2[[i]][[hr]]))
           {
             # select proximity coordinates
-            CoordsOfInterest = PPH.T2.Pnt[[i]][[day]][v,]@coords
+            CoordsOfInterest = PPH.T2.Pnt[[i]][[dayS2]][v,]@coords
             inds = knnLookup(tree, newdat = CoordsOfInterest, k = NearestPoints)
             inds = as.vector(inds)
             
@@ -204,7 +209,7 @@ PPH.TIN.InterpolationWS <- function(PPH.P, PPH.S, PPH.T1.Pnt, PPH.T2.Pnt, POL, P
               text(CoordsOfInterest, labels = round(Exp.T2,3), pos = 1, cex = 1, font = 2, col = "blue")
             }
             
-            EXP.T2.Li[[i]][[day]][wT2[[i]][[hr]][v]] = Exp.T2
+            EXP.T2.Li[[i]][[dayS]][wT2[[i]][[hr-seq*24]][v]] = Exp.T2
           }
           
         }
