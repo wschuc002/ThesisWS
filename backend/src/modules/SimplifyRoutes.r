@@ -22,8 +22,8 @@ if(length(new.packages)) install.packages(new.packages)
 ## Load the packages
 library(sp)
 
-# PPH.T = PPH.T1
-# SampSize = 25
+# PPH.T = PPH.T2
+# SampSize = 10
 # Plot = TRUE
 # Factor = SimplifyRemainingPoints
 

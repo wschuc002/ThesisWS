@@ -59,7 +59,7 @@ SaveAsFile <- function(INput, Filename, Format, Active.Type, OverwriteLayer, ...
 # FolderName = paste0(Active.Subtype, "_", f )
 # OverwriteLayer = TRUE
 
-SaveAsDBF <- function(INput, FileType, PhaseType, Filename, FolderName, OverwriteLayer, pol, seq, ...)
+SaveAsDBF <- function(INput, FileType, PhaseType, FolderName, OverwriteLayer, pol, seq, ...)
 {
   
   if (PhaseType == "Primary") {PhaseLetter = "P"}

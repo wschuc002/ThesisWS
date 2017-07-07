@@ -26,7 +26,7 @@
 #FileType = "Exposure"
 #PhaseType = "Primary"
 
-DBFreader <- function(FileType, PhaseType, PPH.P, YearDates, BusinesDates, Active.Subtype, pol, ...)
+DBFreader <- function(FileType, PhaseType, PPH.P, YearDates, Active.Subtype, pol, ...)
 {
   if (PhaseType == "Primary") {PhaseLetter = "P"}
   if (PhaseType == "Secondary") {PhaseLetter = "S"}
@@ -71,6 +71,5 @@ DBFreader <- function(FileType, PhaseType, PPH.P, YearDates, BusinesDates, Activ
     # }
     
   } # closing i
-  odbcCloseAll()
   return(NUM)
 }

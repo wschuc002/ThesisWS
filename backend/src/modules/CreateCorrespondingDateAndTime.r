@@ -26,8 +26,13 @@ library(lubridate)
 
 #Year = year.active
 
-CreateCorrespondingDateAndTime <- function(Active.Type, Active.Subprofile, PPH.P, YearDates, BusinesDates, WeekendDates, HoliDates,
-                                           TimeVertex.T1, TimeVertex.T2, PPH.T1.PNT.RS, PPH.T2.PNT.RS, Year, seq, DaySplit, ...)
+# F. = f
+# P. = p
+
+CreateCorrespondingDateAndTime <- function(Active.Type, Active.Subprofile, PPH.P,
+                                           YearDates, BusinesDates, WeekendDates, HoliDates,
+                                           TimeVertex.T1, TimeVertex.T2, PPH.T1.PNT.RS, PPH.T2.PNT.RS,
+                                           Year, SeqFragment, F., SeqParts, P., ...)
 {
   PHASES = list()
   TIME.P = list()
@@ -58,32 +63,29 @@ CreateCorrespondingDateAndTime <- function(Active.Type, Active.Subprofile, PPH.P
       Leave.P.raw = as.numeric(Active.Subprofile$TimeLeavingPrimary) / 100
       Leave.P.Minutes = (Leave.P.raw %% 1) * 100 / 60
       Leave.P.StartTime = Leave.P.raw - (Leave.P.raw %% 1) + Leave.P.Minutes
-      #Leave.P.StartTime = as.POSIXct(paste0(Year,"-01-01"))+Leave.P.StartTime*60**2
-      
+
       Leave.S.raw = as.numeric(Active.Subprofile$TimeLeavingSecondary) / 100
       Leave.S.Minutes = (Leave.S.raw %% 1) * 100 / 60
       Leave.S.StartTime = Leave.S.raw - (Leave.S.raw %% 1) + Leave.S.Minutes
-      #Leave.S.StartTime = as.POSIXct(paste0(Year,"-01-01"))+Leave.S.StartTime*60**2
-      
       
       days = which(YearDates %in% BusinesDates)
       for (d in days)
       {
         Phases[[d]] = c(YearDates[d]+1*60**2, # start day [1]
                         YearDates[d]+Leave.P.StartTime*60**2, # leave P [2]
-                        (tail(TimeVertex.T1[[i+seq]],1)+(d+DaySplit-1)*24*60**2), # arrive S [3]
+                        (tail(TimeVertex.T1[[i+SeqParts[P.]]],1)+(d+SeqFragment[F.]-1)*24*60**2), # arrive S [3]
                         YearDates[d]+Leave.S.StartTime*60**2, # leave S [4]
-                        (tail(TimeVertex.T2[[i+seq]],1)+(d+DaySplit-1)*24*60**2), #arrive P [5]
+                        (tail(TimeVertex.T2[[i+SeqParts[P.]]],1)+(d+SeqFragment[F.]-1)*24*60**2), #arrive P [5]
                         YearDates[d]+24*60**2) # end day [6]
         
         Time.P[[d]] = c(seq(Phases[[d]][1], Phases[[d]][2], 1*60**2),
                         Phases[[d]][2],
                         Phases[[d]][5],
-                        seq(ceiling_date(Phases[[d]][5], 'hours'), Phases[[d]][6], 1*60**2))
+                        seq(ceiling_date(Phases[[d]][5], 'hours'), Phases[[d]][6], 60**2))
         Time.P[[d]] = unique(Time.P[[d]])
         
         Time.S[[d]] = c(Phases[[d]][3],
-                        seq(ceiling_date(Phases[[d]][3], 'hours'), Phases[[d]][4], 1*60**2),
+                        seq(ceiling_date(Phases[[d]][3], 'hours'), Phases[[d]][4], 60**2),
                         Phases[[d]][4])
         Time.S[[d]] = unique(Time.S[[d]])
         
@@ -96,8 +98,8 @@ CreateCorrespondingDateAndTime <- function(Active.Type, Active.Subprofile, PPH.P
         inds.T2 = knnLookup(tree.T2, newdat = coordinates(PPH.T2.PNT.RS[[i]][[d]]), k = 1) # gives the matrix
         inds.T2 = sort(as.vector(inds.T2))
 
-        Time.T1[[d]] = TimeVertex.T1[[i+seq]][inds.T1]+(d+DaySplit-1)*24*60**2
-        Time.T2[[d]] = TimeVertex.T2[[i+seq]][inds.T2]+(d+DaySplit-1)*24*60**2
+        Time.T1[[d]] = TimeVertex.T1[[i+SeqParts[P.]]][inds.T1]+(d+SeqFragment[F.]-1)*24*60**2
+        Time.T2[[d]] = TimeVertex.T2[[i+SeqParts[P.]]][inds.T2]+(d+SeqFragment[F.]-1)*24*60**2
       }
       
       days = which(YearDates %in% WeekendDates == TRUE)

@@ -22,11 +22,13 @@
 # ## Load the packages
 # library(data.table)
 
+#DaySplit = SeqFragment[f]
+#Time = Time.Sub
 
 WhichHourForWhichPoint <- function(PPH.P, Time, HOURS.P, HOURS.S, HOURS.T1, HOURS.T2,
-                                   Print = FALSE, Active.Subprofile, DaySplit, ...)
+                                   Print = FALSE, Active.Subprofile, SeqFragment, f, ...)
 {
-  if (!exists("DaySplit")) {DaySplit = 0}
+  #if (!exists("DaySplit")) {DaySplit = 0}
   
   wP = list()
   wS = list()
@@ -41,25 +43,27 @@ WhichHourForWhichPoint <- function(PPH.P, Time, HOURS.P, HOURS.S, HOURS.T1, HOUR
     T1 = list()
     T2 = list()
     
-    #for (h in seq_along(Time))
-    for (h in seq_along(Time)+(DaySplit*24))
+    for (h in seq_along(Time))
+    #for (h in seq_along(Time)+(SeqFragment[f]*24))
       #for (h in 1:(7*24))
     {
-      day = ceiling(h/24)
+      dayS = ceiling(h/24)
+      day = SeqFragment[f]+1
+      hr = h+SeqFragment[f]*24
       if (Print)
         {
-          print(paste0("Hour ", h-(DaySplit*24)))
-          print(paste0("Day ", day-DaySplit))
-          print(paste0("Year Hour ", h))
+          print(paste0("Hour ", h))
+          print(paste0("Day ", dayS))
+          print(paste0("Year Hour ", hr))
           print(paste0("Year Day ", day))
         }
       
-      P[[h-(DaySplit*24)]] = which(h == HOURS.P[[i]][[day-DaySplit]])
+      P[[h]] = which(hr == HOURS.P[[i]][[dayS]])
       if (Active.Subprofile$Dynamics == "dynamic")
       {
-        S[[h-(DaySplit*24)]] = which(h == HOURS.S[[i]][[day-DaySplit]])
-        T1[[h-(DaySplit*24)]] = which(h == HOURS.T1[[i]][[day-DaySplit]])
-        T2[[h-(DaySplit*24)]] = which(h == HOURS.T2[[i]][[day-DaySplit]])
+        S[[h]] = which(hr == HOURS.S[[i]][[dayS]])
+        T1[[h]] = which(hr == HOURS.T1[[i]][[dayS]])
+        T2[[h]] = which(hr == HOURS.T2[[i]][[dayS]])
       }
     }
     wP[[i]] = P
