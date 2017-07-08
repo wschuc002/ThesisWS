@@ -62,16 +62,17 @@ source("modules/DetermineRoutes.r")
 source("modules/LinkPointsToTime.r")
 source("modules/HourOfTheYear.r")
 source("modules/Interpolate.r")
-source("modules/AreaOfInterest.r")
 source("modules/ExtractBZ2.r")
 source("modules/SimplifyRoutes.r")
 source("modules/CreateCorrespondingDateAndTime.r")
 source("modules/DataFraming.r")
-source("modules/SummaryStatistics.r")
-source("modules/util.r")
 source("modules/BiWeekly.r")
 source("modules/ToHourValues.r")
 source("modules/DBFreader.r")
+#source("modules/AreaOfInterest.r")
+source("modules/SummaryStatistics.r")
+#source("modules/util.r")
+source("modules/DrivingLinearDistanceRatio.r")
 
 ### Download data from OneDrive or irceline ftp server
 DownloadMode = "OneDrive" # "FPT"
@@ -205,7 +206,7 @@ if (!exists("BIWEEKLY"))
 # Beginning of profile based code
 
 # Select active Residential Profile
-Active.Type = "03.SP" # "01.OW" "02.HO" or "03.SP"
+Active.Type = "01.OW" # "01.OW" "02.HO" or "03.SP"
 Active.Subtype = paste0(Active.Type, "_WS","1")
 
 Active.Profile = ResidentialProfiles[ResidentialProfiles$Type == Active.Type,]
@@ -221,8 +222,6 @@ if (ReproduceMode)
 {
   Active.SetSeedNr = NULL
 }
-
-#OSRM.Level = "full" # "simplified" or "full" version of vectors in routes (OSRM package)
 
 dir.P = file.path("..", "output", paste(Active.Type, paste0("Primary", Names,".geojson"), sep = "_"))
 if (Active.Subprofile$Dynamics == "dynamic")
@@ -242,24 +241,29 @@ if (Active.Subprofile$Dynamics == "dynamic")
 
 if (!exists("CRAB_Doel") & !file.exists(dir.P))
 {
-  if (file.exists(file.path("..", "output", paste0(CRAB.Name,".shp"))))
+  if (file.exists(file.path("..", "output", paste0(CRAB.Name,".shp")))) # .geojson
   {
     CRAB_Doel = readOGR(file.path("..", "output", paste0(CRAB.Name,".shp")), layer = CRAB.Name) # Bug in .geojson, read .shp
+    #CRAB_Doel = readOGR(file.path("..", "output", paste0(CRAB.Name,".geojson")), layer = 'OGRGeoJSON')
     CRAB_Doel@proj4string = BE_crs
   } else
   {
     CRAB_Doel = DetermineAddressGoals_FL(Subset.Gemeente,2)
     CRAB_Doel@proj4string = BE_crs
     SaveAsFile(CRAB_Doel, CRAB.Name, "Shapefile", TRUE) #"GeoJSON"
+    #SaveAsFile(CRAB_Doel, CRAB.Name, "GeoJSON", TRUE)
   }
 }
+
+# Use stats from previous results
+DrivingDistanceLinearDistance = DrivingLinearDistanceRatio()
 
 ## Determine PPH for the active profile.
 # Check if data already exists. If so, it will not run.
 if (!file.exists(dir.P))
 {
   DeterminePPH_FL(CRAB_Doel, Names, 1000, Active.Type,
-                  Plot = TRUE, SaveResults = TRUE, Belgium, Active.SetSeedNr)
+                  Plot = TRUE, SaveResults = TRUE, Belgium, Active.SetSeedNr, Commuting, DrivingDistanceLinearDistance)
 }
 #14:00 - 22:30
 
@@ -308,10 +312,6 @@ for (i in seq_along(PPH.P))
     PPH.T2@data$duration[i] = 0.5
     print(paste("Corrected T2 duration from", Duration.T2, "to", 0.5))
   }
-  # PPH.T1@data$duration < 0.5
-  # PPH.T1[529,]@data$duration
-  # which(PPH.T1@data$duration < 0.5)
-  # HOURS.T1[[529]]
 }
 
 
