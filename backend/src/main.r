@@ -372,11 +372,6 @@ if (Active.Subprofile$Dynamics == "dynamic")
   {
     PPH.T1.Pnt.Li[[i]] = as(PPH.T1[i,], "SpatialPoints")
     PPH.T2.Pnt.Li[[i]] = as(PPH.T2[i,], "SpatialPoints")
-    
-    # # Remove the routes that are smaller than RandomSamplePoints
-    # PPH.T1.Pnt.Li[[i]]
-    # PPH.T2.Pnt.Li[[i]]
-    
   }
   
   # Convert Transport to points for equal durations
@@ -386,6 +381,8 @@ if (Active.Subprofile$Dynamics == "dynamic")
   # Basic time element per vertex
   TimeVertex.T1 = LinkPointsToTime.Transport("Outwards", PPH.T1, PPH.T1.Pnt.Li, year.active, Active.Subprofile)
   TimeVertex.T2 = LinkPointsToTime.Transport("Inwards", PPH.T2, PPH.T2.Pnt.Li, year.active, Active.Subprofile)
+  
+  rm(PPH.T1.Pnt.Li, PPH.T2.Pnt.Li)
 }
 
 # split time in half (only dynamic)
@@ -395,8 +392,8 @@ SeqFragment = floor(seq(0, length(YearDates), DaySplit))
 
 if (Fragments > 1)
 {
-  #for (f in 1:Fragments)
-  for (f in c(1:3, 5:Fragments))
+  for (f in 1:Fragments)
+  #for (f in c(1:3, 5:Fragments))
   {
     print(paste0("Starting fragment ", f, " of ", Fragments))
     
@@ -444,6 +441,7 @@ if (Fragments > 1)
         TIME.T1 = TIME[[4]]
         TIME.T2 = TIME[[5]]
       }
+      rm(TIME)
       
       # Write TIME to disk
       WriteToDisk = TRUE
@@ -509,15 +507,8 @@ if (Fragments > 1)
     start.time = Sys.time()
     ExposureValue.All = PPH.TIN.InterpolationWS(PPH.P, PPH.S, PPH.T1.PNT.RS, PPH.T2.PNT.RS,
                                                 Points.NoVal, PolDir, Plot = FALSE, pol,
-                                                #StartHour = 1, EndHour = length(Time),
-                                                #StartHour = 1+(SeqFragment[f])*24, EndHour = (SeqFragment[f+1])*24,
                                                 StartHour = SeqFragment[f]*24+1, # Time[(SeqFragment[f]*24+1)]
                                                 EndHour = (SeqFragment[f+1])*24, # Time[(SeqFragment[f+1])*24]
-                                                #StartHour = 81, EndHour = 82,
-                                                #StartHour = 5*24+1, EndHour = 6*24,
-                                                #StartHour = 1, EndHour = 1*24,
-                                                #StartHour = 1+SeqFragment[f]*24, EndHour = SeqFragment[f]*24+24,
-                                                #StartHour = 1+(SeqFragment[f]+65-1)*24, EndHour = (SeqFragment[f]+66-1)*24,
                                                 HOURS.P, HOURS.S, HOURS.T1, HOURS.T2, 50,
                                                 HoP.P, HoP.S, HoP.T1, HoP.T2, Active.Subprofile, SeqFragment[f])
     ExposureValue.P = ExposureValue.All[[1]]
@@ -531,6 +522,10 @@ if (Fragments > 1)
     end.time = Sys.time()
     TimeTakenInterpolation[f] = end.time - start.time
     print(TimeTakenInterpolation[f])
+    
+    rm(HOURS.P, HOURS.S, HOURS.T1, HOURS.T2)
+    rm(Points.NoVal)
+    rm(PPH.T1.PNT.RS, PPH.T2.PNT.RS)
     
     # Write EXP to disk
     WriteToDisk = TRUE
@@ -552,19 +547,83 @@ if (Fragments > 1)
     
   } # closing f(ragments)
   
+  # Connect TIME and EXP
   
+  TIME.P = list(list())
+  TIME.S = list(list())
+  TIME.T1 = list(list())
+  TIME.T2 = list(list())
+  ExposureValue.P = list(list())
+  ExposureValue.S = list(list())
+  ExposureValue.T1 = list(list())
+  ExposureValue.T2 = list(list())
+  
+  for (i in seq_along(PPH.P))
+  {
+    TIME.P[[i]] = rep(list(), length(YearDates)) # use same structure
+    TIME.S[[i]] = rep(list(), length(YearDates)) # use same structure
+    TIME.T1[[i]] = rep(list(), length(YearDates)) # use same structure
+    TIME.T2[[i]] = rep(list(), length(YearDates)) # use same structure
+    ExposureValue.P[[i]] = rep(list(), length(YearDates)) # use same structure
+    ExposureValue.S[[i]] = rep(list(), length(YearDates)) # use same structure
+    ExposureValue.T1[[i]] = rep(list(), length(YearDates)) # use same structure
+    ExposureValue.T2[[i]] = rep(list(), length(YearDates)) # use same structure
+  }
+  
+  for (f in 1:Fragments)
+  #for (f in 1:2)
+  {
+    YearDates.Sub = YearDates2(year.active)[(SeqFragment[f]+1):(SeqFragment[f+1])]
     
-    # # attach EXP parts
-    # ExposureValue.P = DBFreader("Exposure", "Primary", PPH.P, YearDates.Sub, paste0(Active.Subtype,"_", f), pol)
-    # if (Active.Subprofile$Dynamics == "dynamic")
-    # {
-    #   ExposureValue.S = DBFreader("Exposure", "Secondary", PPH.P, YearDates.Sub, paste0(Active.Subtype,"_", f), pol)
-    #   ExposureValue.T1 = DBFreader("Exposure", "T1", PPH.P, YearDates.Sub, paste0(Active.Subtype,"_", f), pol)
-    #   ExposureValue.T2 = DBFreader("Exposure", "T2", PPH.P, YearDates.Sub, paste0(Active.Subtype,"_", f), pol)
-    # }
+    # read from file
+    TIME.P_F = DBFreader("Time", "Primary", PPH.P, YearDates.Sub, paste0(Active.Subtype,"_", f))
+    TIME.S_F = DBFreader("Time", "Secondary", PPH.P, YearDates.Sub, paste0(Active.Subtype,"_", f))
+    TIME.T1_F = DBFreader("Time", "T1", PPH.P, YearDates.Sub, paste0(Active.Subtype,"_", f))
+    TIME.T2_F = DBFreader("Time", "T2", PPH.P, YearDates.Sub, paste0(Active.Subtype,"_", f))
+    ExposureValue.P_F = DBFreader("Exposure", "Primary", PPH.P, YearDates.Sub, paste0(Active.Subtype,"_", f), pol)
+    ExposureValue.S_F = DBFreader("Exposure", "Secondary", PPH.P, YearDates.Sub, paste0(Active.Subtype,"_", f), pol)
+    ExposureValue.T1_F = DBFreader("Exposure", "T1", PPH.P, YearDates.Sub, paste0(Active.Subtype,"_", f), pol)
+    ExposureValue.T2_F = DBFreader("Exposure", "T2", PPH.P, YearDates.Sub, paste0(Active.Subtype,"_", f), pol)
+    
+    
+    for (i in seq_along(PPH.P))
+    {
+      TIME.P[[i]][(SeqFragment[f]+1):(SeqFragment[f+1])] = TIME.P_F[[i]]
+      TIME.S[[i]][(SeqFragment[f]+1):(SeqFragment[f+1])] = TIME.S_F[[i]]
+      TIME.T1[[i]][(SeqFragment[f]+1):(SeqFragment[f+1])] = TIME.T1_F[[i]]
+      TIME.T2[[i]][(SeqFragment[f]+1):(SeqFragment[f+1])] = TIME.T2_F[[i]]
+      ExposureValue.P[[i]][(SeqFragment[f]+1):(SeqFragment[f+1])] = ExposureValue.P_F[[i]]
+      ExposureValue.S[[i]][(SeqFragment[f]+1):(SeqFragment[f+1])] = ExposureValue.S_F[[i]]
+      ExposureValue.T1[[i]][(SeqFragment[f]+1):(SeqFragment[f+1])] = ExposureValue.T1_F[[i]]
+      ExposureValue.T2[[i]][(SeqFragment[f]+1):(SeqFragment[f+1])] = ExposureValue.T2_F[[i]]
+    }
+    #rm(TIME.P_F, TIME.S_F, TIME.T1_F, TIME.T2_F)
+  }
+  
 
+  
+
+  for (f in 1:Fragments)
+    #for (f in 1:2)
+  {
+    YearDates.Sub = YearDates2(year.active)[(SeqFragment[f]+1):(SeqFragment[f+1])]
     
-  } # closing f(ragments)
+    # read from file
+    ExposureValue.P_F = DBFreader("Exposure", "Primary", PPH.P, YearDates.Sub, paste0(Active.Subtype,"_", f), pol)
+    ExposureValue.S_F = DBFreader("Exposure", "Secondary", PPH.P, YearDates.Sub, paste0(Active.Subtype,"_", f), pol)
+    ExposureValue.T1_F = DBFreader("Exposure", "T1", PPH.P, YearDates.Sub, paste0(Active.Subtype,"_", f), pol)
+    ExposureValue.T2_F = DBFreader("Exposure", "T2", PPH.P, YearDates.Sub, paste0(Active.Subtype,"_", f), pol)
+    
+    for (i in seq_along(PPH.P))
+    {
+      ExposureValue.P[[i]][(SeqFragment[f]+1):(SeqFragment[f+1])] = ExposureValue.P_F[[i]]
+      ExposureValue.S[[i]][(SeqFragment[f]+1):(SeqFragment[f+1])] = ExposureValue.S_F[[i]]
+      ExposureValue.T1[[i]][(SeqFragment[f]+1):(SeqFragment[f+1])] = ExposureValue.T1_F[[i]]
+      ExposureValue.T2[[i]][(SeqFragment[f]+1):(SeqFragment[f+1])] = ExposureValue.T2_F[[i]]
+    }
+    rm(ExposureValue.P_F, ExposureValue.S_F, ExposureValue.T1_F, ExposureValue.T2_F)
+  }
+
 }
 
 
