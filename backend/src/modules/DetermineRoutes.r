@@ -338,7 +338,7 @@ DetermineAddressGoals_FL <- function(FL.Gemeente, Method.nr, ... )
 
 
 # Names.sub = Names
-# FL.primary = 1000
+# FL.primary = 50
 # Plot = TRUE
 # SaveResults = FALSE
 # SetSeedNr = Active.SetSeedNr
@@ -397,6 +397,7 @@ DeterminePPH_FL <- function(CRAB_Doel, Names.sub, FL.primary, Active.Type,
     SecondaryPaired.Li = list()
     
     Outsiders = seq_along(Primary_random)
+    #Outsiders = 1:10
     success = FALSE
     IterationNr = 0
     
@@ -410,8 +411,8 @@ DeterminePPH_FL <- function(CRAB_Doel, Names.sub, FL.primary, Active.Type,
         #Subset: only Offices
         if (Active.Type == "01.OW")
         {
-          SecondaryPaired = CommutingDistancePairer(Primary_random[Outsiders,], Secondary, MaxLinKM = 60,
-                                                    SEC.SampleSize = 100, Plot, SetSeedNr, IterationNr, Commuting,
+          SecondaryPaired = CommutingDistancePairer(Primary_random[Outsiders,], Secondary, MaxLinKM = 80,
+                                                    SEC.SampleSize = 1000, Plot, SetSeedNr, IterationNr, Commuting,
                                                     DrivingDistanceLinearDistance)
         }
         
@@ -431,7 +432,8 @@ DeterminePPH_FL <- function(CRAB_Doel, Names.sub, FL.primary, Active.Type,
         if (Plot){points(SecondaryPaired, col = "orange")}
         
         # create the routes (New method, works with multiple profiles like bicycle for 03.SP and motorcar for 01.OW)
-        PPH.T = Router.WS2(Active.Type, Primary_random[Outsiders,], SecondaryPaired, Plot, Belgium, Outsiders)
+        PPH.T = Router.WS3(Active.Type, Primary_random[Outsiders,], Primary_random, SecondaryPaired, Plot, Belgium, Outsiders, IterationNr)
+        # retruns T1[[1]], T2[[2]] and Outsiders[[3]]
         
         for (i in seq_along(Outsiders))
         {
@@ -443,10 +445,10 @@ DeterminePPH_FL <- function(CRAB_Doel, Names.sub, FL.primary, Active.Type,
             SecondaryPaired.Li[[I]] = SecondaryPaired[i,]
           }
         }
-        
         PPH.T1 = do.call(rbind, PPH.T1.Li)
         PPH.T2 = do.call(rbind, PPH.T2.Li)
-        SecondaryPaired = do.call(rbind, SecondaryPaired.Li)
+
+        #rm(SecondaryPaired.Li)
         
         Outsiders = PPH.T[[3]]
         
@@ -456,29 +458,40 @@ DeterminePPH_FL <- function(CRAB_Doel, Names.sub, FL.primary, Active.Type,
         if (length(Outsiders) == 0)
         {
           success = TRUE
+          SecondaryPaired = do.call(rbind, SecondaryPaired.Li)
           print(paste0("All the routes are in the safe air quality data range."))
+          # remove temp
+          for (t in 1:2)
+          {
+            PathTempfile = file.path("..", "output", "temp", paste0(Active.Type, "_T", t, ".geojson"))
+            if (file.exists(PathTempfile))
+            {
+              print(paste0("Removing temp file: ", PathTempfile))
+              unlink(PathTempfile)
+            }
+          }
+
         } else
         {
           for (o in seq_along(Outsiders))
           {
             print(paste0(Outsiders[o], " is outside safe air quality data range. Finding a new pair..."))
-            IterationNr = IterationNr + 1
           }
+          IterationNr = IterationNr + 1
         }
       }
     } # close while
     
-    # Fix double IDs in Secondary
     
-    
-    # Order the PPH.S to match [i,]
-    PPH.S.Li = list()
-    for (i in seq_along(Primary_random))
-    {
-      WS = which(SecondaryPaired@data$object_id %in% PPH.T1@data$dst[i])
-      PPH.S.Li[[i]] = SecondaryPaired[WS[1],]
-    }
-    SecondaryPaired = do.call(rbind, PPH.S.Li)
+    # # Order the PPH.S to match [i,]
+    # PPH.S.Li = list()
+    # for (i in seq_along(Primary_random))
+    # #for (i in 1:10)
+    # {
+    #   WS = which(SecondaryPaired@data$object_id %in% PPH.T1@data$dst[i])
+    #   PPH.S.Li[[i]] = SecondaryPaired[WS[1],]
+    # }
+    # SecondaryPaired = do.call(rbind, PPH.S.Li)
     
     # # some test plots
     # i = 24
@@ -509,10 +522,282 @@ DeterminePPH_FL <- function(CRAB_Doel, Names.sub, FL.primary, Active.Type,
 }
 
 
+# PRI = Primary_random
+# PRI = Primary_random[Outsiders,]
+# SEC = Secondary
+# MaxLinKM = 80
+# Plot = TRUE
+# SEC.SampleSize = 1000
+CommutingDistancePairer <- function(PRI, SEC, MaxLinKM, SEC.SampleSize, Plot, SetSeedNr, IterationNr,
+                                    Commuting, DrivingDistanceLinearDistance, ...)
+{
+  # remove duplicates
+  SEC.NoDup = SEC[!duplicated(SEC@coords), ]
+  
+  # Transform RD new -> WGS84 for the route calculation
+  WGS84 = "+init=epsg:4326"
+  src <- spTransform(PRI, WGS84)
+  
+  SEC.Pared.Li = list()
+  
+  for (p in seq_along(PRI))
+    #for (p in 1:2)  # p = 1
+  {
+    success = FALSE
+    while(!success)
+    {
+      print(paste("Starting with ", p, "of", length(PRI)))
+      if (IterationNr > 0){print(paste("Iteration:", IterationNr))}
+
+      # Random sampling the Secondaries
+      set.seed(SetSeedNr+p+IterationNr); SEC.ids = sample(SEC.NoDup@data$object_id, size = SEC.SampleSize) # pre sample
+      SEC.rs = SEC.NoDup[SEC.NoDup@data$object_id %in% SEC.ids,]
+      
+      # Calculate linear distances
+      DistanceLinear = gDistance(PRI[p,],SEC.rs, byid = TRUE)
+      
+      # Subset within range and make SpatialPoints
+      SEC.rs = SEC.rs[which((DistanceLinear < MaxLinKM*1000)),]
+      SEC.rsSP = SpatialPoints(SEC.rs@coords, proj4string = BE_crs)
+      
+      dst = spTransform(SEC.rsSP, WGS84)
+      
+      #length(DistanceLinear)
+      #length(DistanceLinear[which((DistanceLinear < MaxLinKM*1000)),])
+      
+      DistanceLinear2 = DistanceLinear[which((DistanceLinear < MaxLinKM*1000)),]
+      
+      # Make sure that every distance class has equal or a max secondaries
+      # to prevent larger surface (high km classes) with more points
+      
+      SEC.cat.Li = list()
+      for (c in 1:nrow(Commuting))
+      {
+        SEC.cat.Li[[c]] = SEC.rsSP[DistanceLinear2*DrivingDistanceLinearDistance/1000 > Commuting[c]$km_min &
+                   DistanceLinear2*DrivingDistanceLinearDistance/1000 < Commuting[c]$km_max]
+        
+        if (length(SEC.cat.Li[[c]]) > 10)
+        {
+          set.seed(SetSeedNr+p); SEC.cat.Li[[c]] = sample(SEC.cat.Li[[c]], size = 10)
+        }
+      }
+      SEC.cat = do.call(rbind, SEC.cat.Li)
+      
+      DistanceLinear3 = gDistance(PRI[p,],SEC.cat, byid = TRUE)
+      
+      Probabilities = NA
+      for (s in seq_along(SEC.cat))
+      {
+        Probabilities[s] = Commuting$percentage[DistanceLinear3[s]*DrivingDistanceLinearDistance/1000 > Commuting$km_min &
+                                                  DistanceLinear3[s]*DrivingDistanceLinearDistance/1000 < Commuting$km_max]
+      }
+      #cbind(DistanceLinear3, Probabilities)
+      
+      # Repeat 'p' when there are only Probabilities of 0 or NA returned. | test with low SEC.SampleSize
+      if (length(which(TRUE %in% 0 == Probabilities | is.na(Probabilities))) == length(Probabilities)) # When all values are 0
+      {
+        print(paste("Resetting p."))
+        success = FALSE
+      } else
+      {
+        print(paste("Pair", p, "finished."))
+        success = TRUE
+      }
+      
+    } # end while
+    
+    Probabilities[is.na(Probabilities)] = 0
+    
+    set.seed(SetSeedNr+p); SEC.Pared = sample(SEC.cat, size = 1, prob = Probabilities)
+    # SEC.Pared = SEC.rsSP[DrivingDistance %in% SEC.sel,]
+    # SEC.id = SEC.ids[DrivingDistance %in% SEC.sel]
+    
+    if (Plot == TRUE)
+    {
+      points(PRI[p,], col = "green")
+      points(SEC.Pared[1,], col = "orange")
+      
+      #overlap = which(coordinates(SEC.NoDup) %in% coordinates(SEC.Pared[1,]))
+      overlap = which(as.logical(gIntersects(SEC.NoDup, SEC.Pared[1,], byid = TRUE)))
+      points(SEC.NoDup[overlap,], col = "red", pch = "+")
+    }
+    SEC.Pared.Li[[p]] = SEC.Pared[1,]
+  } # end p
+  
+  #   #use the coordinated to return the SPDF
+  SEC.ParedWS = do.call(rbind, SEC.Pared.Li)
+  
+  if (length(SEC.ParedWS) == length(PRI))
+  {
+    tree = createTree(coordinates(SEC.NoDup))
+    inds = knnLookup(tree, newdat = coordinates(SEC.ParedWS), k = 1) # gives the matrix
+    inds = as.vector(inds)
+    
+    SEC.ParedSPDF = SEC.NoDup[inds,]
+    
+    if (Plot == TRUE)
+    {
+      points(SEC.ParedSPDF, col = "red", pch = "O")
+    }
+    return(SEC.ParedSPDF)
+  } else
+  {
+    warning(paste("Output secondaries did not match input primaries. Incomplete features returned instead. No data frame included."))
+    return(SEC.ParedWS)
+  }
+}
+
+
 #PRI = Primary_random[Outsiders,]
 #SEC = SecondaryPaired
 #Plot = TRUE
 #plot(Flanders)
+
+# PRI = Primary_random[Outsiders,]
+# SEC = SecondaryPaired
+
+Router.WS3 <- function(Active.Type, PRI, Primary_random, SEC, Plot, Belgium, Outsiders, IterationNr)
+{
+  # Transform RD new -> WGS84 for the route calculation
+  WGS84 = "+init=epsg:4326"
+  
+  src.Li = list(spTransform(PRI, WGS84), spTransform(SEC, WGS84))
+  dst.Li = list(spTransform(SEC, WGS84), spTransform(PRI, WGS84))
+  
+  if (Active.Type == "01.OW")
+  {
+    TypeOfTransport = "motorcar"
+  }
+  if (Active.Type == "03.SP")
+  {
+    TypeOfTransport = "bicycle"
+  }
+  
+  
+  for (t in 1:2)
+  {
+    PPH.T.Li = list()
+    StartCalculateRouting = TRUE
+    
+    if (t == 1) {Direction = "T1"}
+    if (t == 2) {Direction = "T2"}
+    
+    # check for temp files that already exist
+    Temp_dir = file.path("..", "output", "temp")
+    if (!dir.exists(Temp_dir))
+    {
+      dir.create(Temp_dir)
+    }
+    GeoJSON_out = paste(Active.Type, Direction, sep = "_")
+    GeoJSON_ext = ".geojson"
+    Path = file.path(Temp_dir, paste0(GeoJSON_out, GeoJSON_ext))
+    
+    if (file.exists(Path) & IterationNr == 0)
+    {
+      PPH.test = readOGR(Path, layer = 'OGRGeoJSON')
+      PPH.test@proj4string = BE_crs
+      
+      Le.PPH.test = length(PPH.test)
+      
+      if (Le.PPH.test == 1000) #! fix the number (input in main?)
+      {
+        if (t == 1) {PPH.T1_ = PPH.test}
+        if (t == 2) {PPH.T2_ = PPH.test}
+        
+        StartCalculateRouting = FALSE
+      }
+    }
+    
+    if (StartCalculateRouting)
+    {
+      for (i in seq_along(PRI))
+      {
+        print(paste("Starting route calculation", i, "of", length(PRI), "|", Direction))
+        
+        # build the query
+        req <- paste0("http://www.yournavigation.org/api/dev/route.php?",
+                      "flat=", src.Li[[t]][i,]@coords[,2], "&flon=", src.Li[[t]][i,]@coords[,1],
+                      "&tlat=", dst.Li[[t]][i,]@coords[,2], "&tlon=", dst.Li[[t]][i,]@coords[,1],
+                      "&v=", TypeOfTransport, "&fast=1&layer=mapnik&instructions=0")
+        
+        # Sending the query
+        resRaw <- RCurl::getURL(utils::URLencode(req), useragent = "'osrm' R package")
+        
+        # Extract coordinates and data
+        res.Li = xmlToList(resRaw)
+        distance = as.numeric(res.Li$Document$distance)
+        traveltime = as.numeric(res.Li$Document$traveltime)
+        
+        co = as.numeric(unlist(str_extract_all(res.Li$Document$Folder$Placemark$LineString$coordinates,
+                                               regex("[0-9][0-9]*......([^\\n,])"))))
+        
+        lon.nu = co[seq_along(co) %% 2 != 0]
+        lat.nu = co[seq_along(co) %% 2 == 0]
+        
+        if (length(lon.nu) == length(lat.nu))
+        {
+          routeLines <- sp::Lines(slinelist = sp::Line(cbind(lon.nu, lat.nu)), ID = "x")
+          routeSL <- sp::SpatialLines(LinesList = list(routeLines), 
+                                      proj4string = sp::CRS("+init=epsg:4326"))
+          routeSL = spTransform(routeSL, BE_crs)
+          routeSL@proj4string = BE_crs
+          
+          if (Plot)
+          {
+            if (t == 1) {lines(routeSL, col = "black")}
+            if (t == 2) {lines(routeSL, col = "gray")}
+          }
+          
+          if (t == 1) {Ind = which(src.Li[[t]][i,]@data$object_id == Primary_random@data$object_id)}
+          if (t == 2) {Ind = which(dst.Li[[t]][i,]@data$object_id == Primary_random@data$object_id)}
+          
+          df <- data.frame(ind = Ind, src = src.Li[[t]][i,]@data$object_id, dst = dst.Li[[t]][i,]@data$object_id, 
+                           duration = as.numeric(traveltime) / 60,
+                           distance = as.numeric(distance))
+          
+          PPH.T.Li[[i]] = sp::SpatialLinesDataFrame(routeSL, data = df, match.ID = FALSE)
+        } else
+        {
+          stop(paste("Lat and Lon have different lengths."))
+        }
+        
+        SaveIntermediate = TRUE
+        if (SaveIntermediate & IterationNr == 0)
+        {
+          writeOGR(do.call(rbind, PPH.T.Li), file.path(Temp_dir, GeoJSON_out), GeoJSON_out, driver = "GeoJSON", overwrite_layer = TRUE)
+          file.rename(file.path(Temp_dir, GeoJSON_out), file.path(Temp_dir, paste0(GeoJSON_out, GeoJSON_ext)))
+        }
+        
+        # Pauze to give the server a break and preventing ban
+        if (i %% 50 == 0)
+        {
+          print(paste("Taking 60 second break for server..."))
+          Sys.sleep(60)
+        }
+        
+      } # closing i
+      
+      if (t == 1) {PPH.T1_ = do.call(rbind, PPH.T.Li)}
+      if (t == 2) {PPH.T2_ = do.call(rbind, PPH.T.Li)}
+      
+    } # closing StartCalculatingRoutes
+    
+  } # closing t
+  
+  
+  # Check if coordinates are inside of outside Country
+  Outside = NA
+  for (I in seq_along(Outsiders))
+  {
+    Outside[I] = !all(gIntersects(as(rbind(PPH.T1_[I,],PPH.T2_[I,]), "SpatialPoints"), Belgium, byid = TRUE))
+  }
+  Outsiders = Outsiders[Outside]
+  
+  return(list(PPH.T1_, PPH.T2_, Outsiders))
+}
+
+
+
 Router.WS2 <- function(Active.Type, PRI, SEC, Plot, Belgium, Outsiders)
 {
   # Transform RD new -> WGS84 for the route calculation
@@ -534,8 +819,38 @@ Router.WS2 <- function(Active.Type, PRI, SEC, Plot, Belgium, Outsiders)
   
   for (t in seq_along(src.Li))
   {
+    if (t == 1) {Direction = "T1"}
+    if (t == 2) {Direction = "T2"}
+    
+    # check for temp files that already exist
+    Temp_dir = file.path("..", "output", "temp")
+    if (!dir.exists(Temp_dir))
+    {
+      dir.create(Temp_dir)
+    }
+    
+    GeoJSON_out = paste(Active.Type, Direction, sep = "_")
+    GeoJSON_ext = ".geojson"
+    Path = file.path(Temp_dir, paste0(GeoJSON_out, GeoJSON_ext))
+    
+    if (file.exists(Path))
+    {
+      PPH.test = readOGR(Path, layer = 'OGRGeoJSON')
+      PPH.test@proj4string = BE_crs
+      
+      Le.PPH.test = length(PPH.test)
+      
+      if (Le.PPH.test == 1000) #! fix the number (input in main?)
+      {
+        if (t == 1) {PPH.T1_ = PPH.test}
+        if (t == 2) {PPH.T2_ = PPH.test}
+      }
+    }
+    
     for (i in seq_along(PRI))
     {
+      print(paste("Starting route calculation", i, "of", length(PRI), "|", Direction))
+      
       # build the query
       req <- paste0("http://www.yournavigation.org/api/dev/route.php?",
                     "flat=", src.Li[[t]][i,]@coords[,2], "&flon=", src.Li[[t]][i,]@coords[,1],
@@ -544,9 +859,6 @@ Router.WS2 <- function(Active.Type, PRI, SEC, Plot, Belgium, Outsiders)
       
       # Sending the query
       resRaw <- RCurl::getURL(utils::URLencode(req), useragent = "'osrm' R package")
-      
-      # pauze, to prevent server ban
-      Sys.sleep(0.5)
       
       # Extract coordinates and data
       res.Li = xmlToList(resRaw)
@@ -573,18 +885,36 @@ Router.WS2 <- function(Active.Type, PRI, SEC, Plot, Belgium, Outsiders)
           if (t == 2) {lines(routeSL, col = "gray")}
         }
         
-        df <- data.frame(src = src.Li[[t]][i,]@data$object_id, dst = dst.Li[[t]][i,]@data$object_id, 
+        if (t == 1) {Ind = which(src.Li[[t]][i,]@data$object_id == Primary_random@data$object_id)}
+        if (t == 2) {Ind = which(dst.Li[[t]][i,]@data$object_id == Primary_random@data$object_id)}
+        
+        df <- data.frame(ind = Ind, src = src.Li[[t]][i,]@data$object_id, dst = dst.Li[[t]][i,]@data$object_id, 
                          duration = as.numeric(traveltime) / 60,
                          distance = as.numeric(distance))
         PPH.T.Li[[i]] = sp::SpatialLinesDataFrame(routeSL, data = df, match.ID = FALSE)
-      }
-      else
+      } else
       {
-        stop
+        stop(paste("Lat and Lon have different lengths."))
       }
+      
+      SaveIntermediate = TRUE
+      if (SaveIntermediate)
+      {
+        writeOGR(do.call(rbind, PPH.T.Li), file.path(Temp_dir, GeoJSON_out), GeoJSON_out, driver = "GeoJSON", overwrite_layer = TRUE)
+        file.rename(file.path(Temp_dir, GeoJSON_out), file.path(Temp_dir, paste0(GeoJSON_out, GeoJSON_ext)))
+      }
+      
+      # Pauze to give the server a break and preventing ban
+      if (i %% 50 == 0)
+      {
+        print(paste("Taking 60 second break for server..."))
+        Sys.sleep(60)
+      }
+      
     } # closing i
     if (t == 1) {PPH.T1_ = do.call(rbind, PPH.T.Li)}
     if (t == 2) {PPH.T2_ = do.call(rbind, PPH.T.Li)}
+    
   } # closing t
   
   # Check if coordinates are inside of outside Country
@@ -599,205 +929,6 @@ Router.WS2 <- function(Active.Type, PRI, SEC, Plot, Belgium, Outsiders)
   return(list(PPH.T1_, PPH.T2_, Outsiders))
 }
 
-#   for (i in seq_along(PPH.P))
-#   {
-#     if (i %in% Outsiders)
-#     {
-#       for (I in seq_along(Outsiders))
-#       {
-#         Outside[i] = !all(gIntersects(as(rbind(PPH.T1[I,],PPH.T2[I,]), "SpatialPoints"), Belgium, byid = TRUE))
-#       }
-#     } else
-#     {
-#       Outside[i] = FALSE
-#     }
-#     
-# #     for (I in seq_along(Outsiders))
-# #     {
-# #       Outside[i] = !all(gIntersects(as(rbind(PPH.T1[I,],PPH.T2[I,]), "SpatialPoints"), Belgium, byid = TRUE))
-# #     }
-#   }
-#   Outsiders = which(Outside)
-
-
-# PRI = Primary_random
-# SEC = Secondary
-# MaxLinKM = 60
-# Plot = TRUE
-# SEC.SampleSize = 250
-CommutingDistancePairer <- function(PRI, SEC, MaxLinKM, SEC.SampleSize, Plot, SetSeedNr, IterationNr,
-                                    Commuting, DrivingDistanceLinearDistance, ...)
-{
-  # remove duplicates
-  SEC.NoDup = SEC[!duplicated(SEC@coords), ]
-  
-  # Transform RD new -> WGS84 for the route calculation
-  WGS84 = "+init=epsg:4326"
-  src <- spTransform(PRI, WGS84)
-  
-  SEC.Pared.Li = list()
-  
-  #if (Plot == TRUE){plot(Flanders)}
-  
-  if (Active.Type == "01.OW")
-  {
-    TypeOfTransport = "motorcar"
-  }
-  if (Active.Type == "03.SP")
-  {
-    TypeOfTransport = "bicycle"
-  }
-  
-  #IterationNr = 0
-  
-  for (p in seq_along(PRI))
-  #for (p in 1:2)  # p = 1
-  {
-    success = FALSE
-    while(!success)
-    {
-      print(paste("Starting with ", p, "of", length(PRI)))
-      if (IterationNr > 0){print(paste("Iteration:", IterationNr))}
-      
-      # Random sampling the Secondaries
-      set.seed(SetSeedNr+IterationNr); SEC.ids = sample(SEC.NoDup@data$object_id, size = SEC.SampleSize) # pre sample
-      SEC.rs = SEC.NoDup[SEC.NoDup@data$object_id %in% SEC.ids,]
-      
-      # Calculate linear distances
-      DistanceLinear = gDistance(PRI[p,],SEC.rs, byid = TRUE)
-      
-      # Subset within range and make SpatialPoints
-      SEC.rs = SEC.rs[which((DistanceLinear < MaxLinKM*1000)),]
-      SEC.rsSP = SpatialPoints(SEC.rs@coords, proj4string = BE_crs)
-      
-      dst = spTransform(SEC.rsSP, WGS84)
-      
-      #length(DistanceLinear)
-      #length(DistanceLinear[which((DistanceLinear < MaxLinKM*1000)),])
-      
-      DistanceLinear2 = DistanceLinear[which((DistanceLinear < MaxLinKM*1000)),]
-      
-      Probabilities = NA
-      for (s in seq_along(SEC.rs))
-        #for (s in 1:20) # s = 1
-      {
-       
-        Probabilities[s] = Commuting$percentage[DistanceLinear2[s]*DrivingDistanceLinearDistance/1000 > Commuting$km_min &
-                               DistanceLinear2[s]*DrivingDistanceLinearDistance/1000 < Commuting$km_max]
-      }
-      
-      # DrivingDistance = NA
-      # Probabilities = NA
-      # for (s in seq_along(SEC.rs))
-      #   #for (s in 1:20) # s = 1
-      # {
-      #   # build the query
-      #   req <- paste0("http://www.yournavigation.org/api/dev/route.php?",
-      #                 "flat=", src@coords[p,2], "&flon=", src@coords[p,1],
-      #                 "&tlat=", dst@coords[s,2], "&tlon=", dst@coords[s,1],
-      #                 "&v=", TypeOfTransport, "&fast=1&layer=mapnik&instructions=0")
-      #   
-      #   # Sending the query
-      #   resRaw <- RCurl::getURL(utils::URLencode(req), useragent = "'osrm' R package")
-      #   
-      #   # pauze, to prevent server ban
-      #   Sys.sleep(0.5)
-      #   
-      #   # Extract coordinates and data
-      #   res.Li = xmlToList(resRaw)
-      #   distance = as.numeric(res.Li$Document$distance)
-      #   traveltime = as.numeric(res.Li$Document$traveltime)
-      #   
-      #   DrivingDistance[s] = distance #/1000 (removed after update 20170606?)
-      #   Probabilities[s] = Commuting$percentage[DrivingDistance[s] > Commuting$km_min &
-      #                                             DrivingDistance[s] < Commuting$km_max]
-      #   
-      # } # end s
-      
-      # Repeat 'p' when there are only Probabilities of 0 or NA returned. | test with low SEC.SampleSize
-      if (length(which(TRUE %in% 0 == Probabilities | is.na(Probabilities))) == length(Probabilities)) # When all values are 0
-      {
-        print(paste("Resetting p."))
-        success = FALSE
-      } else
-      {
-        print(paste("Pair", p, "finished."))
-        success = TRUE
-      }
-      
-    } # end while
-    
-    Probabilities[is.na(Probabilities)] = 0
-    
-    set.seed(SetSeedNr); SEC.Pared = sample(SEC.rsSP, size = 1, prob = Probabilities)
-    # SEC.Pared = SEC.rsSP[DrivingDistance %in% SEC.sel,]
-    # SEC.id = SEC.ids[DrivingDistance %in% SEC.sel]
-    
-    if (Plot == TRUE)
-    {
-      points(PRI[p,], col = "green")
-      points(SEC.Pared[1,], col = "orange")
-      
-      #overlap = which(coordinates(SEC.NoDup) %in% coordinates(SEC.Pared[1,]))
-      overlap = which(as.logical(gIntersects(SEC.NoDup, SEC.Pared[1,], byid = TRUE)))
-      points(SEC.NoDup[overlap,], col = "red", pch = "+")
-      
-    }
-    SEC.Pared.Li[[p]] = SEC.Pared[1,]
-    
-    # SaveIntermediate = TRUE
-    # if (SaveIntermediate)
-    # {
-    #   Temp_dir = file.path("..", "output", "temp")
-    #   if (!dir.exists(Temp_dir)) 
-    #   {
-    #     dir.create(Temp_dir)
-    #   }
-    #   
-    #   tree = createTree(coordinates(SEC.NoDup))
-    #   inds = knnLookup(tree, newdat = coordinates(do.call(rbind, SEC.Pared.Li)), k = 1) # gives the matrix
-    #   inds = as.vector(inds)
-    #   SEC.ParedSPDF = SEC.NoDup[inds,]
-    #   
-    #   GeoJSON_out = paste(Active.Type, "Temp_Secondary", 1, p, sep = "_")
-    #   writeOGR(SEC.ParedSPDF, file.path(Temp_dir, GeoJSON_out), GeoJSON_out, driver = "GeoJSON", overwrite_layer = TRUE)
-    #   GeoJSON_ext = ".geojson"
-    #   file.rename(file.path(Temp_dir, GeoJSON_out), file.path(Temp_dir, paste0(GeoJSON_out, GeoJSON_ext)))
-    # }
-    # 
-    
-    # # Pauze to give the server a break and preventing ban
-    # if (p %% 10 == 0)
-    # {
-    #   print(paste("Taking 60 second break for server..."))
-    #   Sys.sleep(60)
-    # }
-    
-    
-  } # end p
-  
-  #   #use the coordinated to return the SPDF
-  SEC.ParedWS = do.call(rbind, SEC.Pared.Li)
-  
-  if (length(SEC.ParedWS) == length(PRI))
-  {
-    tree = createTree(coordinates(SEC.NoDup))
-    inds = knnLookup(tree, newdat = coordinates(SEC.ParedWS), k = 1) # gives the matrix
-    inds = as.vector(inds)
-    
-    SEC.ParedSPDF = SEC.NoDup[inds,]
-    
-    if (Plot == TRUE)
-    {
-      points(SEC.ParedSPDF, col = "red", pch = "O")
-    }
-    return(SEC.ParedSPDF)
-  } else
-  {
-    warning(paste("Output secondaries did not match input primaries. Incomplete features returned instead. No data frame included."))
-    return(SEC.ParedWS)
-  }
-}
 
 
 SchoolFinder <- function(PRI, Secondary, Plot, ...)

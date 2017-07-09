@@ -47,7 +47,7 @@ DrivingLinearDistanceRatio <- function()
   DrivingDistance = NA
   LinearDistance = NA
   
-  for (i in seq_along(PPH.P))
+  for (i in seq_along(PPH.P_SL))
   {
     DrivingDistance[i] = mean(PPH.T1_SL[i,]@data$distance, PPH.T2_SL[i,]@data$distance)
     LinearDistance[i] = gDistance(PPH.P_SL[i,], PPH.S_SL[i,])/1000
