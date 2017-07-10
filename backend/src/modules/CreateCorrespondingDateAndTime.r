@@ -31,6 +31,7 @@ library(lubridate)
 
 CreateCorrespondingDateAndTime <- function(Active.Type, Active.Subprofile, PPH.P,
                                            YearDates, BusinesDates, WeekendDates, HoliDates,
+                                           PPH.T1.Pnt.Li, PPH.T2.Pnt.Li,
                                            TimeVertex.T1, TimeVertex.T2, PPH.T1.PNT.RS, PPH.T2.PNT.RS,
                                            Year, SeqFragment, F., SeqParts, P., ...)
 {
