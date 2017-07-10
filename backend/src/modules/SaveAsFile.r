@@ -55,31 +55,25 @@ SaveAsFile <- function(INput, Filename, Format, Active.Type, OverwriteLayer, ...
   
 }
 
-# seq = 0
+# seq = Seq[p]
 # FolderName = paste0(Active.Subtype, "_", f )
 # OverwriteLayer = TRUE
 
 SaveAsDBF <- function(INput, FileType, PhaseType, FolderName, OverwriteLayer, pol, seq, ...)
 {
+  if (FileType == "Exposure") {FileString = "EXP_"}
+  if (FileType == "Time") {FileString = "TIME_"}
+  if (FileType == "HR") {FileString = "HR_"}
+  if (FileType == "DF") {FileString = "DF_"}
   
   if (PhaseType == "Primary") {PhaseLetter = "P"}
   if (PhaseType == "Secondary") {PhaseLetter = "S"}
   if (PhaseType == "T1") {PhaseLetter = "T1"}
   if (PhaseType == "T2") {PhaseLetter = "T2"}
-  
-  if (FileType == "Exposure") {FileString = "EXP_"}
-  if (FileType == "Time") {FileString = "TIME_"}
+  if (PhaseType == "HR") {PhaseLetter = "HR"}
   
   if (class(INput) == "list")
   {
-    # if (exists("f"))
-    # {
-    #   Folder = file.path("..", "output", paste0(Active.Subtype, "_", f))
-    # } else
-    # {
-    #   Folder = file.path("..", "output", Active.Subtype)
-    # }
-    
     Folder = file.path("..", "output", FolderName)
     if (!dir.exists(Folder))
     {
@@ -125,18 +119,18 @@ SaveAsDBF <- function(INput, FileType, PhaseType, FolderName, OverwriteLayer, po
   
   if (class(INput) == "data.frame")
   {
-    Temp_dir = file.path("..", "output", "temp")
-    if (!dir.exists(Temp_dir)) 
+    Folder = file.path("..", "output", FolderName)
+    if (!dir.exists(Folder))
     {
-      dir.create(Temp_dir)
+      dir.create(Folder)
     }
     
     DF = INput
     
-    COLNAMES = c(1:length(DF))
-    colnames(DF) = paste0("C",COLNAMES)
+    dbf_out = file.path(Folder, paste0(FileString, PhaseLetter, "_", toupper(pol), ".dbf"))
     
-    dbf_out = file.path(Temp_dir, Filename)
-    write.dbf(DF, dbf_out, factor2char = TRUE, max_nchar = 254, over)
+    class(DF[,1]) = "integer"
+
+    write.dbf(DF, dbf_out, factor2char = TRUE, max_nchar = 254)
   }
 }

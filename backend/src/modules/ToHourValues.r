@@ -78,6 +78,23 @@ WhichHourForWhichPoint <- function(PPH.P, Time, HOURS.P, HOURS.S, HOURS.T1, HOUR
   return(list(wP, wS, wT1, wT2))
 }
 
+# Time_ = Time
+# Time = Time.Sub
+# ExposureValue.P = ExposureValue.P_F
+# ExposureValue.S = ExposureValue.S_F
+# ExposureValue.T1 = ExposureValue.T1_F
+# ExposureValue.T2 = ExposureValue.T2_F
+# TIME.P = TIME.P_F
+# TIME.S = TIME.S_F
+# TIME.T1 = TIME.T1_F
+# TIME.T2 = TIME.T2_F
+# wP = HoP.P_F
+# wS = HoP.S_F
+# wT1 = HoP.T1_F
+# wT2 = HoP.T2_F
+# 
+# Time = Time_
+
 ToHourValues <- function(PPH.P, Time, ExposureValue.P, ExposureValue.S, ExposureValue.T1, ExposureValue.T2,
                          TIME.P, TIME.S, TIME.T1, TIME.T2, wP, wS, wT1, wT2, ... )
 {
@@ -225,7 +242,7 @@ ToHourValues <- function(PPH.P, Time, ExposureValue.P, ExposureValue.S, Exposure
         #sum(Weight.T2, Weight.P) %in% 1
         #round(sum(Weight.T2, Weight.P), 5) != 1
         
-        CHECK = as.character(sum(Weight.T2, Weight.P)) %in% as.character(1)
+        CHECK = as.character(sum(Weight.T2, Weight.P, na.rm = TRUE)) %in% as.character(1)
         if(!CHECK)
         {
           stop(paste("Weights do not add up to 1.", "Hour:", h, "| Individual:", i, "||",
@@ -296,7 +313,7 @@ ToHourValues <- function(PPH.P, Time, ExposureValue.P, ExposureValue.S, Exposure
         Weight.S = c(Weight.S_1, Weight.S_)
         
 
-        if (as.character(sum(Weight.P, Weight.T1, Weight.S)) == as.character(1)) # should be 1 # buggy with: (sum(Weight.P, Weight.T1, Weight.S) == 1)
+        if (as.character(sum(Weight.P, Weight.T1, Weight.S, na.rm = TRUE)) == as.character(1)) # should be 1 # buggy with: (sum(Weight.P, Weight.T1, Weight.S) == 1)
         {
           ExposureValueCombined[[i]][h] = sum(EXP.part.P * Weight.P, EXP.part.T1 * Weight.T1, EXP.part.S * Weight.S)
           
@@ -310,7 +327,7 @@ ToHourValues <- function(PPH.P, Time, ExposureValue.P, ExposureValue.S, Exposure
       }
       
       # Hour overlap T1 and S
-      if (length(wT1[[i]][[h]]) > 0 & length(wS[[i]][[h]]) > 0)
+      if (length(wT1[[i]][[h]]) > 0 & length(wS[[i]][[h]]) > 0 & length(wP[[i]][[h]]) == 0 & length(wT2[[i]][[h]]) == 0)
       {
         #T1
         EXP.part.T1 = ExposureValue.T1[[i]][[day]][wT1[[i]][[h]]]
@@ -324,13 +341,13 @@ ToHourValues <- function(PPH.P, Time, ExposureValue.P, ExposureValue.S, Exposure
           Weight.T1_1 = as.numeric(difftime(TIME.T1[[i]][[day]][wT1[[i]][[h]]][1],
                                             floor_date(tail(TIME.T1[[i]][[day]][wT1[[i]][[h]]],1), 'hours'), units = "hours"))
           
-          # Weight.T1_ = NA
-          # for (e in 1:(length(TIME.T1[[i]][[day]][wT1[[i]][[h]]])-1))
-          # {
-          #   Weight.T1_[e] = difftime(TIME.T1[[i]][[day]][wT1[[i]][[h]]][e+1], TIME.T1[[i]][[day]][wT1[[i]][[h]]][e], units = "hours")
-          # }
+          Weight.T1_ = NA
+          for (e in 1:(length(TIME.T1[[i]][[day]][wT1[[i]][[h]]])-1))
+          {
+            Weight.T1_[e] = difftime(TIME.T1[[i]][[day]][wT1[[i]][[h]]][e+1], TIME.T1[[i]][[day]][wT1[[i]][[h]]][e], units = "hours")
+          }
           
-          Weight.T1_ = as.numeric(diff(TIME.T1[[i]][[day]][wT1[[i]][[h]]])) / 60**2
+          #Weight.T1_ = as.numeric(diff(TIME.T1[[i]][[day]][wT1[[i]][[h]]])) / 60**2
           Weight.T1 = c(Weight.T1_1, Weight.T1_)
           #sum(Weight.T1)
         }
@@ -360,7 +377,7 @@ ToHourValues <- function(PPH.P, Time, ExposureValue.P, ExposureValue.S, Exposure
         # write to vector
         ExposureValueCombined[[i]][h] = sum(EXP.part.T1 * Weight.T1, EXP.part.S * Weight.S)
         
-        CHECK = as.character(sum(Weight.T1, Weight.S)) %in% as.character(1)
+        CHECK = as.character(sum(Weight.T1, Weight.S, na.rm = TRUE)) %in% as.character(1)
         if(!CHECK)
         {
           stop(paste("Weights do not add up to 1.", "Hour:", h, "| Individual:", i, "||",
@@ -372,9 +389,15 @@ ToHourValues <- function(PPH.P, Time, ExposureValue.P, ExposureValue.S, Exposure
         rm(EXP.part.T1_1, EXP.part.T1_, EXP.part.T1, Weight.T1_1, Weight.T1_, Weight.T1, EXP.part.S, Weight.S_1, Weight.S_, Weight.S)
         
       }
-      
 
     } # closing i
+    
+    # # Check if ExposureValueCombined has the correct amount of values
+    # if (length(unlist(ExposureValueCombined[[i]])) != length(Time))
+    # {
+    #   stop(paste())
+    # }
+    
     
   } # closing h
   

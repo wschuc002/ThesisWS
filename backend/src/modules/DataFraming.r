@@ -22,10 +22,11 @@ if(length(new.packages)) install.packages(new.packages)
 ## Load the packages
 #library(sp)
 
-#TIME = Time
-#ExposureValue = ExposureValueCombined
+#TIME = Time.Sub
+#ExposureValue = ExposureValueCombined_F
+#rm.na = FALSE
 
-DF.Structure2 <- function(PPH.P, TIME.P, TIME, ExposureValue, ...)
+DF.Structure2 <- function(PPH.P, TIME.P, TIME, ExposureValue, rm.na = TRUE, ...)
 {
   ClassTime = class(TIME)
   ClassExp = class(ExposureValue[[1]])
@@ -57,15 +58,15 @@ DF.Structure2 <- function(PPH.P, TIME.P, TIME, ExposureValue, ...)
       
     }
   }
-  
-  #length(ExposureValue.ul[[i]])
-  #length(TIME.ul[[i]])
-  #length(ExposureValue.ul[[i]]) - length(TIME.ul[[i]]) == 0
-  
-  # for (d in seq_along(ExposureValue[[i]]))
+  # 
+  # if (ClassExp == "numeric")
   # {
-  #   #print(length(ExposureValue[[i]][[d]]))
-  #   print(length(TIME[[i]][[d]]))
+  #   for (i in seq_along(PPH.P))
+  #   {
+  #     ExposureValue[[i]]
+  #     
+  #   }
+  #   
   # }
   
   
@@ -91,7 +92,12 @@ DF.Structure2 <- function(PPH.P, TIME.P, TIME, ExposureValue, ...)
     
     colnames(ST.DF[[i]]) = c("TIME", "EXP", "IND")
     class(ST.DF[[i]]$TIME) = class(TIME.P[[1]][[1]])
-    ST.DF[[i]] = ST.DF[[i]][!is.na(ST.DF[[i]]$EXP),]
+    
+    if (rm.na)
+    {
+      ST.DF[[i]] = ST.DF[[i]][!is.na(ST.DF[[i]]$EXP),]
+    }
+
   }
   ST.DF = do.call(rbind, ST.DF)
   
