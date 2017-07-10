@@ -55,7 +55,7 @@ SaveAsFile <- function(INput, Filename, Format, Active.Type, OverwriteLayer, ...
   
 }
 
-# seq = Seq[p]
+# seq = 0
 # FolderName = paste0(Active.Subtype, "_", f )
 # OverwriteLayer = TRUE
 
@@ -101,6 +101,12 @@ SaveAsDBF <- function(INput, FileType, PhaseType, FolderName, OverwriteLayer, po
       if (FileType == "Time")
       {
         dbf_out = file.path(Folder, paste0(FileString, PhaseLetter, "_" , i+seq, ".dbf"))
+        
+        # convert to integer
+        for (c in 1:ncol(DF))
+        {
+          class(DF[,c]) = "integer"
+        }
       }
       
       # write
