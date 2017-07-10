@@ -63,7 +63,6 @@ SaveAsDBF <- function(INput, FileType, PhaseType, FolderName, OverwriteLayer, po
 {
   if (FileType == "Exposure") {FileString = "EXP_"}
   if (FileType == "Time") {FileString = "TIME_"}
-  if (FileType == "HR") {FileString = "HR_"}
   if (FileType == "DF") {FileString = "DF_"}
   
   if (PhaseType == "Primary") {PhaseLetter = "P"}
