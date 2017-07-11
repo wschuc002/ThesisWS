@@ -29,6 +29,11 @@ library(lubridate)
 # F. = f
 # P. = p
 
+# YearDates_ = YearDates
+# YearDates = YearDates.Sub
+# 
+# YearDates = YearDates_
+
 CreateCorrespondingDateAndTime <- function(Active.Type, Active.Subprofile, PPH.P,
                                            YearDates, BusinesDates, WeekendDates, HoliDates,
                                            PPH.T1.Pnt.Li, PPH.T2.Pnt.Li,
@@ -91,11 +96,11 @@ CreateCorrespondingDateAndTime <- function(Active.Type, Active.Subprofile, PPH.P
         Time.S[[d]] = unique(Time.S[[d]])
         
                             
-        tree.T1 = createTree(coordinates(PPH.T1.Pnt.Li[[i]]))
+        tree.T1 = createTree(coordinates(PPH.T1.Pnt.Li[[i+SeqParts[P.]]]))
         inds.T1 = knnLookup(tree.T1, newdat = coordinates(PPH.T1.PNT.RS[[i]][[d]]), k = 1) # gives the matrix
         inds.T1 = sort(as.vector(inds.T1))
         
-        tree.T2 = createTree(coordinates(PPH.T2.Pnt.Li[[i]]))
+        tree.T2 = createTree(coordinates(PPH.T2.Pnt.Li[[i+SeqParts[P.]]]))
         inds.T2 = knnLookup(tree.T2, newdat = coordinates(PPH.T2.PNT.RS[[i]][[d]]), k = 1) # gives the matrix
         inds.T2 = sort(as.vector(inds.T2))
 
