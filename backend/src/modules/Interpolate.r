@@ -94,7 +94,8 @@ PPH.TIN.InterpolationWS <- function(PPH.P, PPH.S, PPH.T1.Pnt, PPH.T2.Pnt, POL, P
     print(paste0("Series Day ", dayS))
     print(paste0("Series2 Day ", dayS2))
     print(txt.dr[h])
-    print(paste0(h/length(StartHour:EndHour)*100, " %"))
+    print(paste0(h/length(StartHour:EndHour)*100, "%"))
+    print(paste0((h/length(StartHour:EndHour)*100)*(f/Fragments) , "%"))
     
     POL.h = fread(txt.dr[h], sep=";", header=TRUE, select = "values")
     POL@data = POL.h

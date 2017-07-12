@@ -49,6 +49,8 @@ CreateCorrespondingDateAndTime <- function(Active.Type, Active.Subprofile, PPH.P
   for (i in seq_along(PPH.P))
   #for (i in 1:750)
   {
+    #print(i)
+    
     Phases = list()
     Time.P = list()
     Time.S = list()
@@ -77,6 +79,8 @@ CreateCorrespondingDateAndTime <- function(Active.Type, Active.Subprofile, PPH.P
       days = which(YearDates %in% BusinesDates)
       for (d in days)
       {
+        #print(d)
+        
         Phases[[d]] = c(YearDates[d]+1*60**2, # start day [1]
                         YearDates[d]+Leave.P.StartTime*60**2, # leave P [2]
                         (tail(TimeVertex.T1[[i+SeqParts[P.]]],1)+(d+SeqFragment[F.]-1)*24*60**2), # arrive S [3]

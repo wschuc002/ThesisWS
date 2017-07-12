@@ -20,7 +20,7 @@
 
 ## TODO:  - Weights in S-T aggregation for overlaps in 03.SP
 ##        - Improve SummaryStatistics for profile and phase type comparison.
-##        - Check if duration/distance ratio is realistic
+##        - 
 ##        - ?Introduce "spacetime" package and test is.
 ##        - Documentation
 ##        - ...
@@ -73,6 +73,10 @@ source("modules/DBFreader.r")
 source("modules/SummaryStatistics.r")
 #source("modules/util.r")
 source("modules/DrivingLinearDistanceRatio.r")
+
+OriginalTimezone = Sys.timezone(location = TRUE) # All system settings should be changed to its original state at the end of the code
+Sys.setenv(TZ = "GMT")
+
 
 ### Download data from OneDrive or irceline ftp server
 DownloadMode = "OneDrive" # "FPT"
@@ -167,10 +171,6 @@ Belgium@proj4string = BE_crs
 Belgium = gBuffer(Belgium, byid = F, id = NULL, width = 2000)
 
 # Set year of pollutant dataset, determine dates and date types (Workdays~Weekends)
-# Sys.setenv(TZ="Europe/Brussels")
-# BE_tz = "Europe/Brussels"
-OriginalTimezone = Sys.timezone(location = TRUE) # All system settings should be changed to its original state at the end of the code
-Sys.setenv(TZ = "GMT")
 YearDates = YearDates2(year.active)
 
 Time = seq(as.POSIXct(paste0(year.active,"-01-01 01:00:00")),
@@ -206,7 +206,7 @@ if (!exists("BIWEEKLY"))
 # Beginning of profile based code
 
 # Select active Residential Profile
-Active.Type = "03.SP" # "01.OW" "02.HO" or "03.SP"
+Active.Type = "01.OW" # "01.OW" "02.HO" or "03.SP"
 Active.Subtype = paste0(Active.Type, "_WS","1")
 
 Active.Profile = ResidentialProfiles[ResidentialProfiles$Type == Active.Type,]
@@ -298,14 +298,15 @@ if (Active.Subprofile$Dynamics == "dynamic")
 }
 
 # Correcting the cycling durations: use constant speed of 10km/h
-if (Active.Type = "03.SP")
+
+# hist(PPH.T1@data$duration, 1000)
+# hist(PPH.T1@data$duration / PPH.T1@data$distance, 1000)
+# hist(PPH.T2@data$duration / PPH.T2@data$distance, 1000)
+# hist(PPH.T1@data$distance, 1000)
+# hist(PPH.T2@data$distance, 1000)
+
+if (Active.Type == "03.SP")
 {
-  # hist(PPH.T1@data$duration, 1000)
-  # hist(PPH.T1@data$duration / PPH.T1@data$distance, 1000)
-  # hist(PPH.T2@data$duration / PPH.T2@data$distance, 1000)
-  # hist(PPH.T1@data$distance, 1000)
-  # hist(PPH.T2@data$distance, 1000)
-  
   MeanCyclingSpeed = 10 # km/h
   PPH.T1@data$duration = PPH.T1@data$distance * (60/MeanCyclingSpeed)
   PPH.T2@data$duration = PPH.T2@data$distance * (60/MeanCyclingSpeed)
@@ -401,17 +402,17 @@ if (Active.Subprofile$Dynamics == "dynamic")
   TimeVertex.T2 = LinkPointsToTime.Transport("Inwards", PPH.T2, PPH.T2.Pnt.Li, year.active, Active.Subprofile)
 }
 
-# split time in half (only dynamic)
+# split time in Fragments (only dynamic)
 Fragments = 10 # 1 or 2
-DaySplit = length(YearDates)/Fragments
-SeqFragment = floor(seq(0, length(YearDates), DaySplit))
 
 if (Fragments > 1)
 {
+  DaySplit = length(YearDates)/Fragments
+  SeqFragment = floor(seq(0, length(YearDates), DaySplit))
   TimeTakenInterpolation = NA
   
   for (f in 1:Fragments)
-  #for (f in c(1:3, 5:Fragments))
+  #for (f in c(3:Fragments))
   {
     print(paste0("Starting fragment ", f, " of ", Fragments))
     
@@ -445,8 +446,7 @@ if (Fragments > 1)
       
       TIME = CreateCorrespondingDateAndTime(Active.Type, Active.Subprofile, PPH.P[(SeqParts[p]+1):(SeqParts[p+1]),],
                                             YearDates.Sub, BusinesDates, WeekendDates, HoliDates,
-                                            PPH.T1.Pnt.Li, PPH.T2.Pnt.Li,
-                                            TimeVertex.T1, TimeVertex.T2, PPH.T1.PNT.RS, PPH.T2.PNT.RS,
+                                            PPH.T1.Pnt.Li, PPH.T2.Pnt.Li, TimeVertex.T1, TimeVertex.T2, PPH.T1.PNT.RS, PPH.T2.PNT.RS,
                                             year.active, SeqFragment, f, SeqParts, p)
       TIME.P = TIME[[2]]
       if (Active.Subprofile$Dynamics == "dynamic")
@@ -497,6 +497,11 @@ if (Fragments > 1)
       TIME.T2 = DBFreader("Time", "T2", PPH.P, YearDates.Sub, paste0(Active.Subtype,"_", f))
     }
     
+    if (exists("HOURS.P")) {rm(HOURS.P)}
+    if (exists("HOURS.S")) {rm(HOURS.S)}
+    if (exists("HOURS.T1")) {rm(HOURS.T1)}
+    if (exists("HOURS.T2")) {rm(HOURS.T2)}
+    
     # Hours of the year
     HOURS.P = HourOfTheYear7(year.active, TIME.P, 0)
     if (Active.Subprofile$Dynamics == "dynamic")
@@ -505,6 +510,11 @@ if (Fragments > 1)
       HOURS.T1 = HourOfTheYear7(year.active, TIME.T1, 0)
       HOURS.T2 = HourOfTheYear7(year.active, TIME.T2, 0)
     }
+    
+    if (exists("HoP.P")) {rm(HoP.P)}
+    if (exists("HoP.S")) {rm(HoP.S)}
+    if (exists("HoP.T1")) {rm(HoP.T1)}
+    if (exists("HoP.T2")) {rm(HoP.T2)}
     
     # Detect which hours belong to which points | change name systematically to HoP (Hour of Point) = HoP.P etc.
     HOP = WhichHourForWhichPoint(PPH.P, Time.Sub, HOURS.P, HOURS.S, HOURS.T1, HOURS.T2,
@@ -539,7 +549,7 @@ if (Fragments > 1)
     print(TimeTakenInterpolation[f])
     
     rm(HOURS.P, HOURS.S, HOURS.T1, HOURS.T2)
-    rm(Points.NoVal)
+    rm(HoP.P, HoP.S, HoP.T1, HoP.T2)
     rm(PPH.T1.PNT.RS, PPH.T2.PNT.RS)
     
     # Write EXP to disk

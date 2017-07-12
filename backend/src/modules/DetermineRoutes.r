@@ -475,31 +475,13 @@ DeterminePPH_FL <- function(CRAB_Doel, Names.sub, FL.primary, Active.Type,
         {
           for (o in seq_along(Outsiders))
           {
-            print(paste0(Outsiders[o], " is outside safe air quality data range. Finding a new pair..."))
+            print(paste0(Outsiders[o], " is outside safe air quality data range
+                         or had spurious outputs. Finding a new pair..."))
           }
           IterationNr = IterationNr + 1
         }
       }
     } # close while
-    
-    
-    # # Order the PPH.S to match [i,]
-    # PPH.S.Li = list()
-    # for (i in seq_along(Primary_random))
-    # #for (i in 1:10)
-    # {
-    #   WS = which(SecondaryPaired@data$object_id %in% PPH.T1@data$dst[i])
-    #   PPH.S.Li[[i]] = SecondaryPaired[WS[1],]
-    # }
-    # SecondaryPaired = do.call(rbind, PPH.S.Li)
-    
-    # # some test plots
-    # i = 24
-    # day = 5
-    # plot(PPH.T1[i,])
-    # 
-    # points(Primary_random[i,], col = "green", pch = "O")
-    # points(SecondaryPaired[i,], col = "orange", pch = "O")
     
     if (SaveResults == TRUE)
     {
@@ -517,7 +499,6 @@ DeterminePPH_FL <- function(CRAB_Doel, Names.sub, FL.primary, Active.Type,
         SaveAsFile(PPH.T2, paste0(Active.Type,"_TransportInwards_", Names.sub), "GeoJSON", TRUE)
       }
     }
-    #Secondary_Selected = IsoChroneSampler(Primary_random[1,], Secondary, "driving duration", TRUE)
   }
 }
 
@@ -791,7 +772,30 @@ Router.WS3 <- function(Active.Type, PRI, Primary_random, SEC, Plot, Belgium, Out
   {
     Outside[I] = !all(gIntersects(as(rbind(PPH.T1_[I,],PPH.T2_[I,]), "SpatialPoints"), Belgium, byid = TRUE))
   }
-  Outsiders = Outsiders[Outside]
+  
+  # Check if there are enough coordinates passed
+  LackOfCoordinates = NA
+  Threshold = 30
+  for (I in seq_along(Outsiders))
+  {
+    Nodes.T1 = nrow(PPH.T1_[I,]@lines[[1]]@Lines[[1]]@coords)
+    Nodes.T2 = nrow(PPH.T2_[I,]@lines[[1]]@Lines[[1]]@coords)
+    LackOfCoordinates[I] = Nodes.T1 < Threshold | Nodes.T2 < Threshold
+  }
+  
+  #PPH.T1_[LackOfCoordinates,]@data
+  
+  # Check for spurious distance/duration ratio (speeds)
+  SpuriousSpeeds = NA
+  for (I in seq_along(Outsiders))
+  {
+    Speed.T1 = PPH.T1_[I,]@data$distance / (PPH.T1_[I,]@data$duration/60)
+    Speed.T2 = PPH.T2_[I,]@data$distance / (PPH.T2_[I,]@data$duration/60)
+    SpuriousSpeeds[I] = Speed.T1/Speed.T2 < 0.25 | Speed.T1/Speed.T2 > 4
+  }
+  
+  # Combine the values that did not pass the validation (and make unique)
+  Outsiders = Outsiders[which(Outside | LackOfCoordinates | SpuriousSpeeds)]
   
   return(list(PPH.T1_, PPH.T2_, Outsiders))
 }
