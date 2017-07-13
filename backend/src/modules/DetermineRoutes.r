@@ -370,7 +370,7 @@ DeterminePPH_FL <- function(CRAB_Doel, Names.sub, FL.primary, Active.Type, Activ
   
   if (Plot){points(Primary_random, col = "green")}
   
-  if (Active.Subprofile$Dynamics == "dynamic" & SaveResults)
+  if (Active.Subprofile$Dynamics == "static" & SaveResults)
   {
     if (is.null(Subset.Gemeente))
     {
@@ -401,16 +401,13 @@ DeterminePPH_FL <- function(CRAB_Doel, Names.sub, FL.primary, Active.Type, Activ
     Inds[1:length(Primary_random)] = NA
     
     IndsToCalculate = seq_along(Primary_random) # 0th iteration
-
     
     PPH.T1.Li = list()
     PPH.T2.Li = list()
     SecondaryPaired.Li = list()
     
-    success = FALSE
-    IterationNr = 0
-    
-    while(!success) # prevent that spurious routes are generated
+    SaveIntermediate = TRUE
+    if (SaveIntermediate)
     {
       Temp_dir = file.path("..", "output", "temp")
       if (!dir.exists(Temp_dir)) { dir.create(Temp_dir) }
@@ -418,8 +415,29 @@ DeterminePPH_FL <- function(CRAB_Doel, Names.sub, FL.primary, Active.Type, Activ
       GeoJSON_ext = ".geojson"
       GeoJSON_out = paste(Active.Type, "S", sep = "_")
       Path = file.path(Temp_dir, paste0(GeoJSON_out, GeoJSON_ext))
+    }
+    
+    success = FALSE
+    IterationNr = 0
+    
+    while(!success) # prevent that spurious routes are generated
+    {
+      if (IterationNr %% 10 == 0)
+      {
+        print(paste0("Could not find a valid pair and route after 10 iterations, ",
+                     "probably caused by the Primary of individual ", IndsToCalculate,
+              ". Generating a new Primary location for individual ", IndsToCalculate, " ..."))
+        
+        set.seed(SetSeedNr+IterationNr); Keeps_extra = sample(Primary@data$object_id, length(IndsToCalculate))
+        Primary_random_extra = Primary[Primary@data$object_id == Keeps_extra,]
+        Primary_random_extra@data$ind = NA
+        Primary_random_extra@data$ind = IndsToCalculate
+        
+        Primary_random@data[IndsToCalculate,] = Primary_random_extra@data
+        Primary_random@coords[IndsToCalculate,] = Primary_random_extra@coords
+      }
       
-      if (file.exists(Path))
+      if (file.exists(Path) & IterationNr == 0)
       {
         SecondaryPaired = readOGR(Path, layer = 'OGRGeoJSON')
         SecondaryPaired@proj4string = BE_crs
@@ -429,6 +447,10 @@ DeterminePPH_FL <- function(CRAB_Doel, Names.sub, FL.primary, Active.Type, Activ
         
         #IndsToCalculate = c(1:4,6:8)
         #IndsToCalculate = 13:15
+        
+        # find last used iteration number in that session
+        #read
+        #IterationNr = 
       }
       
       if (Active.Subprofile$Dynamics == "dynamic")
@@ -458,66 +480,73 @@ DeterminePPH_FL <- function(CRAB_Doel, Names.sub, FL.primary, Active.Type, Activ
           SecondaryPaired = SEC.NoDup[inds,]
         }
         
-        if (Plot){points(SecondaryPaired, col = "orange")}
+        #if (Plot){points(SecondaryPaired, col = "orange")}
         
         for (p in IndsToCalculate)
         {
           Inds[p] = as.vector(knnLookup(tree, newdat = coordinates(SecondaryPaired.Li[[p]]), k = 1))
         }
       
-        # Use Secondary structure for SPDF
-        Secondary.SPDF = Secondary[1,]
-        Secondary.SPDF@data$ind = NA
-        Secondary.SPDF@data[1:ncol(Secondary.SPDF)] = NA
-        Secondary.SPDF@coords = cbind(-9999, -9999)
+        # # Use Secondary structure for SPDF
+        # Secondary.SPDF = Secondary[1,]
+        # Secondary.SPDF@data$ind = NA
+        # Secondary.SPDF@data[1:ncol(Secondary.SPDF)] = NA
+        # Secondary.SPDF@coords = cbind(-9999, -9999)
+        # 
+        # # Fill them with NULL or NA fields and crds -9999,-9999
+        # Secondary.SPDF.Li = list()
+        # for (i in seq_along(Primary_random))
+        # {
+        #   Secondary.SPDF.Li[[i]] = Secondary.SPDF
+        # }
+        # Secondary.SPDF = do.call(rbind, Secondary.SPDF.Li)
+        # # Replace after successful pair (after passing validation checks)
+        # 
+        # #Inds[!is.na(Inds)]
+        # SecondaryPaired = Secondary[Inds[IndsToCalculate],]
+        # points(SecondaryPaired, pch = "S")
+        # SecondaryPaired@data$ind = NA
+        # SecondaryPaired@data$ind = IndsToCalculate
+        # 
+        # rownames(Secondary.SPDF@data) = 1:1000
+        # rownames(Secondary.SPDF@coords) = 1:1000
+        # 
+        # Secondary.SPDF@data[IndsToCalculate,] = SecondaryPaired@data
+        # Secondary.SPDF@coords[IndsToCalculate,] = SecondaryPaired@coords
+        # 
+        # points(Secondary.SPDF, pch = "+")
+        # 
+        # Secondary.SPDF@coords = SecondaryPaired@coords
+        # Secondary.SPDF@data = SecondaryPaired@data
+        # 
 
-        # Fill them with NULL or NA fields and crds -9999,-9999
-        Secondary.SPDF.Li = list()
-        for (i in seq_along(Primary_random))
-        {
-          Secondary.SPDF.Li[[i]] = Secondary.SPDF
-        }
-        Secondary.SPDF = do.call(rbind, Secondary.SPDF.Li)
-        # Replace after successful pair (after passing validation checks)
         
-        #Inds[!is.na(Inds)]
-        SecondaryPaired = Secondary[Inds[IndsToCalculate],]
-        points(SecondaryPaired, pch = "S")
+        # link SP with the SPDF
+        SecondaryPaired = Secondary[Inds,]
+        
+        # give the right individual number
         SecondaryPaired@data$ind = NA
-        SecondaryPaired@data$ind = IndsToCalculate
+        SecondaryPaired@data$ind = 1:length(Inds)
         
-        rownames(Secondary.SPDF@data) = 1:1000
-        rownames(Secondary.SPDF@coords) = 1:1000
-        
-        Secondary.SPDF@data[IndsToCalculate,] = SecondaryPaired@data
-        Secondary.SPDF@coords[IndsToCalculate,] = SecondaryPaired@coords
-        
-        points(Secondary.SPDF, pch = "+")
-        
-        Secondary.SPDF@coords = SecondaryPaired@coords
-        Secondary.SPDF@data = SecondaryPaired@data
-        
-        GeoJSON_out = paste(Active.Type, "S", sep = "_")
-        Path = file.path(Temp_dir, paste0(GeoJSON_out, GeoJSON_ext))
         if (SaveIntermediate)
         {
           writeOGR(SecondaryPaired, file.path(Temp_dir, GeoJSON_out), GeoJSON_out, driver = "GeoJSON", overwrite_layer = TRUE)
           file.rename(file.path(Temp_dir, GeoJSON_out), file.path(Temp_dir, paste0(GeoJSON_out, GeoJSON_ext)))
         }
         
-        
         # create the routes (New method, works with multiple profiles like bicycle for 03.SP and motorcar for 01.OW)
-        PPH.T = Router.WS3(Active.Type, Primary_random[Outsiders,], Primary_random, SecondaryPaired, Plot, Belgium, Outsiders, IterationNr)
+        PPH.T = Router.WS3(Active.Type, Primary_random, SecondaryPaired, Plot, Belgium, IndsToCalculate, IterationNr)
         # retruns T1[[1]], T2[[2]] and Outsiders[[3]]
         
-        for (i in seq_along(Outsiders))
+        
+        for (i in seq_along(IndsToCalculate))
         {
-          if (Outsiders[i] %in% Outsiders)
+          if (IndsToCalculate[i] %in% IndsToCalculate)
           {
-            I = Outsiders[i]
+            I = IndsToCalculate[i]
             PPH.T1.Li[[I]] = PPH.T[[1]][i,] #Outwards
             PPH.T2.Li[[I]] = PPH.T[[2]][i,] #Inwards
-            SecondaryPaired.Li[[I]] = SecondaryPaired[i,]
+            #SecondaryPaired.Li[[I]] = SecondaryPaired[i,]
           }
         }
         PPH.T1 = do.call(rbind, PPH.T1.Li)
@@ -525,12 +554,12 @@ DeterminePPH_FL <- function(CRAB_Doel, Names.sub, FL.primary, Active.Type, Activ
 
         #rm(SecondaryPaired.Li)
         
-        Outsiders = PPH.T[[3]]
+        IndsToCalculate = PPH.T[[3]]
         
         # mean(PPH.T1@data$distance)
         # mean(PPH.T2@data$distance)
         
-        if (length(Outsiders) == 0)
+        if (length(IndsToCalculate) == 0)
         {
           print(paste0("All the routes are in the safe air quality data range. Finishing..."))
           success = TRUE
@@ -548,10 +577,9 @@ DeterminePPH_FL <- function(CRAB_Doel, Names.sub, FL.primary, Active.Type, Activ
 
         } else
         {
-          for (o in seq_along(Outsiders))
+          for (o in IndsToCalculate)
           {
-            print(paste0(Outsiders[o], " is outside safe air quality data range
-                         or had spurious outputs. Finding a new pair..."))
+            print(paste0(o, " is outside safe air quality data range or had spurious outputs. Finding a new pair..."))
           }
           IterationNr = IterationNr + 1
         }
@@ -560,6 +588,9 @@ DeterminePPH_FL <- function(CRAB_Doel, Names.sub, FL.primary, Active.Type, Activ
     
     if (SaveResults == TRUE)
     {
+      # link SP with the SPDF
+      SecondaryPaired = Secondary[Inds,]
+      
       if (is.null(Subset.Gemeente))
       {
         SaveAsFile(Primary_random, paste(Active.Type, "Primary", sep = "_"), "GeoJSON", TRUE)
@@ -729,10 +760,13 @@ CommutingDistancePairer <- function(PRI, SEC, MaxLinKM, SEC.SampleSize, Plot, Se
 # PRI = Primary_random[Outsiders,]
 # SEC = SecondaryPaired
 
-Router.WS3 <- function(Active.Type, PRI, Primary_random, SEC, Plot, Belgium, Outsiders, IterationNr)
+Router.WS3 <- function(Active.Type, Primary_random, SecondaryPaired, Plot, Belgium, IndsToCalculate, IterationNr)
 {
   # Transform RD new -> WGS84 for the route calculation
   WGS84 = "+init=epsg:4326"
+  
+  PRI = Primary_random[IndsToCalculate,]
+  SEC = SecondaryPaired[IndsToCalculate,]
   
   src.Li = list(spTransform(PRI, WGS84), spTransform(SEC, WGS84))
   dst.Li = list(spTransform(SEC, WGS84), spTransform(PRI, WGS84))
@@ -842,10 +876,11 @@ Router.WS3 <- function(Active.Type, PRI, Primary_random, SEC, Plot, Belgium, Out
         }
         
         # Pauze to give the server a break and preventing ban
-        if (i %% 50 == 0)
+        
+        if (i %% 50 == 0 & i %% length(PRI) != 0)
         {
-          print(paste("Taking 60 second break for server..."))
-          Sys.sleep(60)
+          print(paste("Taking 20 second break to prevent server stress..."))
+          Sys.sleep(20)
         }
         
       } # closing i
@@ -860,7 +895,7 @@ Router.WS3 <- function(Active.Type, PRI, Primary_random, SEC, Plot, Belgium, Out
   
   # Check if coordinates are inside of outside Country
   Outside = NA
-  for (I in seq_along(Outsiders))
+  for (I in seq_along(IndsToCalculate))
   {
     Outside[I] = !all(gIntersects(as(rbind(PPH.T1_[I,],PPH.T2_[I,]), "SpatialPoints"), Belgium, byid = TRUE))
   }
@@ -868,7 +903,7 @@ Router.WS3 <- function(Active.Type, PRI, Primary_random, SEC, Plot, Belgium, Out
   # Check if there are enough coordinates passed
   LackOfCoordinates = NA
   Threshold = 30
-  for (I in seq_along(Outsiders))
+  for (I in seq_along(IndsToCalculate))
   {
     Nodes.T1 = nrow(PPH.T1_[I,]@lines[[1]]@Lines[[1]]@coords)
     Nodes.T2 = nrow(PPH.T2_[I,]@lines[[1]]@Lines[[1]]@coords)
@@ -879,7 +914,7 @@ Router.WS3 <- function(Active.Type, PRI, Primary_random, SEC, Plot, Belgium, Out
   
   # Check for spurious distance/duration ratio (speeds)
   SpuriousSpeeds = NA
-  for (I in seq_along(Outsiders))
+  for (I in seq_along(IndsToCalculate))
   {
     Speed.T1 = PPH.T1_[I,]@data$distance / (PPH.T1_[I,]@data$duration/60)
     Speed.T2 = PPH.T2_[I,]@data$distance / (PPH.T2_[I,]@data$duration/60)
@@ -887,9 +922,9 @@ Router.WS3 <- function(Active.Type, PRI, Primary_random, SEC, Plot, Belgium, Out
   }
   
   # Combine the values that did not pass the validation (and make unique)
-  Outsiders = Outsiders[which(Outside | LackOfCoordinates | SpuriousSpeeds)]
+  Spurious = IndsToCalculate[which(Outside | LackOfCoordinates | SpuriousSpeeds)]
   
-  return(list(PPH.T1_, PPH.T2_, Outsiders))
+  return(list(PPH.T1_, PPH.T2_, Spurious))
 }
 
 
