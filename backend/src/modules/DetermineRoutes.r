@@ -338,12 +338,12 @@ DetermineAddressGoals_FL <- function(FL.Gemeente, Method.nr, ... )
 
 
 # Names.sub = Names
-# FL.primary = 50
+# FL.primary = 1000
 # Plot = TRUE
-# SaveResults = FALSE
+# SaveResults = TRUE
 # SetSeedNr = Active.SetSeedNr
 
-DeterminePPH_FL <- function(CRAB_Doel, Names.sub, FL.primary, Active.Type,
+DeterminePPH_FL <- function(CRAB_Doel, Names.sub, FL.primary, Active.Type, Active.Subprofile,
                             Plot, SaveResults, Belgium, SetSeedNr, Commuting, DrivingDistanceLinearDistance, ...)
 {
   if (Plot == TRUE){plot(Flanders)}
@@ -365,9 +365,12 @@ DeterminePPH_FL <- function(CRAB_Doel, Names.sub, FL.primary, Active.Type,
   set.seed(SetSeedNr); keeps_RS_Re = sample(Primary@data$object_id, FL.primary)
   Primary_random = Primary[Primary@data$object_id %in% keeps_RS_Re,]
   
+  Primary_random@data$ind = NA
+  Primary_random@data$ind = 1:FL.primary
+  
   if (Plot){points(Primary_random, col = "green")}
   
-  if (Active.Subprofile$Dynamics == "static" & SaveResults)
+  if (Active.Subprofile$Dynamics == "dynamic" & SaveResults)
   {
     if (is.null(Subset.Gemeente))
     {
@@ -392,28 +395,54 @@ DeterminePPH_FL <- function(CRAB_Doel, Names.sub, FL.primary, Active.Type,
       Secondary = CRAB_Doel[CRAB_Doel@data$DOEL %in% "Basisonderwijs",] # CRAB_Doel@data$DOEL %in% "Secundair onderwijs" 
     }
     
+    tree = createTree(coordinates(Secondary))
+    
+    Inds = 1:length(Primary_random)
+    Inds[1:length(Primary_random)] = NA
+    
+    IndsToCalculate = seq_along(Primary_random) # 0th iteration
+
+    
     PPH.T1.Li = list()
     PPH.T2.Li = list()
     SecondaryPaired.Li = list()
     
-    Outsiders = seq_along(Primary_random)
-    #Outsiders = 1:10
     success = FALSE
     IterationNr = 0
     
-    while(!success) # prevent that routes outside country will pass
+    while(!success) # prevent that spurious routes are generated
     {
-      #     RS = sample(Outsiders, 1)
-      #     Outsiders = Outsiders[Outsiders < RS]
+      Temp_dir = file.path("..", "output", "temp")
+      if (!dir.exists(Temp_dir)) { dir.create(Temp_dir) }
+      
+      GeoJSON_ext = ".geojson"
+      GeoJSON_out = paste(Active.Type, "S", sep = "_")
+      Path = file.path(Temp_dir, paste0(GeoJSON_out, GeoJSON_ext))
+      
+      if (file.exists(Path))
+      {
+        SecondaryPaired = readOGR(Path, layer = 'OGRGeoJSON')
+        SecondaryPaired@proj4string = BE_crs
+        
+        IndsAlreadyCalculated = SecondaryPaired@data$ind
+        IndsToCalculate = IndsToCalculate[!(IndsToCalculate %in% IndsAlreadyCalculated)]
+        
+        #IndsToCalculate = c(1:4,6:8)
+        #IndsToCalculate = 13:15
+      }
       
       if (Active.Subprofile$Dynamics == "dynamic")
       {
         #Subset: only Offices
         if (Active.Type == "01.OW")
         {
-          SecondaryPaired = CommutingDistancePairer(Primary_random[Outsiders,], Secondary, MaxLinKM = 80,
+          SecondaryPaired_ = CommutingDistancePairer(Primary_random, Secondary, MaxLinKM = 80,
                                                     SEC.SampleSize = 1000, Plot, SetSeedNr, IterationNr, Commuting,
-                                                    DrivingDistanceLinearDistance)
+                                                    DrivingDistanceLinearDistance, IndsToCalculate)
+          for (p in IndsToCalculate)
+          {
+            SecondaryPaired.Li[[p]] = SecondaryPaired_[[p]]
+          }
         }
         
         #Subset: only schools
@@ -430,6 +459,52 @@ DeterminePPH_FL <- function(CRAB_Doel, Names.sub, FL.primary, Active.Type,
         }
         
         if (Plot){points(SecondaryPaired, col = "orange")}
+        
+        for (p in IndsToCalculate)
+        {
+          Inds[p] = as.vector(knnLookup(tree, newdat = coordinates(SecondaryPaired.Li[[p]]), k = 1))
+        }
+      
+        # Use Secondary structure for SPDF
+        Secondary.SPDF = Secondary[1,]
+        Secondary.SPDF@data$ind = NA
+        Secondary.SPDF@data[1:ncol(Secondary.SPDF)] = NA
+        Secondary.SPDF@coords = cbind(-9999, -9999)
+
+        # Fill them with NULL or NA fields and crds -9999,-9999
+        Secondary.SPDF.Li = list()
+        for (i in seq_along(Primary_random))
+        {
+          Secondary.SPDF.Li[[i]] = Secondary.SPDF
+        }
+        Secondary.SPDF = do.call(rbind, Secondary.SPDF.Li)
+        # Replace after successful pair (after passing validation checks)
+        
+        #Inds[!is.na(Inds)]
+        SecondaryPaired = Secondary[Inds[IndsToCalculate],]
+        points(SecondaryPaired, pch = "S")
+        SecondaryPaired@data$ind = NA
+        SecondaryPaired@data$ind = IndsToCalculate
+        
+        rownames(Secondary.SPDF@data) = 1:1000
+        rownames(Secondary.SPDF@coords) = 1:1000
+        
+        Secondary.SPDF@data[IndsToCalculate,] = SecondaryPaired@data
+        Secondary.SPDF@coords[IndsToCalculate,] = SecondaryPaired@coords
+        
+        points(Secondary.SPDF, pch = "+")
+        
+        Secondary.SPDF@coords = SecondaryPaired@coords
+        Secondary.SPDF@data = SecondaryPaired@data
+        
+        GeoJSON_out = paste(Active.Type, "S", sep = "_")
+        Path = file.path(Temp_dir, paste0(GeoJSON_out, GeoJSON_ext))
+        if (SaveIntermediate)
+        {
+          writeOGR(SecondaryPaired, file.path(Temp_dir, GeoJSON_out), GeoJSON_out, driver = "GeoJSON", overwrite_layer = TRUE)
+          file.rename(file.path(Temp_dir, GeoJSON_out), file.path(Temp_dir, paste0(GeoJSON_out, GeoJSON_ext)))
+        }
+        
         
         # create the routes (New method, works with multiple profiles like bicycle for 03.SP and motorcar for 01.OW)
         PPH.T = Router.WS3(Active.Type, Primary_random[Outsiders,], Primary_random, SecondaryPaired, Plot, Belgium, Outsiders, IterationNr)
@@ -457,9 +532,9 @@ DeterminePPH_FL <- function(CRAB_Doel, Names.sub, FL.primary, Active.Type,
         
         if (length(Outsiders) == 0)
         {
+          print(paste0("All the routes are in the safe air quality data range. Finishing..."))
           success = TRUE
           SecondaryPaired = do.call(rbind, SecondaryPaired.Li)
-          print(paste0("All the routes are in the safe air quality data range."))
           # remove temp
           for (t in 1:2)
           {
@@ -510,18 +585,18 @@ DeterminePPH_FL <- function(CRAB_Doel, Names.sub, FL.primary, Active.Type,
 # Plot = TRUE
 # SEC.SampleSize = 1000
 CommutingDistancePairer <- function(PRI, SEC, MaxLinKM, SEC.SampleSize, Plot, SetSeedNr, IterationNr,
-                                    Commuting, DrivingDistanceLinearDistance, ...)
+                                    Commuting, DrivingDistanceLinearDistance, IndsToCalculate, ...)
 {
   # remove duplicates
   SEC.NoDup = SEC[!duplicated(SEC@coords), ]
   
   # Transform RD new -> WGS84 for the route calculation
-  WGS84 = "+init=epsg:4326"
-  src <- spTransform(PRI, WGS84)
+  # WGS84 = "+init=epsg:4326"
+  # src <- spTransform(PRI, WGS84)
   
   SEC.Pared.Li = list()
   
-  for (p in seq_along(PRI))
+  for (p in IndsToCalculate)
     #for (p in 1:2)  # p = 1
   {
     success = FALSE
@@ -541,7 +616,7 @@ CommutingDistancePairer <- function(PRI, SEC, MaxLinKM, SEC.SampleSize, Plot, Se
       SEC.rs = SEC.rs[which((DistanceLinear < MaxLinKM*1000)),]
       SEC.rsSP = SpatialPoints(SEC.rs@coords, proj4string = BE_crs)
       
-      dst = spTransform(SEC.rsSP, WGS84)
+      #dst = spTransform(SEC.rsSP, WGS84)
       
       #length(DistanceLinear)
       #length(DistanceLinear[which((DistanceLinear < MaxLinKM*1000)),])
@@ -598,29 +673,46 @@ CommutingDistancePairer <- function(PRI, SEC, MaxLinKM, SEC.SampleSize, Plot, Se
       points(PRI[p,], col = "green")
       points(SEC.Pared[1,], col = "orange")
       
-      #overlap = which(coordinates(SEC.NoDup) %in% coordinates(SEC.Pared[1,]))
-      overlap = which(as.logical(gIntersects(SEC.NoDup, SEC.Pared[1,], byid = TRUE)))
-      points(SEC.NoDup[overlap,], col = "red", pch = "+")
+      
+      # overlap = which(as.logical(gIntersects(SEC.NoDup, SEC.Pared[1,], byid = TRUE)))
+      # points(SEC.NoDup[overlap,], col = "red", pch = "+")
     }
     SEC.Pared.Li[[p]] = SEC.Pared[1,]
   } # end p
   
-  #   #use the coordinated to return the SPDF
-  SEC.ParedWS = do.call(rbind, SEC.Pared.Li)
+  return(SEC.Pared.Li)
   
-  if (length(SEC.ParedWS) == length(PRI))
+  #use the coordinated to return the SPDF
+  #SEC.ParedWS = do.call(rbind, SEC.Pared.Li)
+  
+  #return(SEC.ParedWS)
+  
+  if (length(is.null(SEC.Pared.Li)) == length(IndsToCalculate))
   {
-    tree = createTree(coordinates(SEC.NoDup))
-    inds = knnLookup(tree, newdat = coordinates(SEC.ParedWS), k = 1) # gives the matrix
-    inds = as.vector(inds)
+    # tree = createTree(coordinates(SEC.NoDup))
+    # 
+    # inds = knnLookup(tree, newdat = coordinates(SEC.Pared.Li[IndsToCalculate]), k = 1) # gives the matrix
+    # inds = as.vector(inds)
+    # 
+    # SEC.ParedSPDF.Li = list()
+    # SEC.ParedSPDF.Li[IndsToCalculate] = SEC.NoDup[inds,]
+    # 
+    # return(SEC.ParedSPDF.Li)
     
-    SEC.ParedSPDF = SEC.NoDup[inds,]
+    #SEC.ParedSPDF = SEC.NoDup[inds,]
+
+    # if (Plot == TRUE)
+    # {
+    #   points(SEC.ParedSPDF, col = "red", pch = "O")
+    # }
+    #return(SEC.ParedSPDF)
+
+    # for (p in IndsToCalculate)
+    # {
+    #   SEC.ParedSPDF.Li[[p]] = SEC.ParedSPDF[p,]
+    # }
+    # return(SEC.ParedSPDF.Li)
     
-    if (Plot == TRUE)
-    {
-      points(SEC.ParedSPDF, col = "red", pch = "O")
-    }
-    return(SEC.ParedSPDF)
   } else
   {
     warning(paste("Output secondaries did not match input primaries. Incomplete features returned instead. No data frame included."))
