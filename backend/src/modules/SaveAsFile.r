@@ -1,4 +1,4 @@
-# Module for saving spatial files to hard drive as GeoJSON or Shapefile.
+# Module for saving spatial files to hard drive as GeoJSON, Shapefile and DBF.
 # Copyright (C) 2016 William Schuch
 #
 # This program is free software: you can redistribute it and/or modify
