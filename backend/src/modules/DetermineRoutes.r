@@ -406,52 +406,57 @@ DeterminePPH_FL <- function(CRAB_Doel, Names.sub, FL.primary, Active.Type, Activ
     PPH.T2.Li = list()
     SecondaryPaired.Li = list()
     
-    SaveIntermediate = TRUE
-    if (SaveIntermediate)
-    {
-      Temp_dir = file.path("..", "output", "temp")
-      if (!dir.exists(Temp_dir)) { dir.create(Temp_dir) }
-      
-      GeoJSON_ext = ".geojson"
-      GeoJSON_out = paste(Active.Type, "S", sep = "_")
-      Path = file.path(Temp_dir, paste0(GeoJSON_out, GeoJSON_ext))
-    }
+    # SaveIntermediate = TRUE
+    # if (SaveIntermediate)
+    # {
+    #   Temp_dir = file.path("..", "output", "temp")
+    #   if (!dir.exists(Temp_dir)) { dir.create(Temp_dir) }
+    #   
+    #   GeoJSON_ext = ".geojson"
+    #   GeoJSON_out = paste(Active.Type, "S", sep = "_")
+    #   Path = file.path(Temp_dir, paste0(GeoJSON_out, GeoJSON_ext))
+    # }
     
     success = FALSE
     IterationNr = 0
     
     while(!success) # prevent that spurious routes are generated
     {
-      if (IterationNr %% 10 == 0)
+      if (IterationNr %% 10 == 0 & IterationNr != 0)
       {
         print(paste0("Could not find a valid pair and route after 10 iterations, ",
                      "probably caused by the Primary of individual ", IndsToCalculate,
               ". Generating a new Primary location for individual ", IndsToCalculate, " ..."))
         
         set.seed(SetSeedNr+IterationNr); Keeps_extra = sample(Primary@data$object_id, length(IndsToCalculate))
-        Primary_random_extra = Primary[Primary@data$object_id == Keeps_extra,]
+        Primary_random_extra = Primary[Primary@data$object_id %in% Keeps_extra,]
         Primary_random_extra@data$ind = NA
         Primary_random_extra@data$ind = IndsToCalculate
         
         Primary_random@data[IndsToCalculate,] = Primary_random_extra@data
         Primary_random@coords[IndsToCalculate,] = Primary_random_extra@coords
+        
+        if (Plot == TRUE)
+        {
+          points(Primary_random, col = "green", pch = as.character(IterationNr))
+        }
       }
       
-      if (file.exists(Path) & IterationNr == 0)
-      {
-        SecondaryPaired = readOGR(Path, layer = 'OGRGeoJSON')
-        SecondaryPaired@proj4string = BE_crs
-        
-        IndsAlreadyCalculated = SecondaryPaired@data$ind
-        IndsToCalculate = IndsToCalculate[!(IndsToCalculate %in% IndsAlreadyCalculated)]
-        
-        #IndsToCalculate = c(1:4,6:8)
-        #IndsToCalculate = 13:15
-        
-        # find last used iteration number in that session
-        #read
-        #IterationNr = 
-      }
+      # if (file.exists(Path) & IterationNr == 0)
+      # {
+      #   SecondaryPaired = readOGR(Path, layer = 'OGRGeoJSON')
+      #   SecondaryPaired@proj4string = BE_crs
+      # 
+      #   IndsAlreadyCalculated = SecondaryPaired@data$ind
+      #   IndsToCalculate = IndsToCalculate[!(IndsToCalculate %in% IndsAlreadyCalculated)]
+      # 
+      #   #IndsToCalculate = c(1:4,6:8)
+      #   #IndsToCalculate = 13:15
+      # 
+      #   # find last used iteration number in that session
+      #   #read
+      #   #IterationNr =
+      # }
       
       if (Active.Subprofile$Dynamics == "dynamic")
       {
@@ -470,14 +475,19 @@ DeterminePPH_FL <- function(CRAB_Doel, Names.sub, FL.primary, Active.Type, Activ
         #Subset: only schools
         if (Active.Type == "03.SP")
         {
-          # remove duplicates
-          SEC.NoDup = Secondary[!duplicated(Secondary@coords), ]
+          ## remove duplicates
+          #SEC.NoDup = Secondary[!duplicated(Secondary@coords), ]
           
-          tree = createTree(coordinates(SEC.NoDup))
+          #tree = createTree(coordinates(SEC.NoDup))
           inds = knnLookup(tree, newdat = coordinates(Primary_random), k = 1) # gives the matrix
           inds = as.vector(inds)
           
-          SecondaryPaired = SEC.NoDup[inds,]
+          #SecondaryPaired = SEC.NoDup[inds,]
+          
+          for (p in IndsToCalculate)
+          {
+            SecondaryPaired.Li[[p]] = Secondary[inds[p],]
+          }
         }
         
         #if (Plot){points(SecondaryPaired, col = "orange")}
@@ -528,11 +538,11 @@ DeterminePPH_FL <- function(CRAB_Doel, Names.sub, FL.primary, Active.Type, Activ
         SecondaryPaired@data$ind = NA
         SecondaryPaired@data$ind = 1:length(Inds)
         
-        if (SaveIntermediate)
-        {
-          writeOGR(SecondaryPaired, file.path(Temp_dir, GeoJSON_out), GeoJSON_out, driver = "GeoJSON", overwrite_layer = TRUE)
-          file.rename(file.path(Temp_dir, GeoJSON_out), file.path(Temp_dir, paste0(GeoJSON_out, GeoJSON_ext)))
-        }
+        # if (SaveIntermediate)
+        # {
+        #   writeOGR(SecondaryPaired, file.path(Temp_dir, GeoJSON_out), GeoJSON_out, driver = "GeoJSON", overwrite_layer = TRUE)
+        #   file.rename(file.path(Temp_dir, GeoJSON_out), file.path(Temp_dir, paste0(GeoJSON_out, GeoJSON_ext)))
+        # }
         
         # create the routes (New method, works with multiple profiles like bicycle for 03.SP and motorcar for 01.OW)
         PPH.T = Router.WS3(Active.Type, Primary_random, SecondaryPaired, Plot, Belgium, IndsToCalculate, IterationNr)
@@ -564,6 +574,7 @@ DeterminePPH_FL <- function(CRAB_Doel, Names.sub, FL.primary, Active.Type, Activ
           print(paste0("All the routes are in the safe air quality data range. Finishing..."))
           success = TRUE
           SecondaryPaired = do.call(rbind, SecondaryPaired.Li)
+
           # remove temp
           for (t in 1:2)
           {
@@ -590,6 +601,18 @@ DeterminePPH_FL <- function(CRAB_Doel, Names.sub, FL.primary, Active.Type, Activ
     {
       # link SP with the SPDF
       SecondaryPaired = Secondary[Inds,]
+      SecondaryPaired@data$ind = NA
+      SecondaryPaired@data$ind = seq_along(SecondaryPaired)
+      
+      # rename rownames
+      rownames(SecondaryPaired@data) = SecondaryPaired@data$ind
+      rownames(SecondaryPaired@coords) = SecondaryPaired@data$ind
+      
+      rownames(PPH.T1@data) = PPH.T1@data$ind
+      rownames(PPH.T1@coords) = PPH.T1@data$ind
+      
+      rownames(PPH.T2@data) = PPH.T2@data$ind
+      rownames(PPH.T2@coords) = PPH.T2@data$ind
       
       if (is.null(Subset.Gemeente))
       {
@@ -902,7 +925,8 @@ Router.WS3 <- function(Active.Type, Primary_random, SecondaryPaired, Plot, Belgi
   
   # Check if there are enough coordinates passed
   LackOfCoordinates = NA
-  Threshold = 30
+  if (Active.Type == "01.OW") {Threshold = 30}
+  if (Active.Type == "03.SP") {Threshold = 10}
   for (I in seq_along(IndsToCalculate))
   {
     Nodes.T1 = nrow(PPH.T1_[I,]@lines[[1]]@Lines[[1]]@coords)

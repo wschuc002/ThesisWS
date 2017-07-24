@@ -206,8 +206,8 @@ if (!exists("BIWEEKLY"))
 # Beginning of profile based code
 
 # Select active Residential Profile
-Active.Type = "01.OW" # "01.OW" "02.HO" or "03.SP"
-Active.Subtype = paste0(Active.Type, "_C","1")
+Active.Type = "03.SP" # "01.OW" "02.HO" or "03.SP"
+Active.Subtype = paste0(Active.Type, "_WS","1")
 
 Active.Profile = ResidentialProfiles[ResidentialProfiles$Type == Active.Type,]
 Active.Subprofile = ResidentialProfiles[ResidentialProfiles$Subtype == Active.Subtype,]
@@ -263,7 +263,7 @@ if (!exists("CRAB_Doel") & !file.exists(dir.P))
 # Check if data already exists. If so, it will not run.
 if (!file.exists(dir.P))
 {
-  DeterminePPH_FL(CRAB_Doel, Names, 1000, Active.Type,
+  DeterminePPH_FL(CRAB_Doel, Names, 1000, Active.Type, Active.Subprofile,
                   Plot = TRUE, SaveResults = TRUE, Belgium, Active.SetSeedNr, Commuting, DrivingDistanceLinearDistance)
 }
 
@@ -368,6 +368,7 @@ if (ExternalDrive)
 } else 
 {
   PolDir = file.path("..", "data", "BE", "IRCELINE")
+  #PolDir = file.path("..", "data", "BE", "IRCELINE", toupper(pol))
 }
 
 # Read the base | # Read from compressed bz2 file
@@ -406,7 +407,7 @@ if (Active.Subprofile$Dynamics == "dynamic")
   
   
   # split time in Fragments (only dynamic)
-  Fragments = 10 # 1 or 2
+  Fragments = 20
   
   if (Fragments > 1)
   {
@@ -736,11 +737,10 @@ if (Active.Subprofile$Dynamics == "dynamic")
     OW = FALSE
     if (WriteToDisk)
     {
-      SaveAsDBF(TIME.P, "Time", "Primary",
-                paste0(Active.Subtype, "_", 0), OW, pol, 0)
+      SaveAsDBF(TIME.P, "Time", "Primary", Active.Subtype, OW, pol, 0)
     }
     
-    TIME.P = DBFreader("Time", "Primary", PPH.P, YearDates, paste0(Active.Subtype,"_", 0))
+    TIME.P = DBFreader("Time", "Primary", PPH.P, YearDates, Active.Subtype)
     
     ## Interpolating the points
     start.time = Sys.time()
@@ -758,6 +758,17 @@ if (Active.Subprofile$Dynamics == "dynamic")
     TimeTakenInterpolation = end.time - start.time
     print(TimeTakenInterpolation)
   
+    # Write EXP to disk
+    WriteToDisk = TRUE
+    OW = FALSE
+    if (WriteToDisk)
+    {
+      SaveAsDBF(ExposureValue.P, "Exposure", "Primary", Active.Subtype, OW, pol, 0)
+    }
+    
+    ExposureValue.P = DBFreader("Exposure", "Primary", PPH.P, YearDates, Active.Subtype)
+    
+    
     # DF structure
     ST.DF.P = DF.Structure2(PPH.P, TIME.P, TIME.P, ExposureValue.P)
     
