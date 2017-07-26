@@ -131,14 +131,14 @@ ToHourValues <- function(PPH.P, Time, ExposureValue.P, ExposureValue.S, Exposure
       {
         Mean.T1 = mean(ExposureValue.T1[[i]][[day]][wT1[[i]][[h]]])
         ExposureValueCombined[[i]][h] = Mean.T1
-        rm(Mean.T1)
+        # rm(Mean.T1)
       }
       
       if (length(wT2[[i]][[h]]) > 0 & length(wP[[i]][[h]]) == 0) # Only T2, no hour overlap
       {
         Mean.T2 = mean(ExposureValue.T2[[i]][[day]][wT2[[i]][[h]]])
         ExposureValueCombined[[i]][h] = Mean.T2
-        rm(Mean.T2)
+        # rm(Mean.T2)
       }
       
       
@@ -165,7 +165,15 @@ ToHourValues <- function(PPH.P, Time, ExposureValue.P, ExposureValue.S, Exposure
         {
           ExposureValueCombined[[i]][h] = sum(EXP.part.T1 * Weight.T1, EXP.part.S * Weight.S)
           
-          rm(EXP.part.T1_1, EXP.part.T1_, EXP.part.T1, Weight.T1_1, Weight.T1_, Weight.T1, EXP.part.S, Weight.S)
+          # if (exists("EXP.part.T1_1")) {rm(EXP.part.T1_1)}
+          # if (exists("EXP.part.T1_")) {rm(EXP.part.T1_)}
+          # if (exists("EXP.part.T1")) {rm(EXP.part.T1)}
+          # if (exists("Weight.T1_1")) {rm(Weight.T1_1)}
+          # if (exists("Weight.T1_")) {rm(Weight.T1_)}
+          # if (exists("Weight.T1")) {rm(Weight.T1)}
+          # if (exists("EXP.part.S")) {rm(EXP.part.S)}
+          # if (exists("Weight.S")) {rm(Weight.S)}
+          
         } else
         {
           stop(paste("Weights do not add up to 1.", "Hour:", h, "| Individual:", i))
@@ -175,11 +183,6 @@ ToHourValues <- function(PPH.P, Time, ExposureValue.P, ExposureValue.S, Exposure
       
       if (length(wT2[[i]][[h]]) > 0 & length(wP[[i]][[h]]) > 0) # Hour overlap T2 & P | 
       {
-        # TIME.P[[i]][[day]][wP[[i]][[h]]]
-        # TIME.S[[i]][[day]][wS[[i]][[h]]]
-        # TIME.T1[[i]][[day]][wT1[[i]][[h]]]
-        # TIME.T2[[i]][[day]][wT2[[i]][[h]]]
-        
         if (length(wT2[[i]][[h]]) == 1)
         {
           EXP.part.T2 = ExposureValue.T2[[i]][[day]][wT2[[i]][[h]]]
@@ -205,7 +208,6 @@ ToHourValues <- function(PPH.P, Time, ExposureValue.P, ExposureValue.S, Exposure
           #sum(Weight.T2)
         }
         
-        
         EXP.part.P = ExposureValue.P[[i]][[day]][wP[[i]][[h]]]
         
         Weight.P_1 = as.numeric(difftime(TIME.P[[i]][[day]][wP[[i]][[h]]][1],
@@ -217,15 +219,6 @@ ToHourValues <- function(PPH.P, Time, ExposureValue.P, ExposureValue.S, Exposure
           Weight.P_[e] = difftime(TIME.P[[i]][[day]][wP[[i]][[h]]][e+1], TIME.P[[i]][[day]][wP[[i]][[h]]][e], units = "hours")
         }
         Weight.P = c(Weight.P_1, Weight.P_)
-        
-        if (length(wP[[i]][[h]]) == 1)
-        {
-          
-        } else
-        {
-          
-        }
-      
         
         if (is.na(Weight.P_))
         {
@@ -251,32 +244,16 @@ ToHourValues <- function(PPH.P, Time, ExposureValue.P, ExposureValue.S, Exposure
         }
         
         # remove intermediate results
-        rm(EXP.part.T2_1, EXP.part.T2_, EXP.part.T2, Weight.T2_1, Weight.T2_, Weight.T2, EXP.part.P, Weight.P_1, Weight.P_, Weight.P)
-        
-        
-        
-        # CHECK = c(1,sum(Weight.T2, Weight.P)) # !BUGS ran from main script
-        # if (all(CHECK == c(1,1)))
-        # {
-        #   ExposureValueCombined[[i]][h] = sum(EXP.part.T2 * Weight.T2, EXP.part.P * Weight.P)
-        #   
-        #   rm(EXP.part.T2_1, EXP.part.T2_, EXP.part.T2, Weight.T2_1, Weight.T2_, Weight.T2, EXP.part.P, Weight.P_1, Weight.P_, Weight.P)
-        #   
-        # } else
-        # {
-        #   stop(paste("Weights do not add up to 1.", "Hour:", h, "| Individual:", i))
-        # }
-      
-        
-        #length(wT2[[i]][[h]]) > 0 & length(wP[[i]][[h]]) == 1
-#         Mean.T2 = mean(ExposureValue.T2[[i]][[day]][wT2[[i]][[h]]])
-#         Weight.T2 = as.numeric(tail(TIME.T2[[i]][[day]][wT2[[i]][[h]]],1) -
-#                                  floor_date(tail(TIME.T2[[i]][[day]][wT2[[i]][[h]]],1), 'hours')) / 60
-#         
-#         Weight.P = as.numeric(TIME.P[[i]][[day]][wP[[i]][[h]]] - tail(TIME.T2[[i]][[day]][wT2[[i]][[h]]],1)) / 60
-#         #Weight.T2 + Weight.P # should be 1
-#         
-#         ExposureValueCombined[[i]][h] = Mean.T2 * Weight.T2 + ExposureValue.P[[i]][[day]][wP[[i]][[h]]] * Weight.P
+        # if (exists("EXP.part.T2_1")) {rm(EXP.part.T2_1)}
+        # if (exists("EXP.part.T2_")) {rm(EXP.part.T2_)}
+        # if (exists("EXP.part.T2")) {rm(EXP.part.T2)}
+        # if (exists("Weight.T2_1")) {rm(Weight.T2_1)}
+        # if (exists("Weight.T2_")) {rm(Weight.T2_)}
+        # if (exists("Weight.T2")) {rm(Weight.T2)}
+        # if (exists("EXP.part.P")) {rm(EXP.part.P)}
+        # if (exists("Weight.P_1")) {rm(Weight.P_1)}
+        # if (exists("Weight.P_")) {rm(Weight.P_)}
+        # if (exists("Weight.P")) {rm(Weight.P)}
       }
       
 
@@ -317,8 +294,8 @@ ToHourValues <- function(PPH.P, Time, ExposureValue.P, ExposureValue.S, Exposure
         {
           ExposureValueCombined[[i]][h] = sum(EXP.part.P * Weight.P, EXP.part.T1 * Weight.T1, EXP.part.S * Weight.S)
           
-          rm(EXP.part.P, Weight.P, EXP.part.T1_1, EXP.part.T1_, EXP.part.T1, Weight.T1_1, Weight.T1_, Weight.T1,
-             EXP.part.S, Weight.S_1, Weight.S_, Weight.S)
+          # rm(EXP.part.P, Weight.P, EXP.part.T1_1, EXP.part.T1_, EXP.part.T1, Weight.T1_1, Weight.T1_, Weight.T1,
+          #    EXP.part.S, Weight.S_1, Weight.S_, Weight.S)
         } else
         {
           stop(paste("Weights do not add up to 1.", "Hour:", h, "| Individual:", i))
@@ -385,9 +362,9 @@ ToHourValues <- function(PPH.P, Time, ExposureValue.P, ExposureValue.S, Exposure
                      "SUM weights:", sum(Weight.T1, Weight.S), '\n'))
         }
         
-        # remove intermediate results
-        rm(EXP.part.T1_1, EXP.part.T1_, EXP.part.T1, Weight.T1_1, Weight.T1_, Weight.T1, EXP.part.S, Weight.S_1, Weight.S_, Weight.S)
-        
+        # # remove intermediate results
+        # rm(EXP.part.T1_1, EXP.part.T1_, EXP.part.T1, Weight.T1_1, Weight.T1_, Weight.T1, EXP.part.S, Weight.S_1, Weight.S_, Weight.S)
+        # 
       }
 
     } # closing i

@@ -22,8 +22,8 @@ if(length(new.packages)) install.packages(new.packages)
 ## Load the packages
 #library(sp)
 
-#TIME = Time.Sub
-#ExposureValue = ExposureValueCombined_F
+#TIME = TIME.S_F
+#ExposureValue = ExposureValue.S_F
 #rm.na = FALSE
 
 DF.Structure2 <- function(PPH.P, TIME.P, TIME, ExposureValue, rm.na = TRUE, ...)
@@ -36,6 +36,12 @@ DF.Structure2 <- function(PPH.P, TIME.P, TIME, ExposureValue, rm.na = TRUE, ...)
   
   if (ClassExp == "list")
   {
+    # Check if fields are empty
+    if (all(is.na(unlist(TIME))) & all(is.na(unlist(ExposureValue))))
+    {
+      return(NA)
+    }
+    
     for (i in seq_along(PPH.P))
     {
       TIME.ul[[i]] = na.omit(unlist(TIME[[i]]))
@@ -69,12 +75,11 @@ DF.Structure2 <- function(PPH.P, TIME.P, TIME, ExposureValue, rm.na = TRUE, ...)
   #   
   # }
   
-  
   ST.DF = list()
   
   for (i in seq_along(PPH.P))
   {
-    print(i)
+    #print(i)
     if (all(ClassTime == "list" & ClassExp == "list"))
     {
       ST.DF[[i]] = data.frame(TIME.ul[[i]], ExposureValue.ul[[i]], i)
