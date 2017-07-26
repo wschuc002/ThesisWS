@@ -406,16 +406,16 @@ DeterminePPH_FL <- function(CRAB_Doel, Names.sub, FL.primary, Active.Type, Activ
     PPH.T2.Li = list()
     SecondaryPaired.Li = list()
     
-    # SaveIntermediate = TRUE
-    # if (SaveIntermediate)
-    # {
-    #   Temp_dir = file.path("..", "output", "temp")
-    #   if (!dir.exists(Temp_dir)) { dir.create(Temp_dir) }
-    #   
-    #   GeoJSON_ext = ".geojson"
-    #   GeoJSON_out = paste(Active.Type, "S", sep = "_")
-    #   Path = file.path(Temp_dir, paste0(GeoJSON_out, GeoJSON_ext))
-    # }
+    SaveIntermediate = FALSE
+    if (SaveIntermediate)
+    {
+      Temp_dir = file.path("..", "output", "temp")
+      if (!dir.exists(Temp_dir)) { dir.create(Temp_dir) }
+
+      GeoJSON_ext = ".geojson"
+      GeoJSON_out = paste(Active.Type, "S", sep = "_")
+      Path = file.path(Temp_dir, paste0(GeoJSON_out, GeoJSON_ext))
+    }
     
     success = FALSE
     IterationNr = 0
@@ -609,11 +609,15 @@ DeterminePPH_FL <- function(CRAB_Doel, Names.sub, FL.primary, Active.Type, Activ
       rownames(SecondaryPaired@coords) = SecondaryPaired@data$ind
       
       rownames(PPH.T1@data) = PPH.T1@data$ind
-      rownames(PPH.T1@coords) = PPH.T1@data$ind
-      
       rownames(PPH.T2@data) = PPH.T2@data$ind
-      rownames(PPH.T2@coords) = PPH.T2@data$ind
       
+      for (i in seq_along(SecondaryPaired))
+      #for (i in 1:10)
+      {
+        PPH.T1@lines[[i]]@ID = as.character(PPH.T1[i,]@data$ind)
+        PPH.T2@lines[[i]]@ID = as.character(PPH.T2[i,]@data$ind)
+      }
+
       if (is.null(Subset.Gemeente))
       {
         SaveAsFile(Primary_random, paste(Active.Type, "Primary", sep = "_"), "GeoJSON", TRUE)
@@ -891,7 +895,7 @@ Router.WS3 <- function(Active.Type, Primary_random, SecondaryPaired, Plot, Belgi
           stop(paste("Lat and Lon have different lengths."))
         }
         
-        SaveIntermediate = TRUE
+        SaveIntermediate = FALSE
         if (SaveIntermediate & IterationNr == 0)
         {
           writeOGR(do.call(rbind, PPH.T.Li), file.path(Temp_dir, GeoJSON_out), GeoJSON_out, driver = "GeoJSON", overwrite_layer = TRUE)
