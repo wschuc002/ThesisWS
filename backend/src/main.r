@@ -225,8 +225,8 @@ Points.NoVal@proj4string = BE_crs
 # Beginning of profile based code
 
 # Select active Residential Profile
-Active.Type = "01.OW" # "01.OW" "02.HO" or "03.SP"
-Active.Subtype = paste0(Active.Type, "_WS","1")
+Active.Type = "03.SP" # "01.OW" "02.HO" or "03.SP"
+Active.Subtype = paste0(Active.Type, "_C","1")
 
 Active.Profile = ResidentialProfiles[ResidentialProfiles$Type == Active.Type,]
 Active.Subprofile = ResidentialProfiles[ResidentialProfiles$Subtype == Active.Subtype,]
@@ -276,7 +276,7 @@ if (!exists("CRAB_Doel") & !file.exists(dir.P))
   }
 }
 
-## Determine PPH for the active profile.
+
 # Check if data already exists. If so, it will not run.
 if (!file.exists(dir.P))
 {
@@ -289,6 +289,7 @@ if (!file.exists(dir.P))
   # Create buffer to mimic the range of the RIO-IFDM points
   Belgium = gBuffer(Belgium, byid = F, id = NULL, width = 2000)
   
+  ## Determine PPH for the active profile.
   DeterminePPH_FL(CRAB_Doel, Names, 1000, Active.Type, Active.Subprofile,
                   Plot = TRUE, SaveResults = TRUE, Belgium, Active.SetSeedNr, Commuting, DrivingDistanceLinearDistance)
 }
@@ -299,6 +300,7 @@ if (file.exists(dir.P))
   if (exists("CRAB_Doel")) {rm(CRAB_Doel)}
   if (exists("Belgium")) {rm(Belgium)}
   #, KEY.InputData, DownloadMode, keyInputData.dir, Filenames)
+  gc()
 }
 
 # Read the Personal Place History (PPH)
@@ -600,7 +602,7 @@ if (Active.Subprofile$Dynamics == "dynamic")
     # }
     
     for (f in 1:Fragments)
-      #for (f in 2:Fragments)
+      #for (f in Fragments)
     {
       YearDates.Sub = YearDates2(year.active)[(SeqFragment[f]+1):(SeqFragment[f+1])]
       Time.Sub = Time[Time > YearDates.Sub[1] & Time <= (tail(YearDates.Sub,1) + 24*60**2)]
@@ -719,19 +721,15 @@ if (Active.Subprofile$Dynamics == "dynamic")
   }
 } else # close dynamic, start static
   {
+    
+    #! Detect if the TIME (and EXP) dbf's already exist
+    
+    
     TIME = CreateCorrespondingDateAndTime(Active.Type, Active.Subprofile, PPH.P,
                                           YearDates, year.active)
     TIME.P = TIME[[2]]
     rm(TIME)
-    
-    # Hours of the year
-    HOURS.P = HourOfTheYear7(year.active, TIME.P, 0)
-    
-    # Detect which hours belong to which points | change name systematically to HoP (Hour of Point) = HoP.P etc.
-    HOP = WhichHourForWhichPoint(PPH.P, Time, HOURS.P, Print = FALSE,
-                                 Active.Subprofile = Active.Subprofile, SeqFragment = 0)
-    HoP.P = HOP[[1]]
-    rm(HOP)
+    gc()
     
     # Write TIME to disk
     WriteToDisk = TRUE
@@ -741,7 +739,20 @@ if (Active.Subprofile$Dynamics == "dynamic")
       SaveAsDBF(TIME.P, "Time", "Primary", Active.Subtype, OW, pol, 0)
     }
     
+    #! When TIME dbf's exist
+    
     TIME.P = DBFreader("Time", "Primary", PPH.P, YearDates, Active.Subtype)
+    
+    # Hours of the year
+    HOURS.P = HourOfTheYear7(year.active, TIME.P, 0)
+    
+    # Detect which hours belong to which points | change name systematically to HoP (Hour of Point) = HoP.P etc.
+    HOP = WhichHourForWhichPoint(PPH.P, Time, HOURS.P, Print = FALSE,
+                                 Active.Subprofile = Active.Subprofile, SeqFragment = 0)
+    HoP.P = HOP[[1]]
+    rm(HOP)
+    gc()
+    
     
     ## Interpolating the points
     start.time = Sys.time()
