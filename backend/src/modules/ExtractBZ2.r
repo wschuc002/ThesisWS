@@ -38,6 +38,7 @@ ExtractBZ2 <- function(pol, PolDir, StartHour = 1, EndHour = length(YearDates)*2
   {
     if (!file.exists(txt.dr[d]))
     {
+      print(paste("Extracting", bz2.dr[d]))
       bunzip2(bz2.dr[d], txt.dr[d], remove = FALSE, skip = TRUE)
     }
   }
