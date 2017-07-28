@@ -225,7 +225,7 @@ Points.NoVal@proj4string = BE_crs
 # Beginning of profile based code
 
 # Select active Residential Profile
-Active.Type = "03.SP" # "01.OW" "02.HO" or "03.SP"
+Active.Type = "01.OW" # "01.OW" "02.HO" or "03.SP"
 Active.Subtype = paste0(Active.Type, "_C","1")
 
 Active.Profile = ResidentialProfiles[ResidentialProfiles$Type == Active.Type,]
@@ -778,11 +778,13 @@ if (Active.Subprofile$Dynamics == "dynamic")
       SaveAsDBF(ExposureValue.P, "Exposure", "Primary", Active.Subtype, OW, pol, 0)
     }
     
-    ExposureValue.P = DBFreader("Exposure", "Primary", PPH.P, YearDates, Active.Subtype)
+    ExposureValue.P = DBFreader("Exposure", "Primary", PPH.P, YearDates, Active.Subtype, pol)
     
     
-    # DF structure
-    ST.DF.P = DF.Structure2(PPH.P, TIME.P, TIME.P, ExposureValue.P)
+    # HR structure (skip ST.DF.P in static PPH... ST.DF.P = ST.DF.HR)
+    ST.DF.HR = DF.Structure2(PPH.P, TIME.P, Time, ExposureValue.P)
+    
+    SaveAsDBF(ST.DF.HR, "HR", "HR", Active.Subtype, OW, pol, 0)
     
     
     
