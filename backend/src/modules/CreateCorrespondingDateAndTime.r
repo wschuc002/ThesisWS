@@ -38,7 +38,7 @@ CreateCorrespondingDateAndTime <- function(Active.Type, Active.Subprofile, PPH.P
                                            YearDates, BusinesDates, WeekendDates, HoliDates,
                                            PPH.T1.Pnt.Li, PPH.T2.Pnt.Li,
                                            TimeVertex.T1, TimeVertex.T2, PPH.T1.PNT.RS, PPH.T2.PNT.RS,
-                                           Year, SeqFragment, F., SeqParts, P., ...)
+                                           Year, SeqFragment, F., ...)
 {
   PHASES = list()
   TIME.P = list()
@@ -83,9 +83,9 @@ CreateCorrespondingDateAndTime <- function(Active.Type, Active.Subprofile, PPH.P
         
         Phases[[d]] = c(YearDates[d]+1*60**2, # start day [1]
                         YearDates[d]+Leave.P.StartTime*60**2, # leave P [2]
-                        (tail(TimeVertex.T1[[i+SeqParts[P.]]],1)+(d+SeqFragment[F.]-1)*24*60**2), # arrive S [3]
+                        (tail(TimeVertex.T1[[i]],1)+(d+SeqFragment[F.]-1)*24*60**2), # arrive S [3]
                         YearDates[d]+Leave.S.StartTime*60**2, # leave S [4]
-                        (tail(TimeVertex.T2[[i+SeqParts[P.]]],1)+(d+SeqFragment[F.]-1)*24*60**2), #arrive P [5]
+                        (tail(TimeVertex.T2[[i]],1)+(d+SeqFragment[F.]-1)*24*60**2), #arrive P [5]
                         YearDates[d]+24*60**2) # end day [6]
         
         Time.P[[d]] = c(seq(Phases[[d]][1], Phases[[d]][2], 1*60**2),
@@ -100,16 +100,23 @@ CreateCorrespondingDateAndTime <- function(Active.Type, Active.Subprofile, PPH.P
         Time.S[[d]] = unique(Time.S[[d]])
         
                             
-        tree.T1 = createTree(coordinates(PPH.T1.Pnt.Li[[i+SeqParts[P.]]]))
+        tree.T1 = createTree(coordinates(PPH.T1.Pnt.Li[[i]]))
         inds.T1 = knnLookup(tree.T1, newdat = coordinates(PPH.T1.PNT.RS[[i]][[d]]), k = 1) # gives the matrix
         inds.T1 = sort(as.vector(inds.T1))
         
-        tree.T2 = createTree(coordinates(PPH.T2.Pnt.Li[[i+SeqParts[P.]]]))
+        tree.T2 = createTree(coordinates(PPH.T2.Pnt.Li[[i]]))
         inds.T2 = knnLookup(tree.T2, newdat = coordinates(PPH.T2.PNT.RS[[i]][[d]]), k = 1) # gives the matrix
         inds.T2 = sort(as.vector(inds.T2))
 
-        Time.T1[[d]] = TimeVertex.T1[[i+SeqParts[P.]]][inds.T1]+(d+SeqFragment[F.]-1)*24*60**2
-        Time.T2[[d]] = TimeVertex.T2[[i+SeqParts[P.]]][inds.T2]+(d+SeqFragment[F.]-1)*24*60**2
+        Time.T1[[d]] = TimeVertex.T1[[i]][inds.T1]+(d+SeqFragment[F.]-1)*24*60**2
+        Time.T2[[d]] = TimeVertex.T2[[i]][inds.T2]+(d+SeqFragment[F.]-1)*24*60**2
+        
+        # Check if first and last element are not the same
+        if (head(Time.T1[[d]],1) == tail(Time.T1[[d]],1) |
+            head(Time.T2[[d]],1) == tail(Time.T2[[d]],1))
+        {
+          stop(paste("TIMEs in Transport are the same for individual", i, "day", d))
+        }
       }
       
       days = which(YearDates %in% WeekendDates == TRUE)
