@@ -42,8 +42,12 @@ library(SearchTrees)
 PPH.TIN.InterpolationWS <- function(PPH.P, PPH.S, PPH.T1.Pnt, PPH.T2.Pnt, POL, PolDir, Plot,
                                     pol, StartHour = 1, EndHour = length(YearDates)*24,
                                     HOURS.P, HOURS.S, HOURS.T1, HOURS.T2, NearestPoints,
-                                    wP, wS, wT1, wT2, Active.Subprofile, seq, ...)
+                                    wP, wS, wT1, wT2, Active.Subprofile, seq,
+                                    Include_P = TRUE, Include_S = TRUE,
+                                    Include_T1 = TRUE, Include_T2 = TRUE, ...)
 {
+  start.time = Sys.time()
+  
   txt.dr = ExtractBZ2(pol, PolDir, StartHour, EndHour)
   
   # Create tree
@@ -95,7 +99,7 @@ PPH.TIN.InterpolationWS <- function(PPH.P, PPH.S, PPH.T1.Pnt, PPH.T2.Pnt, POL, P
     print(paste0("Series2 Day ", dayS2))
     print(txt.dr[h])
     print(paste0(h/length(StartHour:EndHour)*100, "%"))
-    if (exists("f")) {print(paste0((h/length(StartHour:EndHour)*100)*(f/Fragments) , "%"))}
+    if (exists("f")) {print(paste0( (h/length(StartHour:EndHour)*length(Fragments)) + ((f-1)/length(Fragments)*100) , "%"))}
     
     POL.h = fread(txt.dr[h], sep=";", header=TRUE, select = "values")
     POL@data = POL.h
@@ -105,22 +109,12 @@ PPH.TIN.InterpolationWS <- function(PPH.P, PPH.S, PPH.T1.Pnt, PPH.T2.Pnt, POL, P
     {
       cat(paste(i," "))
       
-      if (length(wP[[i]][[h]]) > 0)
+      if (Include_P)
       {
-        # select proximity coordinates
-        inds = knnLookup(tree, newdat = coordinates(PPH.P[i,]), k = NearestPoints) # gives the matrix
-        inds = as.vector(inds)
-        
-        POL.sel = POL[inds,]
-        
-        # do the TIN interpolation
-        Exp.P = unlist(akima::interp(x = POL.sel@coords[,1], y = POL.sel@coords[,2], z = unlist(POL.sel@data[,1]),
-                                     xo = PPH.P[i,]@coords[,1], yo = PPH.P[i,]@coords[,2], extrap = FALSE, duplicate = "strip",
-                                     linear = TRUE))[3]
-        if (is.na(Exp.P))
+        if (length(wP[[i]][[h]]) > 0)
         {
           # select proximity coordinates
-          inds = knnLookup(tree, newdat = coordinates(PPH.P[i,]), k = NearestPoints+100) # gives the matrix
+          inds = knnLookup(tree, newdat = coordinates(PPH.P[i,]), k = NearestPoints) # gives the matrix
           inds = as.vector(inds)
           
           POL.sel = POL[inds,]
@@ -129,37 +123,42 @@ PPH.TIN.InterpolationWS <- function(PPH.P, PPH.S, PPH.T1.Pnt, PPH.T2.Pnt, POL, P
           Exp.P = unlist(akima::interp(x = POL.sel@coords[,1], y = POL.sel@coords[,2], z = unlist(POL.sel@data[,1]),
                                        xo = PPH.P[i,]@coords[,1], yo = PPH.P[i,]@coords[,2], extrap = FALSE, duplicate = "strip",
                                        linear = TRUE))[3]
+          if (is.na(Exp.P))
+          {
+            # select proximity coordinates
+            inds = knnLookup(tree, newdat = coordinates(PPH.P[i,]), k = NearestPoints+100) # gives the matrix
+            inds = as.vector(inds)
+            
+            POL.sel = POL[inds,]
+            
+            # do the TIN interpolation
+            Exp.P = unlist(akima::interp(x = POL.sel@coords[,1], y = POL.sel@coords[,2], z = unlist(POL.sel@data[,1]),
+                                         xo = PPH.P[i,]@coords[,1], yo = PPH.P[i,]@coords[,2], extrap = FALSE, duplicate = "strip",
+                                         linear = TRUE))[3]
+          }
+          
+          if (Plot == TRUE)
+          {
+            plot(POL.sel)
+            text(POL.sel, labels = round( unlist(POL.sel@data[,1]),3), pos = 3, cex = 0.6)
+            points(PPH.P[i,], col = 11, font = 2, pch = 19)
+            text(PPH.P[i,], labels = round(Exp.P,3), pos = 1, cex = 1, col = 11, font = 2)
+          }
+          
+          EXP.P.Li[[i]][[dayS]][wP[[i]][[h]]] = Exp.P
         }
-        
-        if (Plot == TRUE)
-        {
-          plot(POL.sel)
-          text(POL.sel, labels = round( unlist(POL.sel@data[,1]),3), pos = 3, cex = 0.6)
-          points(PPH.P[i,], col = 11, font = 2, pch = 19)
-          text(PPH.P[i,], labels = round(Exp.P,3), pos = 1, cex = 1, col = 11, font = 2)
-        }
-        
-        EXP.P.Li[[i]][[dayS]][wP[[i]][[h]]] = Exp.P
-      }
+      } # closing Primary
+      
       
       if (Active.Subprofile$Dynamics == "dynamic")
       {
-        if (length(wS[[i]][[h]]) > 0)
+        
+        if (Include_S)
         {
-          # select proximity coordinates
-          inds = knnLookup(tree, newdat = coordinates(PPH.S[i,]), k = NearestPoints) # gives the matrix
-          inds = as.vector(inds)
-          
-          POL.sel = POL[inds,]
-          
-          # do the TIN interpolation
-          Exp.S = unlist(akima::interp(x = POL.sel@coords[,1], y = POL.sel@coords[,2], z = unlist(POL.sel@data[,1]),
-                                       xo = PPH.S[i,]@coords[,1], yo = PPH.S[i,]@coords[,2], extrap = FALSE, duplicate = "strip",
-                                       linear = TRUE))[3]
-          if (is.na(Exp.S))
+          if (length(wS[[i]][[h]]) > 0 & Include_S)
           {
             # select proximity coordinates
-            inds = knnLookup(tree, newdat = coordinates(PPH.S[i,]), k = NearestPoints+100) # gives the matrix
+            inds = knnLookup(tree, newdat = coordinates(PPH.S[i,]), k = NearestPoints) # gives the matrix
             inds = as.vector(inds)
             
             POL.sel = POL[inds,]
@@ -168,40 +167,44 @@ PPH.TIN.InterpolationWS <- function(PPH.P, PPH.S, PPH.T1.Pnt, PPH.T2.Pnt, POL, P
             Exp.S = unlist(akima::interp(x = POL.sel@coords[,1], y = POL.sel@coords[,2], z = unlist(POL.sel@data[,1]),
                                          xo = PPH.S[i,]@coords[,1], yo = PPH.S[i,]@coords[,2], extrap = FALSE, duplicate = "strip",
                                          linear = TRUE))[3]
-          }
-          
-          if (Plot == TRUE)
-          {
-            plot(POL.sel)
-            text(POL.sel, labels = round( unlist(POL.sel@data[,1]),3), pos = 3, cex = 0.6)
-            points(PPH.S[i,], col = "orange", font = 2, pch = 19)
-            text(PPH.S[i,], labels = round(Exp.S,3), pos = 1, cex = 1, col = "orange", font = 2)
-          }
-          
-          EXP.S.Li[[i]][[dayS]][wS[[i]][[h]]] = Exp.S
-        }
-        
-        if (length(wT1[[i]][[h]]) > 0)
-        {
-          if (Plot == TRUE){ plot(POL[as.vector(knnLookup(tree, newdat = coordinates(PPH.T1.Pnt[[i]][[dayS2]]), k = NearestPoints)),]) }
-          
-          for (v in seq_along(wT1[[i]][[h]]))
-          {
-            # select proximity coordinates
-            CoordsOfInterest = PPH.T1.Pnt[[i]][[dayS2]][v,]@coords
-            inds = knnLookup(tree, newdat = CoordsOfInterest, k = NearestPoints)
-            inds = as.vector(inds)
-            
-            POL.sel = POL[inds,]
-            
-            # do the TIN interpolation
-            Exp.T1 = unlist(akima::interp(x = POL.sel@coords[,1], y = POL.sel@coords[,2], z = unlist(POL.sel@data[,1]),
-                                          xo = CoordsOfInterest[1], yo = CoordsOfInterest[2], extrap = FALSE, duplicate = "strip",
-                                          linear = TRUE))[3]
-            if (is.na(Exp.T1))
+            if (is.na(Exp.S))
             {
               # select proximity coordinates
-              inds = knnLookup(tree, newdat = CoordsOfInterest, k = NearestPoints+100)
+              inds = knnLookup(tree, newdat = coordinates(PPH.S[i,]), k = NearestPoints+100) # gives the matrix
+              inds = as.vector(inds)
+              
+              POL.sel = POL[inds,]
+              
+              # do the TIN interpolation
+              Exp.S = unlist(akima::interp(x = POL.sel@coords[,1], y = POL.sel@coords[,2], z = unlist(POL.sel@data[,1]),
+                                           xo = PPH.S[i,]@coords[,1], yo = PPH.S[i,]@coords[,2], extrap = FALSE, duplicate = "strip",
+                                           linear = TRUE))[3]
+            }
+            
+            if (Plot == TRUE)
+            {
+              plot(POL.sel)
+              text(POL.sel, labels = round( unlist(POL.sel@data[,1]),3), pos = 3, cex = 0.6)
+              points(PPH.S[i,], col = "orange", font = 2, pch = 19)
+              text(PPH.S[i,], labels = round(Exp.S,3), pos = 1, cex = 1, col = "orange", font = 2)
+            }
+            
+            EXP.S.Li[[i]][[dayS]][wS[[i]][[h]]] = Exp.S
+          } 
+        } # closing Secondary
+        
+        
+        if (Include_T1)
+        {
+          if (length(wT1[[i]][[h]]) > 0)
+          {
+            if (Plot == TRUE){ plot(POL[as.vector(knnLookup(tree, newdat = coordinates(PPH.T1.Pnt[[i]][[dayS2]]), k = NearestPoints)),]) }
+            
+            for (v in seq_along(wT1[[i]][[h]]))
+            {
+              # select proximity coordinates
+              CoordsOfInterest = PPH.T1.Pnt[[i]][[dayS2]][v,]@coords
+              inds = knnLookup(tree, newdat = CoordsOfInterest, k = NearestPoints)
               inds = as.vector(inds)
               
               POL.sel = POL[inds,]
@@ -210,44 +213,48 @@ PPH.TIN.InterpolationWS <- function(PPH.P, PPH.S, PPH.T1.Pnt, PPH.T2.Pnt, POL, P
               Exp.T1 = unlist(akima::interp(x = POL.sel@coords[,1], y = POL.sel@coords[,2], z = unlist(POL.sel@data[,1]),
                                             xo = CoordsOfInterest[1], yo = CoordsOfInterest[2], extrap = FALSE, duplicate = "strip",
                                             linear = TRUE))[3]
+              if (is.na(Exp.T1))
+              {
+                # select proximity coordinates
+                inds = knnLookup(tree, newdat = CoordsOfInterest, k = NearestPoints+100)
+                inds = as.vector(inds)
+                
+                POL.sel = POL[inds,]
+                
+                # do the TIN interpolation
+                Exp.T1 = unlist(akima::interp(x = POL.sel@coords[,1], y = POL.sel@coords[,2], z = unlist(POL.sel@data[,1]),
+                                              xo = CoordsOfInterest[1], yo = CoordsOfInterest[2], extrap = FALSE, duplicate = "strip",
+                                              linear = TRUE))[3]
+              }
+              
+              
+              if (Plot == TRUE)
+              {
+                #plot(POL.sel)
+                #               
+                #               text(POL.sel, labels = round( unlist(POL.sel@data[,1]),3), pos = 3, cex = 0.6)
+                points(CoordsOfInterest, col="purple", font = 2, pch = 19)
+                text(CoordsOfInterest, labels = round(Exp.T1,3), pos = 1, cex = 1, font = 2, col = "purple")
+              }
+              
+              EXP.T1.Li[[i]][[dayS]][wT1[[i]][[h]][v]] = Exp.T1
             }
             
-            
-            if (Plot == TRUE)
-            {
-              #plot(POL.sel)
-              #               
-              #               text(POL.sel, labels = round( unlist(POL.sel@data[,1]),3), pos = 3, cex = 0.6)
-              points(CoordsOfInterest, col="purple", font = 2, pch = 19)
-              text(CoordsOfInterest, labels = round(Exp.T1,3), pos = 1, cex = 1, font = 2, col = "purple")
-            }
-            
-            EXP.T1.Li[[i]][[dayS]][wT1[[i]][[h]][v]] = Exp.T1
           }
-          
-        }
+        } # closing T1
         
-        if (length(wT2[[i]][[h]]) > 0)
+        
+        if (Include_T2)
         {
-          if (Plot == TRUE){ plot(POL[as.vector(knnLookup(tree, newdat = coordinates(PPH.T2.Pnt[[i]][[dayS2]]), k = NearestPoints)),]) }
-          
-          for (v in seq_along(wT2[[i]][[h]]))
+          if (length(wT2[[i]][[h]]) > 0)
           {
-            # select proximity coordinates
-            CoordsOfInterest = PPH.T2.Pnt[[i]][[dayS2]][v,]@coords
-            inds = knnLookup(tree, newdat = CoordsOfInterest, k = NearestPoints)
-            inds = as.vector(inds)
+            if (Plot == TRUE){ plot(POL[as.vector(knnLookup(tree, newdat = coordinates(PPH.T2.Pnt[[i]][[dayS2]]), k = NearestPoints)),]) }
             
-            POL.sel = POL[inds,]
-            
-            # do the TIN interpolation
-            Exp.T2 = unlist(akima::interp(x = POL.sel@coords[,1], y = POL.sel@coords[,2], z = unlist(POL.sel@data[,1]),
-                                          xo = CoordsOfInterest[1], yo = CoordsOfInterest[2], extrap = FALSE, duplicate = "strip",
-                                          linear = TRUE))[3]
-            if (is.na(Exp.T2))
+            for (v in seq_along(wT2[[i]][[h]]))
             {
               # select proximity coordinates
-              inds = knnLookup(tree, newdat = CoordsOfInterest, k = NearestPoints+100)
+              CoordsOfInterest = PPH.T2.Pnt[[i]][[dayS2]][v,]@coords
+              inds = knnLookup(tree, newdat = CoordsOfInterest, k = NearestPoints)
               inds = as.vector(inds)
               
               POL.sel = POL[inds,]
@@ -256,25 +263,46 @@ PPH.TIN.InterpolationWS <- function(PPH.P, PPH.S, PPH.T1.Pnt, PPH.T2.Pnt, POL, P
               Exp.T2 = unlist(akima::interp(x = POL.sel@coords[,1], y = POL.sel@coords[,2], z = unlist(POL.sel@data[,1]),
                                             xo = CoordsOfInterest[1], yo = CoordsOfInterest[2], extrap = FALSE, duplicate = "strip",
                                             linear = TRUE))[3]
+              if (is.na(Exp.T2))
+              {
+                # select proximity coordinates
+                inds = knnLookup(tree, newdat = CoordsOfInterest, k = NearestPoints+100)
+                inds = as.vector(inds)
+                
+                POL.sel = POL[inds,]
+                
+                # do the TIN interpolation
+                Exp.T2 = unlist(akima::interp(x = POL.sel@coords[,1], y = POL.sel@coords[,2], z = unlist(POL.sel@data[,1]),
+                                              xo = CoordsOfInterest[1], yo = CoordsOfInterest[2], extrap = FALSE, duplicate = "strip",
+                                              linear = TRUE))[3]
+              }
+              
+              if (Plot == TRUE)
+              {
+                #             text(POL.sel, labels = round( unlist(POL.sel@data[,1]),3), pos=3, cex = 0.4)
+                points(CoordsOfInterest, col = "blue", font = 2, pch = 19)
+                text(CoordsOfInterest, labels = round(Exp.T2,3), pos = 1, cex = 1, font = 2, col = "blue")
+              }
+              
+              EXP.T2.Li[[i]][[dayS]][wT2[[i]][[h]][v]] = Exp.T2
             }
-            
-            if (Plot == TRUE)
-            {
-              #             text(POL.sel, labels = round( unlist(POL.sel@data[,1]),3), pos=3, cex = 0.4)
-              points(CoordsOfInterest, col = "blue", font = 2, pch = 19)
-              text(CoordsOfInterest, labels = round(Exp.T2,3), pos = 1, cex = 1, font = 2, col = "blue")
-            }
-            
-            EXP.T2.Li[[i]][[dayS]][wT2[[i]][[h]][v]] = Exp.T2
           }
-          
-        }
+        } # closing T2
+        
       } # closing dynamics
       
     } # closing i
   } # closing h
   
-  return(list(EXP.P.Li, EXP.S.Li, EXP.T1.Li, EXP.T2.Li))
+  if (exists("EXP.P.Li")) {EXP.P = EXP.P.Li} else {EXP.P = NA}
+  if (exists("EXP.SP.Li")) {EXP.S = EXP.S.Li} else {EXP.S = NA}
+  if (exists("EXP.T1.Li")) {EXP.T1 = EXP.T1.Li} else {EXP.T1 = NA}
+  if (exists("EXP.T2.Li")) {EXP.T2 = EXP.T2.Li} else {EXP.T2 = NA}
+  
+  end.time = Sys.time()
+  Duration = difftime(end.time, start.time, units = 'hours')
+  
+  return(list(EXP.P, EXP.S, EXP.T1, EXP.T2, Duration))
 }
 
 #PPH = PPH.P
