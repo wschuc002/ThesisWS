@@ -23,9 +23,48 @@ if(length(new.packages)) install.packages(new.packages)
 library(corrplot)
 
 
-CorPlotTable <- function(GroupName, CorType, WS1, WS2, C1 = -9999, C2 = -9999, ...)
+  
+CorPlotGraphAndSave <- function(Type, Subtype1, Subtype2, Abbr1, Abbr2, Width = 1208, Height = 720, pol, ...)
 {
-  if (all(C1 == -9999 & C2 == -9999))
+  Plot_dir = file.path("..", "output", "plots")
+  if (!dir.exists(Plot_dir)) 
+  {
+    dir.create(Plot_dir)
+  }
+
+  png(filename = file.path(Plot_dir, paste("CORPLOT", Type, paste(Abbr1, Abbr2 , sep = "~"), pol,
+                                           paste0(length(PPH.P), ".png"), sep = "_")),
+      width = Width, height = Height, units = "px", pointsize = 12)
+  
+  plot(Subtype1, Subtype2, main = paste(Type, Abbr1, "vs.", Abbr2, pol, "(µg/m³)", length(PPH.P), "individuals"),
+       pch = "+", xlab = Abbr1, ylab = Abbr2)
+  R.squared = cor(Subtype1, Subtype2)**2
+  text(min(Subtype1), max(Subtype2)-1, pos = 1, labels = "R²:", font = 2)
+  text(min(Subtype1)+5, max(Subtype2)-1, pos = 1, labels = R.squared)
+
+  dev.off()
+}
+
+CorPlotTableAndSave <- function(Type, Subtype1, Subtype2, Subtype3 = -9999, Subtype4 = -9999,
+                                Width = 1208, Height = 720, pol, ...)
+{
+  Plot_dir = file.path("..", "output", "plots")
+  if (!dir.exists(Plot_dir)) 
+  {
+    dir.create(Plot_dir)
+  }
+  
+  png(filename = file.path(Plot_dir, paste("CORPLOTTABLE", Type, pol, paste0(length(PPH.P), ".png"), sep = "_")),
+      width = Width, height = Height, units = "px", pointsize = 12)
+  
+  CorPlotTable(Type, "Numbers", Subtype1, Subtype2, Subtype3, Subtype4, pol)
+  
+  dev.off()
+}
+
+CorPlotTable <- function(GroupName, CorType, WS1, WS2, C1 = -9999, C2 = -9999, pol, ...)
+{
+  if (all(C1 == -9999 & C2 == -9999)) # when not given
   {
     collect = data.frame(cbind(WS1, WS2))
   } else
@@ -44,16 +83,16 @@ CorPlotTable <- function(GroupName, CorType, WS1, WS2, C1 = -9999, C2 = -9999, .
   
   if (CorType == "Numbers")
   {
-    corrplot(C_squared, method="number", number.digits = 5, title = paste(GroupName, "R²"), #type = "upper"
-             umber.cex = 1, mar = c(1, 0, 1, 0), tl.srt = 90)
+    corrplot(C_squared, method="number", number.digits = 5, title = paste(GroupName, "R²", pol), #type = "upper"
+             mar = c(1, 0, 1, 0), tl.col = "black", tl.srt = 45, cl.lim = c(0,1))
   }
 }
 
 #Profile = Active.Type
 #IND.amount = length(PPH.P)
 #PlotMinMax = FALSE
-#DAY.start = 5
-#DAYS = 1 #length(YearDates)-1
+#DAY.start = 1
+#DAYS = length(YearDates)-1
 
 Plot.Group2 <- function(Profile, DAY.start, DAYS, IND.amount, PlotMinMax, ST.DF.P, ST.DF.S, ST.DF.T1, ST.DF.T2,
                         stats.EXP.P, stats.EXP.S, stats.EXP.T1, stats.EXP.T2, ...)
@@ -66,7 +105,7 @@ Plot.Group2 <- function(Profile, DAY.start, DAYS, IND.amount, PlotMinMax, ST.DF.
   }
   
   
-  ST.DF.HR = OW_WS1.ST.DF.HR
+  ST.DF.HR = HO_WS1.ST.DF.HR
   
   
   ST.DF.P.sub = ST.DF.P[ST.DF.P$TIME > YearDates[DAY.start] & ST.DF.P$TIME <= YearDates[DAY.start+DAYS],]
@@ -88,36 +127,41 @@ Plot.Group2 <- function(Profile, DAY.start, DAYS, IND.amount, PlotMinMax, ST.DF.
   E.max = max(stats.EXP.HR.sub$maxEXP, na.rm = T)
   E.max = 100
   
-  Col.P = rgb(red=0, green=0.5, blue=0.5, alpha=0.2)
-  Col.S = rgb(red=1, green=0.2, blue=0.5, alpha=0.2)
-  Col.T1 = rgb(red=0.5, green=0.2, blue=0.5, alpha=0.2)
-  Col.T2 = rgb(red=1, green=0.2, blue=0.2, alpha=0.2)
-  Col.HR = rgb(red=0.6, green=0.2, blue=0.2, alpha=0.2)
+  Col.P = rgb(red=0, green=0.5, blue=0.5, alpha=0.1)
+  Col.S = rgb(red=1, green=0.2, blue=0.5, alpha=0.1)
+  Col.T1 = rgb(red=0.5, green=0.2, blue=0.5, alpha=0.1)
+  Col.T2 = rgb(red=1, green=0.2, blue=0.2, alpha=0.1)
+  Col.HR = rgb(red=0.6, green=0.2, blue=0.2, alpha=0.1)
   
   # point plot with transparency in color
-  with (ST.DF.P.sub, plot(TIME, EXP, pch = "-", cex=1, col = Col.P, ylim=c(0, E.max+20),
+  with (ST.DF.P_F, plot(TIME, EXP, pch = ".", cex=1, col = Col.P, ylim=c(0, E.max+20),
                         xlab = "Time", ylab = paste(toupper(pol), "concentration (µg/m³)"),
                         main = paste(Active.Subprofile$FullName, ":", IND.amount, "out of", length(ExposureValue.P), "individuals")))
   
-  with (ST.DF.HR.sub, plot(TIME, EXP, pch = "-", cex=1, col = Col.P, ylim=c(0, E.max+20),
+  with (ST.DF.HR.sub, plot(TIME, EXP, pch = ".", cex=1, col = Col.P, ylim=c(0, E.max+20),
                       xlab = "Time", ylab = paste(toupper(pol), "concentration (µg/m³)"),
                       main = paste(Active.Subprofile$FullName, ":", IND.amount, "out of", length(PPH.P), "individuals")))
+  
+  with (ST.DF.HR, plot(TIME, EXP, pch = ".", cex=1, col = Col.HR, ylim=c(0, E.max+20),
+                           xlab = "Time", ylab = paste(toupper(pol), "concentration (µg/m³)"),
+                           main = paste(Active.Subprofile$FullName, ":", IND.amount, "out of", length(PPH.P), "individuals")))
   
   with (OW_C2.ST.DF.HR, plot(TIME, EXP, pch = ".", cex=1, col = Col.HR, ylim=c(0, E.max+20),
                             xlab = "Time", ylab = paste(toupper(pol), "Biweekly concentration (µg/m³)"),
                             main = paste(Active.Subprofile$Type, ":", IND.amount, "out of", length(ExposureValue.P), "individuals")))
   
   
-  with (ST.DF.S.sub, points(TIME, EXP, pch = "-", cex=1, col = Col.S))
-  with (ST.DF.T1.sub, points(TIME, EXP, pch = ".", cex=1, col = Col.T1))
-  with (ST.DF.T2.sub, points(TIME, EXP, pch = ".", cex=1, col = Col.T2))
+  with (ST.DF.S_F, points(TIME, EXP, pch = ".", cex=1, col = Col.S))
+  with (ST.DF.T1_F, points(TIME, EXP, pch = ".", cex=1, col = Col.T1))
+  with (ST.DF.T2_F, points(TIME, EXP, pch = ".", cex=1, col = Col.T2))
   
   mtext(paste(head(ST.DF.P.sub$TIME,1), "-", tail(ST.DF.P.sub$TIME,1) + 0.001))
   mtext(paste(head(ST.DF.HR.sub$TIME,1), "-", tail(ST.DF.HR.sub$TIME,1) + 0.001))
 
   #add mean, min and max to plot
   points(as.POSIXct(stats.EXP.P$TIME), stats.EXP.P$meanEXP, col = "orange", pch = "-", cex = 1)
-  points(as.POSIXct(stats.EXP.HR$TIME), stats.EXP.HR$meanEXP, col = "orange", pch = "-", cex = 1)
+  points(as.POSIXct(stats.EXP.HR$TIME), stats.EXP.HR$meanEXP, col = "orange", pch = ".", cex = 1) 
+  points(as.POSIXct(stats.EXP.HR.sub$TIME), stats.EXP.HR.sub$meanEXP, col = "orange", pch = "-", cex = 1)
   
   if (PlotMinMax == TRUE)
   {
