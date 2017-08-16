@@ -92,7 +92,11 @@ CorPlotTable <- function(GroupName, CorType, WS1, WS2, C1 = -9999, C2 = -9999, p
 #IND.amount = length(PPH.P)
 #PlotMinMax = FALSE
 #DAY.start = 1
+<<<<<<< HEAD
 #DAYS = length(YearDates)-1
+=======
+#DAYS = 30 length(TIME.P[[1]]) #21 #length(YearDates)-1
+>>>>>>> b95ed32799e2b887dcd9296c95c16df7bb2e5773
 
 Plot.Group2 <- function(Profile, DAY.start, DAYS, IND.amount, PlotMinMax, ST.DF.P, ST.DF.S, ST.DF.T1, ST.DF.T2,
                         stats.EXP.P, stats.EXP.S, stats.EXP.T1, stats.EXP.T2, ...)
@@ -108,8 +112,8 @@ Plot.Group2 <- function(Profile, DAY.start, DAYS, IND.amount, PlotMinMax, ST.DF.
   ST.DF.HR = HO_WS1.ST.DF.HR
   
   
-  ST.DF.P.sub = ST.DF.P[ST.DF.P$TIME > YearDates[DAY.start] & ST.DF.P$TIME <= YearDates[DAY.start+DAYS],]
-  ST.DF.S.sub = ST.DF.S[ST.DF.S$TIME > YearDates[DAY.start] & ST.DF.S$TIME <= YearDates[DAY.start+DAYS],]
+  ST.DF.P.sub = ST.DF.P[ST.DF.P$TIME > YearDates.Sub[DAY.start] & ST.DF.P$TIME <= YearDates.Sub[DAYS],]
+  ST.DF.S.sub = ST.DF.S[ST.DF.S$TIME > YearDates.Sub[DAY.start] & ST.DF.S$TIME <= YearDates.Sub[DAYS],]
   ST.DF.T1.sub = ST.DF.T1[ST.DF.T1$TIME > YearDates[DAY.start] & ST.DF.T1$TIME <= YearDates[DAY.start+DAYS],]
   ST.DF.T2.sub = ST.DF.T2[ST.DF.T2$TIME > YearDates[DAY.start] & ST.DF.T2$TIME <= YearDates[DAY.start+DAYS],]
   
@@ -134,7 +138,11 @@ Plot.Group2 <- function(Profile, DAY.start, DAYS, IND.amount, PlotMinMax, ST.DF.
   Col.HR = rgb(red=0.6, green=0.2, blue=0.2, alpha=0.1)
   
   # point plot with transparency in color
+<<<<<<< HEAD
   with (ST.DF.P_F, plot(TIME, EXP, pch = ".", cex=1, col = Col.P, ylim=c(0, E.max+20),
+=======
+  with (ST.DF.P, plot(TIME, EXP, pch = "-", cex=1, col = Col.P, ylim=c(0, E.max+20),
+>>>>>>> b95ed32799e2b887dcd9296c95c16df7bb2e5773
                         xlab = "Time", ylab = paste(toupper(pol), "concentration (µg/m³)"),
                         main = paste(Active.Subprofile$FullName, ":", IND.amount, "out of", length(ExposureValue.P), "individuals")))
   
