@@ -1428,11 +1428,13 @@ for (i in seq_along(PPH.P))
   {
     if (!exists("OW_WS1.INDmean")) { OW_WS1.INDmean = NA }
     if (!exists("OW_WS2.INDmean")) { OW_WS2.INDmean = NA }
+    if (!exists("OW_WS1.INDsum")) { OW_WS1.INDsum = NA }
     
     OW_WS1.INDmean[i] = mean(ST.DF.HR[ST.DF.HR$IND == i,]$EXP, na.rm = TRUE)
     OW_WS2.INDmean[i] = mean(ST.DF.HR.BiWe[ST.DF.HR.BiWe$IND == i,]$EXP, na.rm = TRUE)
     # OW_WS1.INDmax[i] = max(ST.DF.HR[ST.DF.HR$IND == i,]$EXP, na.rm = TRUE)
     # OW_WS2.INDmax[i] = max(ST.DF.HR.BiWe[ST.DF.HR.BiWe$IND == i,]$EXP, na.rm = TRUE)
+    OW_WS1.INDsum[i] = sum(ST.DF.HR[ST.DF.HR$IND == i,]$EXP, na.rm = TRUE)
   }
   
   if (Active.Subprofile$Subtype == "01.OW_C1") # change to C
@@ -1472,79 +1474,32 @@ for (i in seq_along(PPH.P))
   }
 }
 
-# The (13) detailed plots
 
-plot(OW_WS1.INDmean, OW_WS2.INDmean, main = paste("01.OW", "WS1 vs. WS2 (µg/m³)", length(PPH.P), "individuals") , pch = "+")
-R.squared = cor(OW_WS1.INDmean, OW_WS2.INDmean)**2
-text(min(OW_WS1.INDmean), max(OW_WS2.INDmean)-1, pos = 1, labels = "R²:", font = 2)
-text(min(OW_WS1.INDmean)+5, max(OW_WS2.INDmean)-1, pos = 1, labels = R.squared)
+# Plot and save the (13) Correlation plot graphs
+CorPlotGraphAndSave("01.OW", OW_WS1.INDmean, OW_WS2.INDmean, "WS1", "WS2", Width = 720, Height = 480, pol = toupper(pol))
+CorPlotGraphAndSave("01.OW", OW_WS1.INDmean, OW_C1.INDmean, "WS1", "C1", Width = 720, Height = 480, pol = toupper(pol))
+CorPlotGraphAndSave("01.OW", OW_WS1.INDmean, OW_C2.INDmean, "WS1", "C2", Width = 720, Height = 480, pol = toupper(pol))
+CorPlotGraphAndSave("01.OW", OW_WS2.INDmean, OW_C1.INDmean, "WS2", "C1", Width = 720, Height = 480, pol = toupper(pol))
+CorPlotGraphAndSave("01.OW", OW_WS2.INDmean, OW_C2.INDmean, "WS2", "C2", Width = 720, Height = 480, pol = toupper(pol))
+CorPlotGraphAndSave("01.OW", OW_C1.INDmean, OW_C2.INDmean, "C1", "C2", Width = 720, Height = 480, pol = toupper(pol))
 
-plot(OW_C1.INDmean, OW_C2.INDmean, main = paste("01.OW", "C1 vs. C2 (µg/m³)", length(PPH.P), "individuals") , pch = "+")
-R.squared = cor(OW_C1.INDmean, OW_C2.INDmean)**2
-text(min(OW_C1.INDmean), max(OW_C2.INDmean)-1, pos = 1, labels = "R²:", font = 2)
-text(min(OW_C1.INDmean)+5, max(OW_C2.INDmean)-1, pos = 1, labels = R.squared)
+CorPlotGraphAndSave("02.HO", HO_WS1.INDmean, HO_WS2.INDmean, "WS1", "WS2", Width = 720, Height = 480, pol = toupper(pol))
 
-plot(OW_WS1.INDmean, OW_C1.INDmean, main = paste("01.OW", "WS1 vs. C1 (µg/m³)", length(PPH.P), "individuals") , pch = "+")
-R.squared = cor(OW_WS1.INDmean, OW_C1.INDmean)**2
-text(min(OW_WS1.INDmean), max(OW_C1.INDmean)-1, pos = 1, labels = "R²:", font = 2)
-text(min(OW_WS1.INDmean)+5, max(OW_C1.INDmean)-1, pos = 1, labels = R.squared)
+CorPlotGraphAndSave("03.SP", SP_WS1.INDmean, SP_WS2.INDmean, "WS1", "WS2", Width = 720, Height = 480, pol = toupper(pol))
+CorPlotGraphAndSave("03.SP", SP_WS1.INDmean, SP_C1.INDmean, "WS1", "C1", Width = 720, Height = 480, pol = toupper(pol))
+CorPlotGraphAndSave("03.SP", SP_WS1.INDmean, SP_C2.INDmean, "WS1", "C2", Width = 720, Height = 480, pol = toupper(pol))
+CorPlotGraphAndSave("03.SP", SP_WS2.INDmean, SP_C1.INDmean, "WS2", "C1", Width = 720, Height = 480, pol = toupper(pol))
+CorPlotGraphAndSave("03.SP", SP_WS2.INDmean, SP_C2.INDmean, "WS2", "C2", Width = 720, Height = 480, pol = toupper(pol))
+CorPlotGraphAndSave("03.SP", SP_C1.INDmean, SP_C2.INDmean, "C1", "C2", Width = 720, Height = 480, pol = toupper(pol))
 
-plot(OW_WS1.INDmean, OW_C2.INDmean, main = paste("01.OW", "WS1 vs. C2 (µg/m³)", length(PPH.P), "individuals") , pch = "+")
-R.squared = cor(OW_WS1.INDmean, OW_C2.INDmean)**2
-text(min(OW_WS1.INDmean), max(OW_C2.INDmean)-1, pos = 1, labels = "R²:", font = 2)
-text(min(OW_WS1.INDmean)+5, max(OW_C2.INDmean)-1, pos = 1, labels = R.squared)
+# Plot and save the (3) Correlation plot tables
+CorPlotTableAndSave("01.OW", OW_WS1.INDmean, OW_WS2.INDmean, OW_C1.INDmean, OW_C2.INDmean, Width = 720, Height = 480, pol = toupper(pol))
+CorPlotTableAndSave("02.HO", HO_WS1.INDmean, HO_WS2.INDmean, Width = 720, Height = 480, pol = toupper(pol))
+CorPlotTableAndSave("03.SP", SP_WS1.INDmean, SP_WS2.INDmean, SP_C1.INDmean, SP_C2.INDmean, Width = 720, Height = 480, toupper(pol))
 
-plot(OW_WS2.INDmean, OW_C1.INDmean, main = paste("01.OW", "WS2 vs. C1 (µg/m³)", length(PPH.P), "individuals") , pch = "+")
-R.squared = cor(OW_WS2.INDmean, OW_C1.INDmean)**2
-text(min(OW_WS2.INDmean), max(OW_C1.INDmean)-1, pos = 1, labels = "R²:", font = 2)
-text(min(OW_WS2.INDmean)+5, max(OW_C1.INDmean)-1, pos = 1, labels = R.squared)
-
-plot(OW_WS2.INDmean, OW_C2.INDmean, main = paste("01.OW", "WS2 vs. C2 (µg/m³)", length(PPH.P), "individuals") , pch = "+")
-R.squared = cor(OW_WS2.INDmean, OW_C2.INDmean)**2
-text(min(OW_WS2.INDmean), max(OW_C2.INDmean)-1, pos = 1, labels = "R²:", font = 2)
-text(min(OW_WS2.INDmean)+5, max(OW_C2.INDmean)-1, pos = 1, labels = R.squared)
-
-
-plot(HO_WS1.INDmean, HO_WS2.INDmean, main = paste("02.HO", "WS1 vs. WS2 (µg/m³)", length(PPH.P), "individuals") , pch = "+")
-R.squared = cor(HO_WS1.INDmean, HO_WS2.INDmean)**2
-text(min(HO_WS1.INDmean), max(HO_WS2.INDmean)-1, pos = 1, labels = "R²:", font = 2)
-text(min(HO_WS1.INDmean)+5, max(HO_WS2.INDmean)-1, pos = 1, labels = R.squared)
-
-
-plot(SP_WS1.INDmean, SP_WS2.INDmean, main = paste("03.SP","WS1 vs. WS2 (µg/m³)", length(PPH.P), "individuals") , pch = "+")
-R.squared = cor(SP_WS1.INDmean, SP_WS2.INDmean)**2
-text(min(SP_WS1.INDmean), max(SP_WS2.INDmean)-1, pos = 1, labels = "R²:", font = 2)
-text(min(SP_WS1.INDmean)+5, max(SP_WS2.INDmean)-1, pos = 1, labels = R.squared)
-
-plot(SP_C1.INDmean, SP_C2.INDmean, main = paste("03.SP","C1 vs. C2 (µg/m³)", length(PPH.P), "individuals") , pch = "+")
-R.squared = cor(SP_C1.INDmean, SP_C2.INDmean)**2
-text(min(SP_C1.INDmean), max(SP_C2.INDmean)-1, pos = 1, labels = "R²:", font = 2)
-text(min(SP_C1.INDmean)+5, max(SP_C2.INDmean)-1, pos = 1, labels = R.squared)
-
-plot(SP_WS1.INDmean, SP_C1.INDmean, main = paste("03.SP", "WS1 vs. C1 (µg/m³)", length(PPH.P), "individuals") , pch = "+")
-R.squared = cor(SP_WS1.INDmean, SP_C1.INDmean)**2
-text(min(SP_WS1.INDmean), max(SP_C1.INDmean)-1, pos = 1, labels = "R²:", font = 2)
-text(min(SP_WS1.INDmean)+5, max(SP_C1.INDmean)-1, pos = 1, labels = R.squared)
-
-plot(SP_WS1.INDmean, SP_C2.INDmean, main = paste("03.SP", "WS1 vs. C2 (µg/m³)", length(PPH.P), "individuals") , pch = "+")
-R.squared = cor(SP_WS1.INDmean, SP_C2.INDmean)**2
-text(min(SP_WS1.INDmean), max(SP_C2.INDmean)-1, pos = 1, labels = "R²:", font = 2)
-text(min(SP_WS1.INDmean)+5, max(SP_C2.INDmean)-1, pos = 1, labels = R.squared)
-
-plot(SP_WS2.INDmean, SP_C1.INDmean, main = paste("03.SP", "WS2 vs. C1 (µg/m³)", length(PPH.P), "individuals") , pch = "+")
-R.squared = cor(SP_WS2.INDmean, SP_C1.INDmean)**2
-text(min(SP_WS2.INDmean), max(SP_C1.INDmean)-1, pos = 1, labels = "R²:", font = 2)
-text(min(SP_WS2.INDmean)+5, max(SP_C1.INDmean)-1, pos = 1, labels = R.squared)
-
-plot(SP_WS2.INDmean, SP_C2.INDmean, main = paste("03.SP", "WS2 vs. C2 (µg/m³)", length(PPH.P), "individuals") , pch = "+")
-R.squared = cor(SP_WS2.INDmean, SP_C2.INDmean)**2
-text(min(SP_WS2.INDmean), max(SP_C2.INDmean)-1, pos = 1, labels = "R²:", font = 2)
-text(min(SP_WS2.INDmean)+5, max(SP_C2.INDmean)-1, pos = 1, labels = R.squared)
-
-
-CorPlotTable("01.OW", "Numbers", OW_WS1.INDmean, OW_WS2.INDmean, OW_C1.INDmean, OW_C2.INDmean)
-CorPlotTable("02.HO", "Numbers", HO_WS1.INDmean, HO_WS2.INDmean)
-CorPlotTable("03.SP", "Numbers", SP_WS1.INDmean, SP_WS2.INDmean, SP_C1.INDmean, SP_C2.INDmean)
+# CorPlotTable("01.OW", "Numbers", OW_WS1.INDmean, OW_WS2.INDmean, OW_C1.INDmean, OW_C2.INDmean)
+# CorPlotTable("02.HO", "Numbers", HO_WS1.INDmean, HO_WS2.INDmean)
+# CorPlotTable("03.SP", "Numbers", SP_WS1.INDmean, SP_WS2.INDmean, SP_C1.INDmean, SP_C2.INDmean)
 
 
 
