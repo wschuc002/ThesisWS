@@ -52,8 +52,8 @@ CorPlotTable <- function(GroupName, CorType, WS1, WS2, C1 = -9999, C2 = -9999, .
 #Profile = Active.Type
 #IND.amount = length(PPH.P)
 #PlotMinMax = FALSE
-#DAY.start = 5
-#DAYS = 1 #length(YearDates)-1
+#DAY.start = 1
+#DAYS = 30 length(TIME.P[[1]]) #21 #length(YearDates)-1
 
 Plot.Group2 <- function(Profile, DAY.start, DAYS, IND.amount, PlotMinMax, ST.DF.P, ST.DF.S, ST.DF.T1, ST.DF.T2,
                         stats.EXP.P, stats.EXP.S, stats.EXP.T1, stats.EXP.T2, ...)
@@ -69,8 +69,8 @@ Plot.Group2 <- function(Profile, DAY.start, DAYS, IND.amount, PlotMinMax, ST.DF.
   ST.DF.HR = OW_WS1.ST.DF.HR
   
   
-  ST.DF.P.sub = ST.DF.P[ST.DF.P$TIME > YearDates[DAY.start] & ST.DF.P$TIME <= YearDates[DAY.start+DAYS],]
-  ST.DF.S.sub = ST.DF.S[ST.DF.S$TIME > YearDates[DAY.start] & ST.DF.S$TIME <= YearDates[DAY.start+DAYS],]
+  ST.DF.P.sub = ST.DF.P[ST.DF.P$TIME > YearDates.Sub[DAY.start] & ST.DF.P$TIME <= YearDates.Sub[DAYS],]
+  ST.DF.S.sub = ST.DF.S[ST.DF.S$TIME > YearDates.Sub[DAY.start] & ST.DF.S$TIME <= YearDates.Sub[DAYS],]
   ST.DF.T1.sub = ST.DF.T1[ST.DF.T1$TIME > YearDates[DAY.start] & ST.DF.T1$TIME <= YearDates[DAY.start+DAYS],]
   ST.DF.T2.sub = ST.DF.T2[ST.DF.T2$TIME > YearDates[DAY.start] & ST.DF.T2$TIME <= YearDates[DAY.start+DAYS],]
   
@@ -95,11 +95,11 @@ Plot.Group2 <- function(Profile, DAY.start, DAYS, IND.amount, PlotMinMax, ST.DF.
   Col.HR = rgb(red=0.6, green=0.2, blue=0.2, alpha=0.2)
   
   # point plot with transparency in color
-  with (ST.DF.P.sub, plot(TIME, EXP, pch = "-", cex=1, col = Col.P, ylim=c(0, E.max+20),
+  with (ST.DF.P, plot(TIME, EXP, pch = "-", cex=1, col = Col.P, ylim=c(0, E.max+20),
                         xlab = "Time", ylab = paste(toupper(pol), "concentration (µg/m³)"),
                         main = paste(Active.Subprofile$FullName, ":", IND.amount, "out of", length(ExposureValue.P), "individuals")))
   
-  with (ST.DF.HR.sub, plot(TIME, EXP, pch = "-", cex=1, col = Col.P, ylim=c(0, E.max+20),
+  with (ST.DF.HR.sub, plot(TIME, EXP, pch = ".", cex=1, col = Col.P, ylim=c(0, E.max+20),
                       xlab = "Time", ylab = paste(toupper(pol), "concentration (µg/m³)"),
                       main = paste(Active.Subprofile$FullName, ":", IND.amount, "out of", length(PPH.P), "individuals")))
   
