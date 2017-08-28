@@ -191,6 +191,8 @@ if (!exists("BIWEEKLY"))
 
 ReproduceMode = TRUE
 
+pollutants = c("no2", "pm25")
+
 # End of general code
 # - - - 
 # Beginning of profile based code
@@ -405,7 +407,6 @@ for (Active.Subtype in ResidentialProfiles$Subtype[c(1,3,5,9,11)][4])
   #   }
   # }
   
-  pollutants = c("no2", "pm25")
   
   #for (pol in pollutants)
   for (pol in pollutants[2]) #[2] = pm25 only | [1] = no2 only
@@ -1535,31 +1536,33 @@ Plot.PersonalExposureGraph(Ind, 2, 5) # (Individual, Start(working)Day, Amount o
 Plot.Group2(Active.Type, 1, 7, 25, TRUE)
 
 
+## Raster Municipality
+RasterMunicipality(pollutants[1], "T", 10, "Oudergem", 1+(24*5), 1+(24*5))
 
-# Calculate a raster from RIO-IFDM points with the Triangulation method
-res = 100
-AoI2.Raster = PointsToRasterTIN(SPDF = Points.AoI.NoDup, value = "CON20150101_19_NO2",
-                                AoI = AoI2,
-                                dmax = 20, mpp = res, dup = "error")
-plot(AoI2.Raster)
-lines(AoI2, col = "red")
-points(Points.AoI2.NoDup)
-SaveAsFile(AoI2.Raster, paste("Antwerpen", paste0(res,"x",res), "CON20150101_19_NO2", sep = "_"), "GeoTIFF", TRUE)
-
-# Compare with Antwerpen NO2 hour19 raster
-raster_in = file.path("..", "output", "Raster_10x10_Antwerpen.tif")
-Raster.Antwerpen = raster(raster_in, layer = "Raster_10x10_Antwerpen.tif")
-projection(Raster.Antwerpen) = BE_crs
-plot(Raster.Antwerpen)
-
-DiffRaster = Raster.Antwerpen - AoI2.Raster
-values(DiffRaster)
-plot(DiffRaster)
-SaveAsFile(DiffRaster, paste("DiffRaster", paste0(res,"x",res), sep = "_"), "GeoTIFF", TRUE)
-
-Gemeente.Raster.Cut = gIntersects(Gemeente.Raster, Municipalities[Municipalities@data$NAAM %in% "Antwerpen",])
-
-SaveAsFile(Gemeente.Raster, paste("Raster", "Antwerpen", sep = "_"), "Shapefile", TRUE)
+# # Calculate a raster from RIO-IFDM points with the Triangulation method
+# res = 100
+# AoI2.Raster = PointsToRasterTIN(SPDF = Points.Municipality, value = "value",
+#                                 AoI = Municipality,
+#                                 dmax = 20, mpp = res, dup = "error")
+# plot(AoI2.Raster)
+# lines(AoI2, col = "red")
+# points(Points.AoI2.NoDup)
+# SaveAsFile(AoI2.Raster, paste("Antwerpen", paste0(res,"x",res), "CON20150101_19_NO2", sep = "_"), "GeoTIFF", TRUE)
+# 
+# # Compare with Antwerpen NO2 hour19 raster
+# raster_in = file.path("..", "output", "Raster_10x10_Antwerpen.tif")
+# Raster.Antwerpen = raster(raster_in, layer = "Raster_10x10_Antwerpen.tif")
+# projection(Raster.Antwerpen) = BE_crs
+# plot(Raster.Antwerpen)
+# 
+# DiffRaster = Raster.Antwerpen - AoI2.Raster
+# values(DiffRaster)
+# plot(DiffRaster)
+# SaveAsFile(DiffRaster, paste("DiffRaster", paste0(res,"x",res), sep = "_"), "GeoTIFF", TRUE)
+# 
+# Gemeente.Raster.Cut = gIntersects(Gemeente.Raster, Municipalities[Municipalities@data$NAAM %in% "Antwerpen",])
+# 
+# SaveAsFile(Gemeente.Raster, paste("Raster", "Antwerpen", sep = "_"), "Shapefile", TRUE)
 
 
 # Saving plots on hard rive
