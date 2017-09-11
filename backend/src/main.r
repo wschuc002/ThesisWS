@@ -74,6 +74,8 @@ source("modules/SummaryStatistics.r")
 #source("modules/util.r")
 source("modules/DrivingLinearDistanceRatio.r")
 source("modules/BaseAQnetwork.r")
+source("modules/RasterMunicipality.r")
+
 
 OriginalTimezone = Sys.timezone(location = TRUE) # All system settings should be changed to its original state at the end of the code
 Sys.setenv(TZ = "GMT")
@@ -1537,7 +1539,7 @@ Plot.Group2(Active.Type, 1, 7, 25, TRUE)
 
 
 ## Raster Municipality
-RasterMunicipality(pollutants[1], "T", 10, "Oudergem", 1+(24*5), 1+(24*5))
+RasterMunicipality(pollutants[2], "T", 50, "Oudergem", 1+(24*5), 1+(24*5))
 
 # # Calculate a raster from RIO-IFDM points with the Triangulation method
 # res = 100

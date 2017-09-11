@@ -15,7 +15,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 ## Check for required packages and install them (incl dependencies) if they are not installed yet.
-list.of.packages <- c("rgdal", "raster")
+list.of.packages <- c("rgdal", "raster", "sp", "geoR")
 new.packages <- list.of.packages[!(list.of.packages %in% installed.packages()[,"Package"])]
 if(length(new.packages)) install.packages(new.packages)
 
@@ -23,6 +23,7 @@ if(length(new.packages)) install.packages(new.packages)
 library(rgdal)
 library(raster)
 library(sp)
+library(geoR)
 
 RasterMunicipality <- function(pol, DriveLetter, mpp, Name.Municipality, StartHour = 1+(24*5), EndHour = 24+(24*5), ...)
 {
@@ -33,7 +34,7 @@ RasterMunicipality <- function(pol, DriveLetter, mpp, Name.Municipality, StartHo
   PolDir = BASEAQ[[2]]
   
   # Read municipalities
-  Municipalities = getData("GADM",country = "Belgium", level = 4, path = output.dir)
+  Municipalities = getData("GADM", country = "Belgium", level = 4, path = output.dir)
   #Name.Municipality = "Oudergem"
   Municipality = Municipalities[Municipalities@data$NAME_4 == Name.Municipality,]
   Municipality = spTransform(Municipality, BE_crs)
@@ -104,7 +105,6 @@ RasterMunicipality <- function(pol, DriveLetter, mpp, Name.Municipality, StartHo
                    to =  round(bbox(Points.Municipality)[2,2], -2),
                    by = mpp)
   GridPol.Li = list()
-  library(geoR)
   
   for (p in 1:length(Municipality@polygons[[1]]@Polygons))
   {

@@ -23,21 +23,24 @@
 
 ## Load the packages
 
-
-HolidayGenerator <- function(HolidayPeriods, ...)
+#HolidayPeriods = SchoolHolidays
+HolidayGenerator <- function(HolidayPeriods, Time, ...)
 {
   HolidayDates.Li = list()
-  period = which(HolidayPeriods$End != "")
-  for (p in period)
+  
+  for (ho in seq_along(HolidayPeriods$End))
   {
-    HolidayDates.Li[[p]] = seq(as.POSIXct(HolidayPeriods$Start[p]), as.POSIXct(HolidayPeriods$End[p]), 24*60**2)
+    if (HolidayPeriods$End[ho] != "")
+    {
+      HolidayDates.Li[[ho]] = seq(as.POSIXct(HolidayPeriods$Start[ho]), as.POSIXct(HolidayPeriods$End[ho]), 24*60**2)
+    } else
+    {
+      HolidayDates.Li[[ho]] = as.POSIXct(HolidayPeriods$Start[ho])
+    }
   }
-  noperiod = which(HolidayPeriods$End == "")
-  for (p in noperiod)
-  {
-    HolidayDates.Li[[p]] = as.POSIXct(HolidayPeriods$Start[p])
-  }
-  HolidayDates = do.call(c, HolidayDates.Li)
+
+  HolidayDates = unlist(HolidayDates.Li)
+  class(HolidayDates) = class(Time)
   
   return(HolidayDates)
 }
