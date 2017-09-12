@@ -31,6 +31,7 @@
 ## Clear the workspace?
 Clear.WorkSpace = FALSE
 if (Clear.WorkSpace) {rm(list = ls())}
+if (Clear.WorkSpace) {gc()}
 
 ## Note 1: This script only brings different modules in modules/ together.
 ## No code belonging to one of the modules should go here.
@@ -75,7 +76,6 @@ source("modules/SummaryStatistics.r")
 source("modules/DrivingLinearDistanceRatio.r")
 source("modules/BaseAQnetwork.r")
 source("modules/RasterMunicipality.r")
-
 
 OriginalTimezone = Sys.timezone(location = TRUE) # All system settings should be changed to its original state at the end of the code
 Sys.setenv(TZ = "GMT")
@@ -211,7 +211,8 @@ if (!file.exists(LogCSVpath))
 # Beginning of profile based code
 
 Types = unique(ResidentialProfiles$Type)
-for (Active.Type in Types)
+#for (Active.Type in Types)
+for (Active.Type in Types[3])
 {
   #Active.Type = Types[1]
   print(Active.Type)
@@ -228,8 +229,27 @@ for (Active.Type in Types)
     Active.SetSeedNr = NULL
   }
   
+  if (Active.Type == "01.OW")
+  {
+    HoliDates = as.POSIXct(OfficialHolidays$Datum)
+    SimplifyRemainingPoints = 100 # desirable resulting amount
+    RandomSamplePoints = 25 # desirable resulting amount of points, after random sampling the equal points
+    
+    BusinesDates = DateType(YearDates, "Workdays", HoliDates)
+    WeekendDates = DateType(YearDates, "Weekends")
+  }
+  if (Active.Type == "03.SP")
+  {
+    HoliDates = HolidayGenerator(SchoolHolidays, Time) #2015 only
+    SimplifyRemainingPoints = 10 # should be desirable resulting amount
+    RandomSamplePoints = 5 # desirable resulting amount of points, after random sampling the equal points
+    
+    BusinesDates = DateType(YearDates, "Workdays", HoliDates)
+    WeekendDates = DateType(YearDates, "Weekends")
+  }
+  
   dir.P = file.path("..", "output", paste(Active.Type, paste0("Primary", Names,".geojson"), sep = "_"))
-  if (Active.Subprofile$Dynamics == "dynamic")
+  if (FirstSubtype$Dynamics == "dynamic")
   {
     dir.S = file.path("..", "output", paste(Active.Type, paste0("Secondary", Names,".geojson"), sep = "_"))
     
@@ -275,7 +295,7 @@ for (Active.Type in Types)
     Belgium = gBuffer(Belgium, byid = F, id = NULL, width = 2000)
     
     ## Determine PPH for the active profile.
-    DeterminePPH_FL(CRAB_Doel, Names, GroupSize, Active.Type, Active.Subprofile,
+    DeterminePPH_FL(CRAB_Doel, Names, GroupSize, Active.Type, FirstSubtype,
                     Plot = TRUE, SaveResults = TRUE, Belgium, Active.SetSeedNr, Commuting, DrivingDistanceLinearDistance)
   }
   
@@ -288,82 +308,51 @@ for (Active.Type in Types)
     gc()
   }
   
-  # Read the Personal Place History (PPH)
-  if (file.exists(dir.P)) # (!exists("PPH.P")
-  {
-    PPH.P = readOGR(dir.P, layer = 'OGRGeoJSON')
-    PPH.P@proj4string = BE_crs
-  }
-  if (Active.Subprofile$Dynamics == "dynamic")
-  {
-    if (file.exists(dir.S)) # !exists("PPH.S") & 
-    {
-      PPH.S = readOGR(dir.S, layer = 'OGRGeoJSON')
-      PPH.S@proj4string = BE_crs
-    }
-    if (file.exists(dir.T1)) # !exists("PPH.T1") & 
-    {
-      PPH.T1 = readOGR(dir.T1, layer = 'OGRGeoJSON')
-      PPH.T1@proj4string = BE_crs
-    }
-    
-    if (file.exists(dir.T2)) # !exists("PPH.T2") & 
-    {
-      PPH.T2 = readOGR(dir.T2, layer = 'OGRGeoJSON')
-      PPH.T2@proj4string = BE_crs
-    }
-  }
-  
-  if (Active.Subprofile$Dynamics == "dynamic")
-  {
-    # Correcting the cycling durations: use constant speed of 10km/h
-    
-    # hist(PPH.T1@data$duration, 1000)
-    # hist(PPH.T1@data$duration / PPH.T1@data$distance, 1000)
-    # hist(PPH.T2@data$duration / PPH.T2@data$distance, 1000)
-    # hist(PPH.T1@data$distance, 1000)
-    # hist(PPH.T2@data$distance, 1000)
-    
-    if (Active.Type == "03.SP")
-    {
-      MeanCyclingSpeed = 10 # km/h
-      PPH.T1@data$duration = PPH.T1@data$distance * (60/MeanCyclingSpeed)
-      PPH.T2@data$duration = PPH.T2@data$distance * (60/MeanCyclingSpeed)
-      
-      # hist(PPH.T1@data$duration / PPH.T1@data$distance, 1000)
-      # hist(PPH.T2@data$duration / PPH.T2@data$distance, 1000)
-      # PPH.T1@data$distance / PPH.T1@data$duration * 60
-    }
-  }
-  
-  if (Active.Type == "01.OW")
-  {
-    HoliDates = as.POSIXct(OfficialHolidays$Datum)
-    SimplifyRemainingPoints = 100 # desirable resulting amount
-    RandomSamplePoints = 25 # desirable resulting amount of points, after random sampling the equal points
-    
-    BusinesDates = DateType(YearDates, "Workdays", HoliDates)
-    WeekendDates = DateType(YearDates, "Weekends")
-  }
-  if (Active.Type == "03.SP")
-  {
-    HoliDates = HolidayGenerator(SchoolHolidays, Time) #2015 only
-    SimplifyRemainingPoints = 10 # should be desirable resulting amount
-    RandomSamplePoints = 5 # desirable resulting amount of points, after random sampling the equal points
-    
-    BusinesDates = DateType(YearDates, "Workdays", HoliDates)
-    WeekendDates = DateType(YearDates, "Weekends")
-  }
-  
-  
   SubProfilesFullPeriod = ResidentialProfiles$Subtype[ResidentialProfiles$'T-gaps' == 0 &
                                                         ResidentialProfiles$Type == Active.Type]
-  for (Active.Subprofile in SubProfilesFullPeriod)
+  for (Active.Subtype in SubProfilesFullPeriod)
   {
     #Active.Subtype = SubProfilesFullPeriod[1]
     print(Active.Subtype)
     
     Active.Subprofile = ResidentialProfiles[ResidentialProfiles$Subtype == Active.Subtype,]
+    
+    # Read the Personal Place History (PPH)
+    if (file.exists(dir.P)) # (!exists("PPH.P")
+    {
+      PPH.P = readOGR(dir.P, layer = 'OGRGeoJSON')
+      PPH.P@proj4string = BE_crs
+    }
+    if (Active.Subprofile$Dynamics == "dynamic")
+    {
+      if (file.exists(dir.S)) # !exists("PPH.S") & 
+      {
+        PPH.S = readOGR(dir.S, layer = 'OGRGeoJSON')
+        PPH.S@proj4string = BE_crs
+      }
+      if (file.exists(dir.T1)) # !exists("PPH.T1") & 
+      {
+        PPH.T1 = readOGR(dir.T1, layer = 'OGRGeoJSON')
+        PPH.T1@proj4string = BE_crs
+      }
+      
+      if (file.exists(dir.T2)) # !exists("PPH.T2") & 
+      {
+        PPH.T2 = readOGR(dir.T2, layer = 'OGRGeoJSON')
+        PPH.T2@proj4string = BE_crs
+      }
+    }
+    
+    if (Active.Subprofile$Dynamics == "dynamic")
+    {
+      # Correcting the cycling durations: use constant speed of 10km/h
+      if (Active.Type == "03.SP")
+      {
+        MeanCyclingSpeed = 10 # km/h
+        PPH.T1@data$duration = PPH.T1@data$distance * (60/MeanCyclingSpeed)
+        PPH.T2@data$duration = PPH.T2@data$distance * (60/MeanCyclingSpeed)
+      }
+    }
     
     if (Active.Subprofile$Dynamics == "dynamic" & !exists("TimeVertex.T1") & !exists("TimeVertex.T2"))
     {
@@ -609,6 +598,7 @@ for (Active.Type in Types)
         rm(TIME.P_F, HOURS.P_F, HoP.P_F, ExposureValue.P_F, ST.DF.P_F)
         if (Active.Subprofile$Dynamics == "dynamic")
         {
+          rm(PPH.T1.PNT.RS, PPH.T2.PNT.RS)
           rm(TIME.S_F, TIME.T1_F, TIME.T2_F)
           rm(HOURS.S_F, HOURS.T1_F, HOURS.T2_F)
           rm(HoP.S_F, HoP.T1_F, HoP.T2_F)
@@ -626,21 +616,22 @@ for (Active.Type in Types)
       
     } # closing pol
     
+    rm(PPH.P)
     if (Active.Subprofile$Dynamics == "dynamic")
     {
       rm(Fragments, SeqFragment, DaySplit)
+      rm(PPH.S, PPH.T1, PPH.T2)
     }
     
   } # closing Subprofile
   
-  rm(dir.P, PPH.P)
-  if (Active.Subprofile$Dynamics == "dynamic")
+  rm(dir.P)
+  rm(HoliDates, SimplifyRemainingPoints, RandomSamplePoints, BusinesDates, WeekendDates)
+  if (FirstSubtype$Dynamics == "dynamic")
   {
     rm(dir.S, dir.T1, dir.T2)
-    rm(PPH.S, PPH.T1, PPH.T2)
     rm(PPH.T1.Pnt.Li, PPH.T2.Pnt.Li)
     rm(PPH.T1.Pnt.eq.Li, PPH.T2.Pnt.eq.Li)
-    rm(PPH.T1.PNT.RS, PPH.T2.PNT.RS)
     rm(TimeVertex.T1, TimeVertex.T2)
   }
   gc()
