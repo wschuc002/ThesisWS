@@ -98,8 +98,8 @@ PPH.TIN.InterpolationWS <- function(PPH.P, PPH.S, PPH.T1.Pnt, PPH.T2.Pnt, POL, P
     print(paste0("Series Day ", dayS))
     print(paste0("Series2 Day ", dayS2))
     print(txt.dr[h])
-    print(paste0(h/length(StartHour:EndHour)*100, "%"))
-    if (exists("f")) {print(paste0( (h/length(StartHour:EndHour)*length(Fragments)) + ((f-1)/length(Fragments)*100) , "%"))}
+    print(paste0("Progress current fragment: ", h/length(StartHour:EndHour)*100, "%"))
+    if (exists("f")) {print(paste0("Progress current subtype: ", hr/length(Time)*100, "%"))}
     
     POL.h = fread(txt.dr[h], sep=";", header=TRUE, select = "values")
     POL@data = POL.h
@@ -295,7 +295,7 @@ PPH.TIN.InterpolationWS <- function(PPH.P, PPH.S, PPH.T1.Pnt, PPH.T2.Pnt, POL, P
   } # closing h
   
   if (exists("EXP.P.Li")) {EXP.P = EXP.P.Li} else {EXP.P = NA}
-  if (exists("EXP.SP.Li")) {EXP.S = EXP.S.Li} else {EXP.S = NA}
+  if (exists("EXP.S.Li")) {EXP.S = EXP.S.Li} else {EXP.S = NA}
   if (exists("EXP.T1.Li")) {EXP.T1 = EXP.T1.Li} else {EXP.T1 = NA}
   if (exists("EXP.T2.Li")) {EXP.T2 = EXP.T2.Li} else {EXP.T2 = NA}
   
