@@ -25,21 +25,35 @@ library(gtools)
 
 ExtractBZ2 <- function(pol, PolDir, StartHour = 1, EndHour = length(YearDates)*24, ...)
 {
-  bz2.lst = list.files(path = PolDir, pattern = paste0("[0-9]*_[0-9]*_", toupper(pol), ".txt.bz2"))
-  bz2.lst = mixedsort(bz2.lst) # fixes string order 1 10 11 -> 1 2 3
-  bz2.lst = bz2.lst[StartHour:EndHour] # subset
-  
-  bz2.dr = file.path(PolDir, bz2.lst)
-  
-  txt.lst = gsub(x = bz2.lst, pattern = ".bz2", replacement = "")
-  txt.dr = file.path(PolDir, txt.lst)
-  
-  for (d in seq_along(StartHour:EndHour))
+  # check if the extracted .txt's already exist
+  txt.lst = list.files(path = PolDir, pattern = paste0("[0-9]*_[0-9]*_", toupper(pol), ".txt"))
+  txt.lst2 = NA
+  for (s in seq_along(txt.lst))
   {
-    if (!file.exists(txt.dr[d]))
+    txt.lst2[s] = !grepl(x = txt.lst[s], pattern = ".bz2")
+  }
+  txt.lst = txt.lst[txt.lst2]
+  txt.dr = file.path(PolDir, txt.lst)
+  txt.dr = mixedsort(txt.dr)
+  
+  if (!(length(txt.lst) == (EndHour - StartHour + 1)))
+  {
+    bz2.lst = list.files(path = PolDir, pattern = paste0("[0-9]*_[0-9]*_", toupper(pol), ".txt.bz2"))
+    bz2.lst = mixedsort(bz2.lst) # fixes string order 1 10 11 -> 1 2 3
+    bz2.lst = bz2.lst[StartHour:EndHour] # subset
+    
+    bz2.dr = file.path(PolDir, bz2.lst)
+    
+    txt.lst = gsub(x = bz2.lst, pattern = ".bz2", replacement = "")
+    txt.dr = file.path(PolDir, txt.lst)
+    
+    for (d in seq_along(StartHour:EndHour))
     {
-      print(paste("Extracting", bz2.dr[d]))
-      bunzip2(bz2.dr[d], txt.dr[d], remove = FALSE, skip = TRUE)
+      if (!file.exists(txt.dr[d]))
+      {
+        print(paste("Extracting", bz2.dr[d]))
+        bunzip2(bz2.dr[d], txt.dr[d], remove = FALSE, skip = TRUE)
+      }
     }
   }
   return(txt.dr)
