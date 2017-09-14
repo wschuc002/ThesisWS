@@ -33,8 +33,8 @@ BaseAQnetwork <- function(pol, ExternalDrive = FALSE, DriveLetter, ...)
     PolDir = file.path(paste0(DriveLetter, ":"), "RIO-IFDM", toupper(pol))
   } else 
   {
-    PolDir = file.path("..", "data", "BE", "IRCELINE")
-    #PolDir = file.path("..", "data", "BE", "IRCELINE", toupper(pol))
+    #PolDir = file.path("..", "data", "BE", "IRCELINE")
+    PolDir = file.path("..", "data", "BE", "IRCELINE", toupper(pol))
   }
   
   # unzip for sure
