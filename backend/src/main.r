@@ -76,6 +76,8 @@ source("modules/SummaryStatistics.r")
 source("modules/DrivingLinearDistanceRatio.r")
 source("modules/BaseAQnetwork.r")
 source("modules/RasterMunicipality.r")
+source("modules/MeanMunicipality.r")
+
 
 OriginalTimezone = Sys.timezone(location = TRUE) # All system settings should be changed to its original state at the end of the code
 Sys.setenv(TZ = "GMT")
@@ -214,7 +216,7 @@ Types = unique(ResidentialProfiles$Type)
 #for (Active.Type in Types)
 for (Active.Type in Types[3])
 {
-  #Active.Type = Types[1]
+  #Active.Type = Types[3]
   print(Active.Type)
   
   FirstSubtype = ResidentialProfiles[ResidentialProfiles$Type == Active.Type][1]
@@ -308,40 +310,46 @@ for (Active.Type in Types[3])
     gc()
   }
   
+  # Read the Personal Place History (PPH)
+  if (file.exists(dir.P)) # (!exists("PPH.P")
+  {
+    PPH.P = readOGR(dir.P, layer = 'OGRGeoJSON')
+    PPH.P@proj4string = BE_crs
+  }
+  if (FirstSubtype$Dynamics == "dynamic")
+  {
+    if (file.exists(dir.S)) # !exists("PPH.S") & 
+    {
+      PPH.S = readOGR(dir.S, layer = 'OGRGeoJSON')
+      PPH.S@proj4string = BE_crs
+    }
+    if (file.exists(dir.T1)) # !exists("PPH.T1") & 
+    {
+      PPH.T1 = readOGR(dir.T1, layer = 'OGRGeoJSON')
+      PPH.T1@proj4string = BE_crs
+    }
+    
+    if (file.exists(dir.T2)) # !exists("PPH.T2") & 
+    {
+      PPH.T2 = readOGR(dir.T2, layer = 'OGRGeoJSON')
+      PPH.T2@proj4string = BE_crs
+    }
+  }
+  
+  
+  
   SubProfilesFullPeriod = ResidentialProfiles$Subtype[ResidentialProfiles$'T-gaps' == 0 &
                                                         ResidentialProfiles$Type == Active.Type]
   for (Active.Subtype in SubProfilesFullPeriod)
   {
-    #Active.Subtype = SubProfilesFullPeriod[1]
+    #Active.Subtype = SubProfilesFullPeriod[2]
     print(Active.Subtype)
+    
+    # Subtype base (for TIME: one for PST, one for P)
+    Active.SubtypeBase = str_sub(Active.Subtype, 1, -2L)
     
     Active.Subprofile = ResidentialProfiles[ResidentialProfiles$Subtype == Active.Subtype,]
     
-    # Read the Personal Place History (PPH)
-    if (file.exists(dir.P)) # (!exists("PPH.P")
-    {
-      PPH.P = readOGR(dir.P, layer = 'OGRGeoJSON')
-      PPH.P@proj4string = BE_crs
-    }
-    if (Active.Subprofile$Dynamics == "dynamic")
-    {
-      if (file.exists(dir.S)) # !exists("PPH.S") & 
-      {
-        PPH.S = readOGR(dir.S, layer = 'OGRGeoJSON')
-        PPH.S@proj4string = BE_crs
-      }
-      if (file.exists(dir.T1)) # !exists("PPH.T1") & 
-      {
-        PPH.T1 = readOGR(dir.T1, layer = 'OGRGeoJSON')
-        PPH.T1@proj4string = BE_crs
-      }
-      
-      if (file.exists(dir.T2)) # !exists("PPH.T2") & 
-      {
-        PPH.T2 = readOGR(dir.T2, layer = 'OGRGeoJSON')
-        PPH.T2@proj4string = BE_crs
-      }
-    }
     
     if (Active.Subprofile$Dynamics == "dynamic")
     {
@@ -377,8 +385,14 @@ for (Active.Type in Types[3])
     #for (pol in pollutants[2]) #[2] = pm25 only | [1] = no2 only
     {
       BASEAQ = BaseAQnetwork(pol, ExternalDrive = TRUE, DriveLetter = "T")
+      #BASEAQ = BaseAQnetwork(pol)
       Points.NoVal = BASEAQ[[1]]
       PolDir = BASEAQ[[2]]
+      
+      if (Active.Subprofile$`S-gaps` == 1)
+      {
+        Municipality.RIO_IFDM.Li = PointsPerMunicipality(pol, Points.NoVal, PolDir)
+      }
       
       Fragments = 1:20
       DaySplit = length(YearDates)/length(Fragments)
@@ -415,35 +429,41 @@ for (Active.Type in Types[3])
                                                     YearDates.Sub, BusinesDates, Active.SetSeedNr, f)
           }
           FolderName = paste0(Active.Subtype, "_", f)
+          FolderNameBase = paste0(Active.SubtypeBase, "_", f)
         } else # length(Fragments) <= 1
         {
           YearDates.Sub = YearDates2(year.active)
           Time.Sub = Time
           
           FolderName = Active.Subtype
+          FolderNameBase = Active.SubtypeBase
         }
         
         if (!file.exists(file.path(output.dir, FolderName)))
         {
           dir.create(file.path(output.dir, FolderName))
         }
+        if (!file.exists(file.path(output.dir, FolderNameBase)))
+        {
+          dir.create(file.path(output.dir, FolderNameBase))
+        }
         
         if (Active.Subprofile$Dynamics == "static") {TIME_EXP = c("TIME_P_")}
         if (Active.Subprofile$Dynamics == "dynamic") {TIME_EXP = c("TIME_P_", "TIME_S_","TIME_T1_","TIME_T2_")}
         
-        if (all(file.exists(file.path(output.dir, FolderName, paste0(TIME_EXP, length(PPH.P), ".dbf")))))
+        if (all(file.exists(file.path(output.dir, FolderNameBase, paste0(TIME_EXP, length(PPH.P), ".dbf")))))
         {
           # read from file
-          TIME.P_F = DBFreader("Time", "Primary", PPH.P, YearDates.Sub, FolderName)
+          TIME.P_F = DBFreader("Time", "Primary", PPH.P, YearDates.Sub, FolderNameBase)
           if (Active.Subprofile$Dynamics == "dynamic")
           {
-            TIME.S_F = DBFreader("Time", "Secondary", PPH.P, YearDates.Sub, FolderName)
-            TIME.T1_F = DBFreader("Time", "T1", PPH.P, YearDates.Sub, FolderName)
-            TIME.T2_F = DBFreader("Time", "T2", PPH.P, YearDates.Sub, FolderName)
+            TIME.S_F = DBFreader("Time", "Secondary", PPH.P, YearDates.Sub, FolderNameBase)
+            TIME.T1_F = DBFreader("Time", "T1", PPH.P, YearDates.Sub, FolderNameBase)
+            TIME.T2_F = DBFreader("Time", "T2", PPH.P, YearDates.Sub, FolderNameBase)
           }
         } else # TIME files do not exist
         {
-          dir.create(file.path(output.dir, FolderName))
+          #dir.create(file.path(output.dir, FolderNameBase))
           
           #! not tested in this context
           TIME = CreateCorrespondingDateAndTime(Active.Type, Active.Subprofile, PPH.P,
@@ -466,12 +486,12 @@ for (Active.Type in Types[3])
           OW = FALSE
           if (WriteToDisk)
           {
-            SaveAsDBF(TIME.P_F, "Time", "Primary", FolderName, OW, pol, 0)
+            SaveAsDBF(TIME.P_F, "Time", "Primary", FolderNameBase, OW, pol, 0)
             if (Active.Subprofile$Dynamics == "dynamic")
             {
-              SaveAsDBF(TIME.S_F, "Time", "Secondary", FolderName, OW, pol, 0)
-              SaveAsDBF(TIME.T1_F, "Time", "T1", FolderName, OW, pol, 0)
-              SaveAsDBF(TIME.T2_F, "Time", "T2", FolderName, OW, pol, 0)
+              SaveAsDBF(TIME.S_F, "Time", "Secondary", FolderNameBase, OW, pol, 0)
+              SaveAsDBF(TIME.T1_F, "Time", "T1", FolderNameBase, OW, pol, 0)
+              SaveAsDBF(TIME.T2_F, "Time", "T2", FolderNameBase, OW, pol, 0)
             }
           }
         }
@@ -504,7 +524,7 @@ for (Active.Type in Types[3])
         gc()
         
         ## Interpolating the points
-        if (Active.Subprofile$Dynamics == "dynamic")
+        if (Active.Subprofile$Dynamics == "dynamic" & Active.Subprofile$`S-aggr` == 0)
         {
           ExposureValue.All = PPH.TIN.InterpolationWS(PPH.P, PPH.S, PPH.T1.PNT.RS, PPH.T2.PNT.RS
                                                       ,Points.NoVal, PolDir, Plot = FALSE, pol
@@ -528,6 +548,29 @@ for (Active.Type in Types[3])
                                                       ,wP = HoP.P_F
                                                       ,Active.Subprofile = Active.Subprofile
                                                       ,seq = 0)
+        }
+        
+        ## Points from Municipality
+        if (Active.Subprofile$Dynamics == "dynamic" & Active.Subprofile$`S-aggr` == 1)
+        {
+          # Read municipalities
+          Municipalities = getData("GADM", country = "Belgium", level = 4, path = output.dir)
+          Municipalities = spTransform(Municipalities, BE_crs)
+          Municipalities@proj4string = BE_crs
+          
+          ExposureValue.All = MeanMunicipality(PPH.P, PPH.S, PPH.T1.PNT.RS, PPH.T2.PNT.RS
+                                              ,Points.NoVal, PolDir, Plot = FALSE, pol
+                                              ,StartHour = 1 #SeqFragment[f]*24+1 # Time[(SeqFragment[f]*24+1)]
+                                              ,EndHour = 24 #(SeqFragment[f+1])*24 # Time[(SeqFragment[f+1])*24]
+                                              ,HOURS.P = HOURS.P_F, HOURS.S = HOURS.S_F
+                                              ,HOURS.T1 = HOURS.T1_F, HOURS.T2 = HOURS.T2_F, NearestPoints = 50
+                                              ,wP = HoP.P_F, wS = HoP.S_F, wT1 = HoP.T1_F, wT2 = HoP.T2_F
+                                              ,Active.Subprofile = Active.Subprofile
+                                              ,seq = SeqFragment[f]
+                                              ,Municipalities, Municipality.RIO_IFDM.Li
+                                              #,Include_P = FALSE, Include_S = TRUE
+                                              #,Include_T1 = FALSE, Include_T2 = FALSE
+          )
         }
         
         ExposureValue.P_F = ExposureValue.All[[1]]
