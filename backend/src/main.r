@@ -336,11 +336,10 @@ for (Active.Type in Types[3])
     }
   }
   
-  
-  
   SubProfilesFullPeriod = ResidentialProfiles$Subtype[ResidentialProfiles$'T-gaps' == 0 &
                                                         ResidentialProfiles$Type == Active.Type]
-  for (Active.Subtype in SubProfilesFullPeriod)
+  #for (Active.Subtype in SubProfilesFullPeriod)
+  for (Active.Subtype in SubProfilesFullPeriod[2])  
   {
     #Active.Subtype = SubProfilesFullPeriod[2]
     print(Active.Subtype)
@@ -389,11 +388,31 @@ for (Active.Type in Types[3])
       Points.NoVal = BASEAQ[[1]]
       PolDir = BASEAQ[[2]]
       
-      if (Active.Subprofile$`S-gaps` == 1)
+      if (Active.Subprofile$`S-aggr` == 1)
       {
         Municipality.RIO_IFDM.Li = PointsPerMunicipality(pol, Points.NoVal, PolDir)
+        
+        # Read municipalities
+        Municipalities = getData("GADM", country = "Belgium", level = 4, path = output.dir)
+        Municipalities = spTransform(Municipalities, BE_crs)
+        Municipalities@proj4string = BE_crs
+        
+        dbf_out = file.path(file.path(output.dir, paste0("MuniDF_", toupper(pol), ".dbf")))
+        if (!file.exists(dbf_out))
+        {
+          MuniDF = PreMeanMunicipality(Points.NoVal, PolDir, pol, StartHour = 1, EndHour = length(Time),
+                                       Municipalities, Municipality.RIO_IFDM.Li)
+          
+          MuniDF_T = transpose(MuniDF)
+          colnames(MuniDF_T) = c(paste0("M", 1:ncol(MuniDF_T)))
+          write.dbf(MuniDF_T, dbf_out)
+        } else
+        {
+          #read
+          MuniDF = transpose(read.dbf(dbf_out))
+        }
       }
-      
+
       Fragments = 1:20
       DaySplit = length(YearDates)/length(Fragments)
       SeqFragment = floor(seq(0, length(YearDates), DaySplit))
@@ -415,6 +434,7 @@ for (Active.Type in Types[3])
         {
           YearDates.Sub = YearDates2(year.active)[(SeqFragment[f]+1):(SeqFragment[f+1])]
           Time.Sub = Time[Time > YearDates.Sub[1] & Time <= (tail(YearDates.Sub,1) + 24*60**2)]
+          #MuniDF.Sub = MuniDF[,Time > YearDates.Sub[1] & Time <= (tail(YearDates.Sub,1) + 24*60**2)]
           
           if (exists("PPH.T1.PNT.RS")) {rm(PPH.T1.PNT.RS)}
           if (exists("PPH.T2.PNT.RS")) {rm(PPH.T2.PNT.RS)}
@@ -538,7 +558,8 @@ for (Active.Type in Types[3])
                                                       #,Include_P = FALSE, Include_S = TRUE
                                                       #,Include_T1 = FALSE, Include_T2 = FALSE
           )
-        } else # if static
+        }
+        if (Active.Subprofile$Dynamics == "static" & Active.Subprofile$`S-aggr` == 0)
         {
           ExposureValue.All = PPH.TIN.InterpolationWS(PPH.P = PPH.P, POL = Points.NoVal
                                                       ,PolDir = PolDir
@@ -553,21 +574,16 @@ for (Active.Type in Types[3])
         ## Points from Municipality
         if (Active.Subprofile$Dynamics == "dynamic" & Active.Subprofile$`S-aggr` == 1)
         {
-          # Read municipalities
-          Municipalities = getData("GADM", country = "Belgium", level = 4, path = output.dir)
-          Municipalities = spTransform(Municipalities, BE_crs)
-          Municipalities@proj4string = BE_crs
-          
           ExposureValue.All = MeanMunicipality(PPH.P, PPH.S, PPH.T1.PNT.RS, PPH.T2.PNT.RS
-                                              ,Points.NoVal, PolDir, Plot = FALSE, pol
-                                              ,StartHour = 1 #SeqFragment[f]*24+1 # Time[(SeqFragment[f]*24+1)]
-                                              ,EndHour = 24 #(SeqFragment[f+1])*24 # Time[(SeqFragment[f+1])*24]
+                                              ,PolDir, Points.NoVal, pol
+                                              ,StartHour = SeqFragment[f]*24+1 # Time[(SeqFragment[f]*24+1)]
+                                              ,EndHour = (SeqFragment[f+1])*24 # Time[(SeqFragment[f+1])*24]
                                               ,HOURS.P = HOURS.P_F, HOURS.S = HOURS.S_F
-                                              ,HOURS.T1 = HOURS.T1_F, HOURS.T2 = HOURS.T2_F, NearestPoints = 50
+                                              ,HOURS.T1 = HOURS.T1_F, HOURS.T2 = HOURS.T2_F
                                               ,wP = HoP.P_F, wS = HoP.S_F, wT1 = HoP.T1_F, wT2 = HoP.T2_F
                                               ,Active.Subprofile = Active.Subprofile
                                               ,seq = SeqFragment[f]
-                                              ,Municipalities, Municipality.RIO_IFDM.Li
+                                              ,Municipalities, MuniDF
                                               #,Include_P = FALSE, Include_S = TRUE
                                               #,Include_T1 = FALSE, Include_T2 = FALSE
           )
