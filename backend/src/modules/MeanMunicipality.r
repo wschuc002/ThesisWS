@@ -116,7 +116,7 @@ PreMeanMunicipality <- function(POL, PolDir, pol, StartHour = 1, EndHour = lengt
 # PPH.T1.Pnt = PPH.T1.PNT.RS
 # PPH.T2.Pnt = PPH.T2.PNT.RS
 
-MeanMunicipality <- function(PPH.P, PPH.S, PPH.T1.Pnt, PPH.T2.Pnt, PolDir,
+MeanMunicipality <- function(PPH.P, PPH.S, PPH.T1, PPH.T2, PPH.T1.Pnt, PPH.T2.Pnt, PolDir,
                              POL, pol, StartHour = 1, EndHour = length(YearDates)*24,
                              HOURS.P, HOURS.S, HOURS.T1, HOURS.T2,
                              wP, wS, wT1, wT2, Active.Subprofile, seq,
@@ -255,77 +255,99 @@ MeanMunicipality <- function(PPH.P, PPH.S, PPH.T1.Pnt, PPH.T2.Pnt, PolDir,
         
         if (length(wT1[[i]][[h]]) > 0 & Include_T1)
         {
-          for (v in seq_along(wT1[[i]][[h]]))
+          # check if route is in 1 municipality
+          Muni_int = (intersect(PPH.T1[i,], Municipalities)$OBJECTID)
+          if (length(Muni_int) == 1)
           {
-            # select proximity coordinates
-            CoordsOfInterest = PPH.T1.Pnt[[i]][[dayS]][v,]@coords
-            inds = knnLookup(tree, newdat = CoordsOfInterest, k = 1)
-            inds = as.vector(inds)
+            Exp.T1 = MuniDF[Muni_int, hr]
             
-            for (m in seq_along(Municipality.RIO_IFDM.Li))
+            EXP.T1.Li[[i]][[dayS]][wT1[[i]][[h]]][1:(length(EXP.T1.Li[[i]][[dayS]][wT1[[i]][[h]]]))] = Exp.T1
+            
+          } else
+          {
+            for (v in seq_along(wT1[[i]][[h]]))
             {
-              if (inds %in% Municipality.RIO_IFDM.Li[[m]])
+              # select proximity coordinates
+              CoordsOfInterest = PPH.T1.Pnt[[i]][[dayS]][v,]@coords
+              inds = knnLookup(tree, newdat = CoordsOfInterest, k = 1)
+              inds = as.vector(inds)
+              
+              for (m in seq_along(Municipality.RIO_IFDM.Li))
               {
-                MuniID = m
-                break
+                if (inds %in% Municipality.RIO_IFDM.Li[[m]])
+                {
+                  MuniID = m
+                  break
+                }
               }
+              
+              # if not inside municipaliy: use closest one
+              if (!exists("MuniID"))
+              {
+                MuniID = which.min(gDistance(Municipalities, PPH.T1.Pnt[[i]][[dayS]][v,], byid = TRUE))
+              }
+              
+              Exp.T1 = MuniDF[MuniID, hr]
+              
+              if (exists("MuniID"))
+              {
+                rm(MuniID)
+              } else
+              {
+                stop(print(paste("Municipality ID not created")))
+              }
+              
+              EXP.T1.Li[[i]][[dayS]][wT1[[i]][[h]][v]] = Exp.T1
             }
-            
-            # if not inside municipaliy: use closest one
-            if (!exists("MuniID"))
-            {
-              MuniID = which.min(gDistance(Municipalities, PPH.T1.Pnt[[i]][[dayS]][v,], byid = TRUE))
-            }
-            
-            Exp.T1 = MuniDF[MuniID, hr]
-            
-            if (exists("MuniID"))
-            {
-              rm(MuniID)
-            } else
-            {
-              stop(print(paste("Municipality ID not created")))
-            }
-            
-            EXP.T1.Li[[i]][[dayS]][wT1[[i]][[h]][v]] = Exp.T1
           }
         } # closing T1
   
         if (length(wT2[[i]][[h]]) > 0 & Include_T2)
         {
-          for (v in seq_along(wT2[[i]][[h]]))
+          # check if route is in 1 municipality
+          Muni_int = (intersect(PPH.T2[i,], Municipalities)$OBJECTID)
+          if (length(Muni_int) == 1)
           {
-            # select proximity coordinates
-            CoordsOfInterest = PPH.T2.Pnt[[i]][[dayS]][v,]@coords
-            inds = knnLookup(tree, newdat = CoordsOfInterest, k = 1)
-            inds = as.vector(inds)
+            Exp.T2 = MuniDF[Muni_int, hr]
             
-            for (m in seq_along(Municipality.RIO_IFDM.Li))
+            EXP.T2.Li[[i]][[dayS]][wT2[[i]][[h]]][1:(length(EXP.T2.Li[[i]][[dayS]][wT2[[i]][[h]]]))] = Exp.T2
+            
+          } else
+          {
+            for (v in seq_along(wT2[[i]][[h]]))
             {
-              if (inds %in% Municipality.RIO_IFDM.Li[[m]])
+              # select proximity coordinates
+              CoordsOfInterest = PPH.T2.Pnt[[i]][[dayS]][v,]@coords
+              inds = knnLookup(tree, newdat = CoordsOfInterest, k = 1)
+              inds = as.vector(inds)
+              
+              for (m in seq_along(Municipality.RIO_IFDM.Li))
               {
-                MuniID = m
-                break
+                if (inds %in% Municipality.RIO_IFDM.Li[[m]])
+                {
+                  MuniID = m
+                  break
+                }
               }
+              
+              # if not inside municipaliy: use closest one
+              if (!exists("MuniID"))
+              {
+                MuniID = which.min(gDistance(Municipalities, PPH.T2.Pnt[[i]][[dayS]][v,], byid = TRUE))
+              }
+              
+              Exp.T2 = MuniDF[MuniID, hr]
+              
+              if (exists("MuniID"))
+              {
+                rm(MuniID)
+              } else
+              {
+                stop(print(paste("Municipality ID not created")))
+              }
+              
+              EXP.T2.Li[[i]][[dayS]][wT2[[i]][[h]][v]] = Exp.T2
             }
-            
-            # if not inside municipaliy: use closest one
-            if (!exists("MuniID"))
-            {
-              MuniID = which.min(gDistance(Municipalities, PPH.T2.Pnt[[i]][[dayS]][v,], byid = TRUE))
-            }
-            
-            Exp.T2 = MuniDF[MuniID, hr]
-            
-            if (exists("MuniID"))
-            {
-              rm(MuniID)
-            } else
-            {
-              stop(print(paste("Municipality ID not created")))
-            }
-            
-            EXP.T2.Li[[i]][[dayS]][wT2[[i]][[h]][v]] = Exp.T2
           }
         } # closing T2
         
