@@ -444,7 +444,7 @@ for (Active.Type in Types[1])
       SeqFragment = floor(seq(0, length(YearDates), DaySplit))
       
       TimeTakenInterpolation = NA
-      for (f in Fragments)
+      #for (f in Fragments)
       for (f in 6:10)  
       { # implement EXP_pol ST.DF and HR recognition
         print(paste("Testing if HR exists of Fragment", f))
