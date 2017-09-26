@@ -22,8 +22,9 @@ if(length(new.packages)) install.packages(new.packages)
 ## Load the packages
 #library(sp)
 
-#TIME = TIME.S_F
-#ExposureValue = ExposureValue.S_F
+#TIME.P = TIME.P_F
+#TIME = TIME.P_F
+#ExposureValue = ExposureValue.P_F
 #rm.na = FALSE
 
 DF.Structure2 <- function(PPH.P, TIME.P, TIME, ExposureValue, rm.na = TRUE, ...)
@@ -95,7 +96,7 @@ DF.Structure2 <- function(PPH.P, TIME.P, TIME, ExposureValue, rm.na = TRUE, ...)
       ST.DF[[i]] = data.frame(TIME, ExposureValue[[i]], i)
     }
     
-    colnames(ST.DF[[i]]) = c("TIME", "EXP", "IND")
+    colnames(ST.DF[[i]]) = c("TIME", "IND", "EXP")
     class(ST.DF[[i]]$TIME) = class(TIME.P[[1]][[1]])
     
     if (rm.na)
