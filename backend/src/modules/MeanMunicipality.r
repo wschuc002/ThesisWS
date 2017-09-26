@@ -25,30 +25,12 @@ library(raster)
 library(sp)
 library(geoR)
 
-PointsPerMunicipality <- function(pol, Points.NoVal, PolDir, ...)
+PointsPerMunicipality <- function(pol, Points.NoVal, PolDir, Municipalities, ...)
 {
-  # ## Read base
-  # #pol = pollutants[1]
-  # if (exists("DriveLetter"))
-  # {
-  #   BASEAQ = BaseAQnetwork(pol, ExternalDrive = TRUE, DriveLetter = DriveLetter)
-  # } else
-  # {
-  #   BASEAQ = BaseAQnetwork(pol, ExternalDrive = FALSE)
-  # }
-  # 
-  # Points.NoVal = BASEAQ[[1]]
-  # PolDir = BASEAQ[[2]]
-  
   # Create search trees
   tree = createTree(coordinates(Points.NoVal))
   
   # Check which RIO-IFDM points belong to each municipality
-  
-  # Read municipalities
-  Municipalities = getData("GADM", country = "Belgium", level = 4, path = output.dir)
-  Municipalities = spTransform(Municipalities, BE_crs)
-  Municipalities@proj4string = BE_crs
   
   Municipalities.Name4only = Municipalities
   Municipalities.Name4onlyDF = subset(Municipalities@data, select = c("OBJECTID","NAME_4"))
@@ -103,6 +85,77 @@ PreMeanMunicipality <- function(POL, PolDir, pol, StartHour = 1, EndHour = lengt
   return(MuniDF)
 }
 
+MeanMunicipalityIndividualCentric <- function(PPH.P, PPH.S, PPH.T1, PPH.T2, PPH.T1.Pnt, PPH.T2.Pnt, PolDir,
+                             POL, pol, StartHour = 1, EndHour = length(YearDates)*24,
+                             HOURS.P, HOURS.S, HOURS.T1, HOURS.T2,
+                             wP, wS, wT1, wT2, Active.Subprofile, seq,
+                             Municipalities, Municipality.RIO_IFDM, MuniDF,
+                             Include_P = TRUE, Include_S = TRUE,
+                             Include_T1 = TRUE, Include_T2 = TRUE, ...)
+{
+  start.time = Sys.time()
+  
+  # Create search trees
+  tree = createTree(coordinates(POL))
+  
+  EXP.P.Li = list()
+  # Prepare lists
+  for (i in seq_along(PPH.P))
+  {
+    EXP.P.Li[[i]] = HOURS.P[[i]]
+    
+    for (d in seq_along(HOURS.P[[i]]))
+    {
+      EXP.P.Li[[i]][[d]][EXP.P.Li[[i]][[d]] > 0] = NA
+    }
+  }
+  
+  for (i in seq_along(PPH.P))
+    #for (i in 42)
+  {
+    # select proximity coordinates
+    inds = knnLookup(tree, newdat = coordinates(PPH.P[i,]), k = 1) # gives the matrix
+    inds = as.vector(inds)
+    
+    MuniID = (PPH.P[i,] %over% Municipalities)$OBJECTID
+    
+    # if not inside municipaliy: use closest one
+    if (!exists("MuniID"))
+    {
+      MuniID = which.min(gDistance(Municipalities, PPH.P[i,], byid = TRUE))
+    }
+    
+    for (h in seq_along(StartHour:EndHour))
+    {
+      hr = h+StartHour-1
+      day = ceiling(hr/24)
+      dayS = day-(ceiling(StartHour/24)-1)
+      
+      Exp.P = MuniDF[MuniID, hr]
+      EXP.P.Li[[i]][[dayS]][wP[[i]][[h]]] = Exp.P
+    }
+    
+    if (exists("MuniID"))
+    {
+      rm(MuniID)
+    } else
+    {
+      stop(print(paste("Municipality ID not created")))
+    }
+    
+  } # closing i
+  
+  if (exists("EXP.P.Li")) {EXP.P = EXP.P.Li} else {EXP.P = NA}
+  if (exists("EXP.S.Li")) {EXP.S = EXP.S.Li} else {EXP.S = NA}
+  if (exists("EXP.T1.Li")) {EXP.T1 = EXP.T1.Li} else {EXP.T1 = NA}
+  if (exists("EXP.T2.Li")) {EXP.T2 = EXP.T2.Li} else {EXP.T2 = NA}
+  
+  end.time = Sys.time()
+  Duration = difftime(end.time, start.time, units = 'hours')
+  
+  return(list(EXP.P, EXP.S, EXP.T1, EXP.T2, Duration))
+}
+
 # wP = HoP.P_F
 # wS = HoP.S_F
 # wT1 = HoP.T1_F
@@ -120,7 +173,7 @@ MeanMunicipality <- function(PPH.P, PPH.S, PPH.T1, PPH.T2, PPH.T1.Pnt, PPH.T2.Pn
                              POL, pol, StartHour = 1, EndHour = length(YearDates)*24,
                              HOURS.P, HOURS.S, HOURS.T1, HOURS.T2,
                              wP, wS, wT1, wT2, Active.Subprofile, seq,
-                             Municipalities, MuniDF,
+                             Municipalities, Municipality.RIO_IFDM.Li, MuniDF,
                              Include_P = TRUE, Include_S = TRUE,
                              Include_T1 = TRUE, Include_T2 = TRUE, ...)
 {
