@@ -54,23 +54,24 @@ BiWeekly <- function(year.active, YearDates, SchoolHolidays, Time, SetSeedNr, ..
   # Pick a random serie of 14 days for the possible days in the 3 seasons
   # Check if every T/F day has 13 (or more) following TRUEs
   
+  DAYS = 14
   WinterPossibleStartDays = NA
   SpringPossibleStartDays = NA
   SummerPossibleStartDays = NA
   
   for (d in seq_along(YearDates))
   {
-    if (all(WinterPossible[d:(d+14)]))
+    if (all(WinterPossible[d:(d+DAYS-1)]))
     {
       WinterPossibleStartDays = c(WinterPossibleStartDays, YearDates[d])
     }
     
-    if (all(SpringPossible[d:(d+14)]))
+    if (all(SpringPossible[d:(d+DAYS-1)]))
     {
       SpringPossibleStartDays = c(SpringPossibleStartDays, YearDates[d])
     }
     
-    if (all(SummerPossible[d:(d+14)]))
+    if (all(SummerPossible[d:(d+DAYS-1)]))
     {
       SummerPossibleStartDays = c(SummerPossibleStartDays, YearDates[d])
     }
@@ -89,9 +90,9 @@ BiWeekly <- function(year.active, YearDates, SchoolHolidays, Time, SetSeedNr, ..
   set.seed(SetSeedNr); SummerDate.RS = sample(SummerPossibleStartDays,1)
   
   # Generate Biweekly periods
-  BiWeeklyWinter = seq(WinterDate.RS, WinterDate.RS + 14*24*60**2, 1*24*60**2)
-  BiWeeklySpring = seq(SpringDate.RS, SpringDate.RS + 14*24*60**2, 1*24*60**2)
-  BiWeeklySummer = seq(SummerDate.RS, SummerDate.RS + 14*24*60**2, 1*24*60**2)
+  BiWeeklyWinter = seq(WinterDate.RS, WinterDate.RS + (DAYS-1)*24*60**2, 1*24*60**2)
+  BiWeeklySpring = seq(SpringDate.RS, SpringDate.RS + (DAYS-1)*24*60**2, 1*24*60**2)
+  BiWeeklySummer = seq(SummerDate.RS, SummerDate.RS + (DAYS-1)*24*60**2, 1*24*60**2)
   
   return(list(BiWeeklyWinter, BiWeeklySpring, BiWeeklySummer))
 }
