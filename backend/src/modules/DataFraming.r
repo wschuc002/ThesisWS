@@ -65,17 +65,7 @@ DF.Structure2 <- function(PPH.P, TIME.P, TIME, ExposureValue, rm.na = TRUE, ...)
       
     }
   }
-  # 
-  # if (ClassExp == "numeric")
-  # {
-  #   for (i in seq_along(PPH.P))
-  #   {
-  #     ExposureValue[[i]]
-  #     
-  #   }
-  #   
-  # }
-  
+
   ST.DF = list()
   
   for (i in seq_along(PPH.P))
@@ -83,17 +73,17 @@ DF.Structure2 <- function(PPH.P, TIME.P, TIME, ExposureValue, rm.na = TRUE, ...)
     #print(i)
     if (all(ClassTime == "list" & ClassExp == "list"))
     {
-      ST.DF[[i]] = data.frame(TIME.ul[[i]], ExposureValue.ul[[i]], i)
+      ST.DF[[i]] = data.frame(TIME.ul[[i]], i, ExposureValue.ul[[i]])
     }
     
     if (all(ClassTime == class(TIME.P[[1]][[1]])) & ClassExp == "list")
     {
-      ST.DF[[i]] = data.frame(TIME, ExposureValue.ul[[i]], i)
+      ST.DF[[i]] = data.frame(TIME, i, ExposureValue.ul[[i]])
     }
     
     if (all(ClassTime == class(TIME.P[[1]][[1]])) & ClassExp == "numeric")
     {
-      ST.DF[[i]] = data.frame(TIME, ExposureValue[[i]], i)
+      ST.DF[[i]] = data.frame(TIME, i, ExposureValue[[i]])
     }
     
     colnames(ST.DF[[i]]) = c("TIME", "IND", "EXP")
@@ -229,6 +219,46 @@ DF.Structure <- function(TIME, ExposureValue, IND.amount, Hr.amount, WHICH, ...)
 #}
   
   
+}
+
+
+# InDF = HR_ALL
+# BasedOn = "IND" # "IND"
+
+DF.Stats2 <- function(InDF, BasedOn, Time, ...)
+{
+  ColnamesOfInterest = colnames(InDF)[colnames(InDF) != "TIME" & colnames(InDF) != "IND"]
+  
+  Stats.DF.Li = list()
+  
+  for (coi in ColnamesOfInterest)
+  {
+    #coi = ColnamesOfInterest[2]
+    c = which(ColnamesOfInterest %in% coi)
+    
+    # calculating mean, min and max and standard deviation
+    mean.EXP = data.frame(tapply(InDF[,coi], InDF[,BasedOn], mean))
+    min.EXP = data.frame(tapply(InDF[,coi], InDF[,BasedOn], min))
+    max.EXP = data.frame(tapply(InDF[,coi], InDF[,BasedOn], max))
+    sd.EXP = data.frame(tapply(InDF[,coi], InDF[,BasedOn], sd))
+    
+    stats.EXP = cbind(BasedOn, mean.EXP, min.EXP, max.EXP, sd.EXP)
+    names(stats.EXP) = c(BasedOn, paste0("mean_",coi), paste0("min_",coi), paste0("max_",coi), paste0("sd_",coi))
+    stats.EXP[,BasedOn] = rownames(stats.EXP)
+
+    class(stats.EXP[,BasedOn]) = "numeric"
+    if (BasedOn == "TIME") {class(stats.EXP[,BasedOn]) = class(Time)}
+    
+    rownames(stats.EXP) = 1:nrow(stats.EXP)
+    
+    Stats.DF.Li[[c]] = stats.EXP
+  }
+  
+  Stats.DF = do.call(cbind, Stats.DF.Li)
+  
+  Stats.DF = Stats.DF[, unique(colnames(Stats.DF))]
+
+  return(Stats.DF)
 }
 
 DF.Stats <- function(ST.DF.WS, ...)

@@ -87,7 +87,7 @@ PreMeanMunicipality <- function(POL, PolDir, pol, StartHour = 1, EndHour = lengt
 
 MeanMunicipalityIndividualCentric <- function(PPH.P, PPH.S, PPH.T1, PPH.T2, PPH.T1.Pnt, PPH.T2.Pnt, PolDir,
                              POL, pol, StartHour = 1, EndHour = length(YearDates)*24,
-                             HOURS.P, HOURS.S, HOURS.T1, HOURS.T2,
+                             TIME.P, TIME.S, TIME.T1, TIME.T2,
                              wP, wS, wT1, wT2, Active.Subprofile, seq,
                              Municipalities, Municipality.RIO_IFDM, MuniDF,
                              Include_P = TRUE, Include_S = TRUE,
@@ -98,15 +98,22 @@ MeanMunicipalityIndividualCentric <- function(PPH.P, PPH.S, PPH.T1, PPH.T2, PPH.
   # Create search trees
   tree = createTree(coordinates(POL))
   
-  EXP.P.Li = list()
+  EXP.P.Li = TIME.P
   # Prepare lists
   for (i in seq_along(PPH.P))
   {
-    EXP.P.Li[[i]] = HOURS.P[[i]]
-    
-    for (d in seq_along(HOURS.P[[i]]))
+    for (d in seq_along(TIME.P[[i]]))
     {
-      EXP.P.Li[[i]][[d]][EXP.P.Li[[i]][[d]] > 0] = NA
+      if (length(MuniDF) == length(YearDates))
+      {
+        EXP.P.Li[[i]][[d]] = NA
+      }
+      
+      if (length(MuniDF) == length(Time))
+      {
+        EXP.P.Li[[i]] = TIME.P[[i]]
+        EXP.P.Li[[i]][[d]][EXP.P.Li[[i]][[d]] > 0] = NA
+      }
     }
   }
   
@@ -120,19 +127,36 @@ MeanMunicipalityIndividualCentric <- function(PPH.P, PPH.S, PPH.T1, PPH.T2, PPH.
     MuniID = (PPH.P[i,] %over% Municipalities)$OBJECTID
     
     # if not inside municipaliy: use closest one
-    if (!exists("MuniID"))
+    if (is.na(MuniID))
     {
       MuniID = which.min(gDistance(Municipalities, PPH.P[i,], byid = TRUE))
     }
     
-    for (h in seq_along(StartHour:EndHour))
+    if (length(MuniDF) == length(Time)) # if hourly
     {
-      hr = h+StartHour-1
-      day = ceiling(hr/24)
-      dayS = day-(ceiling(StartHour/24)-1)
-      
-      Exp.P = MuniDF[MuniID, hr]
-      EXP.P.Li[[i]][[dayS]][wP[[i]][[h]]] = Exp.P
+      for (h in seq_along(StartHour:EndHour))
+      {
+        hr = h+StartHour-1
+        day = ceiling(hr/24)
+        dayS = day-(ceiling(StartHour/24)-1)
+        
+        Exp.P = MuniDF[MuniID, hr]
+        EXP.P.Li[[i]][[dayS]][wP[[i]][[h]]] = Exp.P
+      }
+    }
+    
+    if (length(MuniDF) == length(YearDates)) # if daily averages
+    {
+      for (day in unique(ceiling(seq_along(StartHour:EndHour)/24)))
+      {
+        dayS = (ceiling(StartHour/24)-1)+day
+        #print(paste0(dayS))
+        
+        Exp.P = MuniDF[MuniID, day]
+        # print(Exp.P)
+        EXP.P.Li[[i]][[dayS]] = Exp.P
+        # print(EXP.P.Li[[i]][[dayS]])
+      }
     }
     
     if (exists("MuniID"))
