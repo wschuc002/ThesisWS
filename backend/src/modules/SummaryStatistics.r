@@ -24,7 +24,7 @@ library(corrplot)
 
 
   
-CorPlotGraphAndSave <- function(Type, Subtype1, Subtype2, Abbr1, Abbr2, Width = 1208, Height = 720, pol, ...)
+CorPlotGraphAndSave <- function(Type, Subtype1, Subtype2, Abbr1, Abbr2, Width = 1208, Height = 720, pol, GroupSize, ...)
 {
   Plot_dir = file.path("..", "output", "plots")
   if (!dir.exists(Plot_dir)) 
@@ -33,16 +33,36 @@ CorPlotGraphAndSave <- function(Type, Subtype1, Subtype2, Abbr1, Abbr2, Width = 
   }
 
   png(filename = file.path(Plot_dir, paste("CORPLOT", Type, paste(Abbr1, Abbr2 , sep = "~"), pol,
-                                           paste0(length(PPH.P), ".png"), sep = "_")),
+                                           paste0(GroupSize, ".png"), sep = "_")),
       width = Width, height = Height, units = "px", pointsize = 12)
   
-  plot(Subtype1, Subtype2, main = paste(Type, Abbr1, "vs.", Abbr2, pol, "(µg/m³)", length(PPH.P), "individuals"),
+  plot(Subtype1, Subtype2, main = paste(Type, Abbr1, "vs.", Abbr2, pol, "(µg/m³)", GroupSize, "individuals"),
        pch = "+", xlab = Abbr1, ylab = Abbr2)
   R.squared = cor(Subtype1, Subtype2)**2
   text(min(Subtype1), max(Subtype2)-1, pos = 1, labels = "R²:", font = 2)
   text(min(Subtype1)+5, max(Subtype2)-1, pos = 1, labels = R.squared)
 
   dev.off()
+}
+
+
+CorPlotGraph <- function(Type, CombinedValues, Width = 1208, Height = 720, pol,
+                         GroupSize, IndividualBasedMean, IndividualBasedMean_BiWeekly, ...)
+{
+  collectFull = colnames(IndividualBasedMean) %in% paste(CombinedValues, toupper(pol), sep = "_")
+  collectBi = colnames(IndividualBasedMean_BiWeekly) %in% paste(CombinedValues, toupper(pol), sep = "_")
+  
+  collect = cbind(IndividualBasedMean[,collectFull], IndividualBasedMean_BiWeekly[,collectBi])
+  colnames(collect) = paste(CombinedValues, toupper(pol), sep = "_")
+  
+  C = cor(collect)
+  C_squared = C**2
+  
+  plot(collect[,1], collect[,2], main = paste(Type, colnames(collect)[1], "vs.", colnames(collect)[2], "(µg/m³)", GroupSize, "individuals"),
+       pch = "+", xlab = colnames(collect)[1], ylab = colnames(collect)[2])
+  R.squared = C_squared[1,2]
+  text(min(collect[,1]), max(collect[,2])-1, pos = 1, labels = "R²:", font = 2)
+  text(min(collect[,1])+0.75, max(collect[,2])-1, pos = 1, labels = round(R.squared, 8))
 }
 
 CorPlotTableAndSave <- function(Type, Subtype1, Subtype2, Subtype3 = -9999, Subtype4 = -9999,
@@ -60,6 +80,41 @@ CorPlotTableAndSave <- function(Type, Subtype1, Subtype2, Subtype3 = -9999, Subt
   CorPlotTable(Type, "Numbers", Subtype1, Subtype2, Subtype3, Subtype4, pol)
   
   dev.off()
+}
+
+
+#CombinedValues = c("PST1", "PST2", "PST3", "P1")
+
+CorPlotTable2 <- function(GroupName, CorType, CombinedValues, pol, IndividualBasedMean, IndividualBasedMean_BiWeekly, ...)
+{
+  collectFull = colnames(IndividualBasedMean) %in% paste(CombinedValues, toupper(pol), sep = "_")
+  collectBi = colnames(IndividualBasedMean_BiWeekly) %in% paste(CombinedValues, toupper(pol), sep = "_")
+  
+  collect = cbind(IndividualBasedMean[,collectFull], IndividualBasedMean_BiWeekly[,collectBi])
+  colnames(collect) = paste(CombinedValues, toupper(pol), sep = "_")
+  
+  C = cor(collect)
+  C_squared = C**2
+  
+  print(C_squared)
+  
+  if (CorType == "Ellipse")
+  {
+    corrplot(C, method="ellipse", type = "upper",
+             mar = c(1, 1, 1, 1))
+  }
+  
+  if (CorType == "Numbers")
+  {
+    corrplot(C_squared, method="number", number.digits = 5, title = paste(GroupName, "R²", pol), #type = "upper"
+             mar = c(1, 0, 1, 0), tl.col = "black", tl.srt = 45, cl.lim = c(0,1))
+  }
+  
+  if (CorType == "Mixed")
+  {
+    corrplot.mixed(C_squared, lower = "number", upper = "ellipse", title = paste(GroupName, "R²", pol), #type = "upper"
+                   mar = c(2, 0, 2, 0), tl.col = "black", tl.srt = 45, number.digits = 4, cl.lim = c(0,1))#, cl.pos = "r") # cl.length = 5 
+  }
 }
 
 CorPlotTable <- function(GroupName, CorType, WS1, WS2, C1 = -9999, C2 = -9999, pol, ...)
@@ -88,15 +143,109 @@ CorPlotTable <- function(GroupName, CorType, WS1, WS2, C1 = -9999, C2 = -9999, p
   }
 }
 
+# Profile = Active.Type
+# DAY.start = 1
+# DAYS = 365
+# CombinedValues = c("PST1", "PST3", "P1")
+# pol = "pm25"
+
+Plot.DeltaProposed <- function(Profile, DAY.start, DAYS, CombinedValues, pol, HourBasedMeanPopulation, ...)
+{
+  
+  Col.Diff1 = rgb(red=0, green=0.5, blue=0.5, alpha=1)
+  Col.Diff2 = rgb(red=1, green=0.2, blue=0.5, alpha=1)
+  Col.Diff3 = rgb(red=0.6, green=0.2, blue=0.2, alpha=1)
+  
+  StartHr = DAY.start*24-23
+  EndHr = (DAY.start + DAYS - 1)*24
+  
+  SubPeriodHours = StartHr:EndHr
+  Diff1 = (HourBasedMeanPopulation[SubPeriodHours, paste(CombinedValues[2], toupper(pol), sep = "_")] - 
+             HourBasedMeanPopulation[SubPeriodHours, paste(CombinedValues[1], toupper(pol), sep = "_")])
+  Diff2 = (HourBasedMeanPopulation[SubPeriodHours, paste(CombinedValues[3], toupper(pol), sep = "_")] - 
+             HourBasedMeanPopulation[SubPeriodHours, paste(CombinedValues[1], toupper(pol), sep = "_")])
+  
+  DiffCom = c(Diff1, Diff2)
+  
+  Diff1[Diff1 == 0] = NA
+  Diff2[Diff2 == 0] = NA
+  
+  plot(HourBasedMeanPopulation$TIME[SubPeriodHours], Diff1, pch = "-", cex = 1, col = Col.Diff1,
+       ylim=c(min(DiffCom, na.rm = T), max(DiffCom, na.rm = T)),
+       xlab = "Time", ylab = paste("??", toupper(pol), "concentration (µg/m³)"),
+       main = paste(Profile, ":", "Hour-based difference"))
+  points(HourBasedMeanPopulation$TIME[SubPeriodHours], Diff2, pch = "-", cex = 1, col = Col.Diff2)
+  
+  mtext(paste(head(HourBasedMeanPopulation$TIME[SubPeriodHours],1), "-", tail(HourBasedMeanPopulation$TIME[SubPeriodHours],1) + 0.001))
+  
+  # Horizontal line for 0 (PST1 a.k.a. Proposed Method*)
+  abline(h = 0, lwd=2)
+  
+  # legend("topleft", paste(CombinedValues[1], toupper(pol), sep = "_"), xpd = FALSE, horiz = TRUE, inset = c(0,0),
+  #        bty = "n", pch = "-", lwd=2)
+  # 
+  # legend("bottomleft", paste(CombinedValues[2:3], toupper(pol), sep = "_"), xpd = FALSE, horiz = TRUE, inset = c(0,0),
+  #        bty = "n", bg = "grey", pch = 15, cex = 1, col = c(Col.Diff1, Col.Diff2))
+  
+  legend("bottomright", paste(CombinedValues, toupper(pol), sep = "_"), xpd = FALSE, horiz = TRUE, inset = c(0,0),
+         bty = "n", bg = "grey", cex = 1, col = c("black", Col.Diff1, Col.Diff2), lwd= c(2, 1, 1))
+}
+
+
+# Profile = Active.Type
+# PlotMinMax = FALSE
+# DAY.start = 1
+# DAYS = 7
+# DFin = HR_ALL
+# StatsDFinHourBased = Stats.HR_ALL_HourBased
+# CalcMethod = "PST1"
+
+Plot.Group3 <- function(Profile, DAY.start, DAYS, DFin, StatsDFinHourBased, CalcMethod, PlotMinMax, pol, ...)
+{
+  CalcMethodPol = paste(CalcMethod, toupper(pol), sep = "_")
+  
+  IND.amount = length(unique(DFin[, "IND"]))
+  
+  ColnamesOfInterest = colnames(DFin)[colnames(DFin) != "TIME" & colnames(DFin) != "IND"]
+  Transparency = 1/IND.amount*30
+  Col.HR = rgb(red=0.6, green=0.2, blue=0.2, alpha=Transparency)
+  
+  StartHr = DAY.start*24-23
+  EndHr = (DAY.start + DAYS - 1)*24
+  
+  SubPeriodHours = StartHr:EndHr
+  
+  class(DFin$TIME) = class(Time)
+  
+  DF.sub = DFin[DFin$TIME %in% Time[StartHr:EndHr],]
+  StatsDFinHourBased.sub = StatsDFinHourBased[StatsDFinHourBased$TIME %in% Time[StartHr:EndHr],]
+  
+  E.max = max(DF.sub[,ColnamesOfInterest], na.rm = T)
+  
+  PSH = "-"
+  if (DAYS > 7) {PSH = "."}
+  
+  plot(DF.sub[, "TIME"], DF.sub[, CalcMethodPol],
+       pch = PSH, cex = 1, col = Col.HR, ylim=c(0, E.max),
+       xlab = "Time", ylab = paste(CalcMethodPol, "concentration (µg/m³)"),
+       main = paste(Profile, ":", IND.amount, "out of", GroupSize, "individuals"))
+  
+  mtext(paste(head(DF.sub[, "TIME"],1), "-", tail(DF.sub[, "TIME"],1) + 0.001))
+
+  if (PlotMinMax)
+  {
+    points(StatsDFinHourBased.sub$TIME, StatsDFinHourBased.sub$"mean_PST1_NO2",
+           pch = "-", cex = 1, col = Col.Diff2)
+  }
+  
+}
+
 #Profile = Active.Type
 #IND.amount = length(PPH.P)
 #PlotMinMax = FALSE
 #DAY.start = 1
-<<<<<<< HEAD
 #DAYS = length(YearDates)-1
-=======
 #DAYS = 30 length(TIME.P[[1]]) #21 #length(YearDates)-1
->>>>>>> b95ed32799e2b887dcd9296c95c16df7bb2e5773
 
 Plot.Group2 <- function(Profile, DAY.start, DAYS, IND.amount, PlotMinMax, ST.DF.P, ST.DF.S, ST.DF.T1, ST.DF.T2,
                         stats.EXP.P, stats.EXP.S, stats.EXP.T1, stats.EXP.T2, ...)
@@ -107,7 +256,8 @@ Plot.Group2 <- function(Profile, DAY.start, DAYS, IND.amount, PlotMinMax, ST.DF.
                  amount is reduced to this number:", length(ExposureValue.P)))
     IND.amount = length(ExposureValue.P)
   }
-  
+  IND.amount = GroupSize
+  IND.amount = length(unique(ST.DF.HR_F$IND))
   
   ST.DF.HR = HO_WS1.ST.DF.HR
   
@@ -131,28 +281,40 @@ Plot.Group2 <- function(Profile, DAY.start, DAYS, IND.amount, PlotMinMax, ST.DF.
   E.max = max(stats.EXP.HR.sub$maxEXP, na.rm = T)
   E.max = 100
   
+  Transparency = 1/IND.amount*30
+  
   Col.P = rgb(red=0, green=0.5, blue=0.5, alpha=0.1)
   Col.S = rgb(red=1, green=0.2, blue=0.5, alpha=0.1)
   Col.T1 = rgb(red=0.5, green=0.2, blue=0.5, alpha=0.1)
   Col.T2 = rgb(red=1, green=0.2, blue=0.2, alpha=0.1)
-  Col.HR = rgb(red=0.6, green=0.2, blue=0.2, alpha=0.1)
+  Col.HR = rgb(red=0.6, green=0.2, blue=0.2, alpha=Transparency)
+  Col.HRMean = rgb(red=0.6, green=0.2, blue=0.2, alpha=1)
   
   # point plot with transparency in color
-<<<<<<< HEAD
+
   with (ST.DF.P_F, plot(TIME, EXP, pch = ".", cex=1, col = Col.P, ylim=c(0, E.max+20),
-=======
-  with (ST.DF.P, plot(TIME, EXP, pch = "-", cex=1, col = Col.P, ylim=c(0, E.max+20),
->>>>>>> b95ed32799e2b887dcd9296c95c16df7bb2e5773
                         xlab = "Time", ylab = paste(toupper(pol), "concentration (µg/m³)"),
                         main = paste(Active.Subprofile$FullName, ":", IND.amount, "out of", length(ExposureValue.P), "individuals")))
   
   with (ST.DF.HR.sub, plot(TIME, EXP, pch = ".", cex=1, col = Col.P, ylim=c(0, E.max+20),
                       xlab = "Time", ylab = paste(toupper(pol), "concentration (µg/m³)"),
                       main = paste(Active.Subprofile$FullName, ":", IND.amount, "out of", length(PPH.P), "individuals")))
+
   
-  with (ST.DF.HR, plot(TIME, EXP, pch = ".", cex=1, col = Col.HR, ylim=c(0, E.max+20),
+  with (HourBasedMeanPopulation, plot(TIME[1:(30*24)], (PST1_NO2[1:(30*24)] - P1_NO2[1:(30*24)]), pch = "-", cex=1, col = Col.HRMean, ylim=c(-50, 50),
+                           xlab = "Time", ylab = paste(toupper(pol), "concentration (µg/m³)"),
+                           main = paste(Active.Subtype, ":", IND.amount, "out of", GroupSize, "individuals")))
+  
+  
+  
+  
+  with (ST.DF.HR_F, plot(as.numeric(TIME), EXP, pch = ".", cex=1, col = Col.HR, ylim=c(0, E.max+20),
                            xlab = "Time", ylab = paste(toupper(pol), "concentration (µg/m³)"),
                            main = paste(Active.Subprofile$FullName, ":", IND.amount, "out of", length(PPH.P), "individuals")))
+  
+  axis.POSIXct(1, at = ST.DF.HR_F$TIME, labels = format(ST.DF.HR_F$TIME,"%b-%d"), las=2)
+  
+  plot(ST.DF.HR_F$TIME, ST.DF.HR_F$EXP)
   
   with (OW_C2.ST.DF.HR, plot(TIME, EXP, pch = ".", cex=1, col = Col.HR, ylim=c(0, E.max+20),
                             xlab = "Time", ylab = paste(toupper(pol), "Biweekly concentration (µg/m³)"),
