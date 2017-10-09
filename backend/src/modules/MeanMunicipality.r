@@ -152,9 +152,9 @@ MeanMunicipalityIndividualCentric <- function(PPH.P, PPH.S, PPH.T1, PPH.T2, PPH.
         dayS = (ceiling(StartHour/24)-1)+day
         #print(paste0(dayS))
         
-        Exp.P = MuniDF[MuniID, day]
+        Exp.P = MuniDF[MuniID, dayS]
         # print(Exp.P)
-        EXP.P.Li[[i]][[dayS]] = Exp.P
+        EXP.P.Li[[i]][[day]] = Exp.P
         # print(EXP.P.Li[[i]][[dayS]])
       }
     }

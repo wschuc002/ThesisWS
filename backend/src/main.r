@@ -215,10 +215,10 @@ if (!file.exists(LogCSVpath))
 # - - - 
 # Beginning of profile based code
 
-#for (Active.Type in Types)
-for (Active.Type in Types[c(2,3)])
+for (Active.Type in Types)
+  #for (Active.Type in Types[c(3)])
 {
-  #Active.Type = Types[1]
+  #Active.Type = Types[3]
   print(Active.Type)
   
   FirstSubtype = ResidentialProfiles[ResidentialProfiles$Type == Active.Type][1]
@@ -338,7 +338,7 @@ for (Active.Type in Types[c(2,3)])
     }
   }
   
-
+  
   SubProfilesFullPeriod = ResidentialProfiles$Subtype[ResidentialProfiles$'T-gaps' == 0 &
                                                         ResidentialProfiles$Type == Active.Type]
   
@@ -390,16 +390,15 @@ for (Active.Type in Types[c(2,3)])
     }
     
     for (pol in pollutants)
-    #for (pol in pollutants[2]) #[2] = pm25 only | [1] = no2 only
+      #for (pol in pollutants[2]) #[2] = pm25 only | [1] = no2 only
     {
-      BASEAQ = BaseAQnetwork(pol, ExternalDrive = TRUE, DriveLetter = "T")
-      #BASEAQ = BaseAQnetwork(pol)
+      #BASEAQ = BaseAQnetwork(pol, ExternalDrive = TRUE, DriveLetter = "T")
+      BASEAQ = BaseAQnetwork(pol)
       Points.NoVal = BASEAQ[[1]]
       PolDir = BASEAQ[[2]]
       
       if (Active.Subprofile$`S-aggr` == 1) # Municipality related
       {
-        
         if (!exists("Municipalities"))
         {
           # Read municipalities
@@ -450,7 +449,7 @@ for (Active.Type in Types[c(2,3)])
       
       TimeTakenInterpolation = NA
       for (f in Fragments)
-      #for (f in 2:10)  
+        #for (f in 2:10)  
       { # implement EXP_pol ST.DF and HR recognition
         print(paste("Testing if HR exists of Fragment", f))
         if (file.exists(file.path(output.dir, paste0(Active.Subtype, "_", f),
@@ -470,7 +469,7 @@ for (Active.Type in Types[c(2,3)])
           if (exists("PPH.T1.PNT.RS")) {rm(PPH.T1.PNT.RS)}
           if (exists("PPH.T2.PNT.RS")) {rm(PPH.T2.PNT.RS)}
           gc()
-
+          
           if (Active.Subprofile$Dynamics == "dynamic")
           {
             print(paste("Calculating (pseudo) random points in routes..."))
@@ -536,7 +535,7 @@ for (Active.Type in Types[c(2,3)])
           }
           rm(TIME)
           gc()
-
+          
           
           # Write TIME to disk
           WriteToDisk = TRUE
@@ -567,18 +566,6 @@ for (Active.Type in Types[c(2,3)])
           }
         } else
         {
-          # correct time for daily
-          if (Active.Subprofile$'T-aggr' == 1) #daily
-          {
-            for (i in 1:GroupSize)
-            {
-              for (d in seq_along(TIME.P_F[[i]]))
-              {
-                TIME.P_F[[i]][[d]] = TIME.P_F[[i]][[d]][1]-1*60**2
-              }
-            }
-          }
-          
           if (Active.Subprofile$'T-aggr' == 0) # hourly
           {
             # Hours of the year
@@ -608,7 +595,19 @@ for (Active.Type in Types[c(2,3)])
             rm(HOP)
             gc()
           }
-  
+          
+          # correct time for daily
+          if (Active.Subprofile$'T-aggr' == 1) #daily
+          {
+            for (i in 1:GroupSize)
+            {
+              for (d in seq_along(TIME.P_F[[i]]))
+              {
+                TIME.P_F[[i]][[d]] = TIME.P_F[[i]][[d]][1]-1*60**2
+              }
+            }
+          }
+          
           ## Interpolating the points
           if (Active.Subprofile$`S-gaps` == 0 & Active.Subprofile$`S-aggr` == 0 & Active.Subprofile$'T-aggr' == 0) # PST1
           {
@@ -636,59 +635,59 @@ for (Active.Type in Types[c(2,3)])
                                                         ,Active.Subprofile = Active.Subprofile
                                                         ,seq = 0)
           }
-  
+          
           ## Points from Municipality
           if (Active.Subprofile$`S-gaps` == 0 & Active.Subprofile$`S-aggr` == 1 & Active.Subprofile$'T-aggr' == 0) # PST3
           {
             ExposureValue.All = MeanMunicipality(PPH.P, PPH.S, PPH.T1, PPH.T2, PPH.T1.PNT.RS, PPH.T2.PNT.RS
-                                                ,PolDir, Points.NoVal, pol
-                                                ,StartHour = SeqFragment[f]*24+1 # Time[(SeqFragment[f]*24+1)]
-                                                ,EndHour = (SeqFragment[f+1])*24 # Time[(SeqFragment[f+1])*24]
-                                                ,HOURS.P = HOURS.P_F, HOURS.S = HOURS.S_F
-                                                ,HOURS.T1 = HOURS.T1_F, HOURS.T2 = HOURS.T2_F
-                                                ,wP = HoP.P_F, wS = HoP.S_F, wT1 = HoP.T1_F, wT2 = HoP.T2_F
-                                                ,Active.Subprofile = Active.Subprofile
-                                                ,seq = SeqFragment[f]
-                                                ,Municipalities, Municipality.RIO_IFDM, MuniDF
-                                                #,Include_P = FALSE, Include_S = TRUE
-                                                #,Include_T1 = FALSE, Include_T2 = FALSE
-            )
-          }
-  
-          #! not tested
-          if (Active.Subprofile$`S-gaps` == 1 & Active.Subprofile$`S-aggr` == 1 & Active.Subprofile$'T-aggr' == 0) # P3
-          {
-            ExposureValue.All = MeanMunicipalityIndividualCentric(PPH.P = PPH.P
-                                                 ,PolDir = PolDir, POL = Points.NoVal, pol = pol
+                                                 ,PolDir, Points.NoVal, pol
                                                  ,StartHour = SeqFragment[f]*24+1 # Time[(SeqFragment[f]*24+1)]
                                                  ,EndHour = (SeqFragment[f+1])*24 # Time[(SeqFragment[f+1])*24]
-                                                 ,HOURS.P = HOURS.P_F
-                                                 ,wP = HoP.P_F
+                                                 ,HOURS.P = HOURS.P_F, HOURS.S = HOURS.S_F
+                                                 ,HOURS.T1 = HOURS.T1_F, HOURS.T2 = HOURS.T2_F
+                                                 ,wP = HoP.P_F, wS = HoP.S_F, wT1 = HoP.T1_F, wT2 = HoP.T2_F
                                                  ,Active.Subprofile = Active.Subprofile
                                                  ,seq = SeqFragment[f]
-                                                 ,Municipalities = Municipalities
-                                                 ,Municipality.RIO_IFDM = Municipality.RIO_IFDM
-                                                 ,MuniDF = MuniDF
+                                                 ,Municipalities, Municipality.RIO_IFDM, MuniDF
                                                  #,Include_P = FALSE, Include_S = TRUE
                                                  #,Include_T1 = FALSE, Include_T2 = FALSE
             )
           }
-  
+          
+          #! not tested
+          if (Active.Subprofile$`S-gaps` == 1 & Active.Subprofile$`S-aggr` == 1 & Active.Subprofile$'T-aggr' == 0) # P3
+          {
+            ExposureValue.All = MeanMunicipalityIndividualCentric(PPH.P = PPH.P
+                                                                  ,PolDir = PolDir, POL = Points.NoVal, pol = pol
+                                                                  ,StartHour = SeqFragment[f]*24+1 # Time[(SeqFragment[f]*24+1)]
+                                                                  ,EndHour = (SeqFragment[f+1])*24 # Time[(SeqFragment[f+1])*24]
+                                                                  ,HOURS.P = HOURS.P_F
+                                                                  ,wP = HoP.P_F
+                                                                  ,Active.Subprofile = Active.Subprofile
+                                                                  ,seq = SeqFragment[f]
+                                                                  ,Municipalities = Municipalities
+                                                                  ,Municipality.RIO_IFDM = Municipality.RIO_IFDM
+                                                                  ,MuniDF = MuniDF
+                                                                  #,Include_P = FALSE, Include_S = TRUE
+                                                                  #,Include_T1 = FALSE, Include_T2 = FALSE
+            )
+          }
+          
           #! not tested
           if (Active.Subprofile$`S-gaps` == 0 & Active.Subprofile$`S-aggr` == 0 & Active.Subprofile$'T-aggr' == 1) # PST5
           {
           }
-  
+          
           #! not tested
           if (Active.Subprofile$`S-gaps` == 1 & Active.Subprofile$`S-aggr` == 0 & Active.Subprofile$'T-aggr' == 1) # P5
           {
           }
-  
+          
           #! not tested
           if (Active.Subprofile$`S-gaps` == 0 & Active.Subprofile$`S-aggr` == 1 & Active.Subprofile$'T-aggr' == 1) # PST7
           {
           }
-  
+          
           #! not tested
           if (Active.Subprofile$`S-gaps` == 1 & Active.Subprofile$`S-aggr` == 1 & Active.Subprofile$'T-aggr' == 1) # P7
           {
@@ -707,21 +706,21 @@ for (Active.Type in Types[c(2,3)])
                                                                   ,Include_T1 = FALSE, Include_T2 = FALSE
             )
           }
-  
+          
           ExposureValue.P_F = ExposureValue.All[[1]]
           ExposureValue.S_F = ExposureValue.All[[2]]
           ExposureValue.T1_F = ExposureValue.All[[3]]
           ExposureValue.T2_F = ExposureValue.All[[4]]
           TimeTakenInterpolation[f] = ExposureValue.All[[5]]
           print(TimeTakenInterpolation[f])
-  
+          
           info = paste(Sys.time(), Active.Subprofile$Subtype, pol, f, TimeTakenInterpolation[f], NA, sep = ", ")
           write.table(info, file = LogCSVpath, sep = ",", quote = FALSE, append = TRUE, col.names = FALSE,
                       row.names = FALSE, eol = "\n")
-  
+          
           rm(ExposureValue.All)
           gc()
-  
+          
           # Write EXP to disk
           WriteToDisk = TRUE
           OW = FALSE
@@ -735,12 +734,12 @@ for (Active.Type in Types[c(2,3)])
               SaveAsDBF(ExposureValue.T2_F, "Exposure", "T2", FolderName, OW, pol, 0)
             }
           }
-
+          
         } # closing when EXP does not exist on HD
-
+        
         if (Active.Subprofile$Dynamics == "static") {DF = c("DF_P_")}
         if (Active.Subprofile$Dynamics == "dynamic") {DF = c("DF_P_", "DF_S_","DF_T1_","DF_T2_")}
-
+        
         if (all(file.exists(file.path(output.dir, FolderName, paste0(DF, toupper(pol), ".dbf")))))
         {
           ST.DF.P_F = read.dbf(file = file.path(output.dir, FolderName, paste0("DF_P_", toupper(pol), ".dbf")))
@@ -759,7 +758,7 @@ for (Active.Type in Types[c(2,3)])
             ST.DF.T1_F = DF.Structure2(PPH.P, TIME.P_F, TIME.T1_F, ExposureValue.T1_F)
             ST.DF.T2_F = DF.Structure2(PPH.P, TIME.P_F, TIME.T2_F, ExposureValue.T2_F)
           }
-
+          
           # Save DF structure
           SaveAsDBF(ST.DF.P_F, "DF", "Primary", FolderName, OW, pol, 0)
           if (Active.Subprofile$Dynamics == "dynamic")
@@ -768,23 +767,23 @@ for (Active.Type in Types[c(2,3)])
             SaveAsDBF(ST.DF.T1_F, "DF", "T1", FolderName, OW, pol, 0)
             SaveAsDBF(ST.DF.T2_F, "DF", "T2", FolderName, OW, pol, 0)
           }
-
+          
         } # closing when ST.DF does not exist on HD
-
-        if (!file.exists(file.path(output.dir, FolderName, paste0("HR_ALL", ".dbf"))) &
-          (all(file.exists(file.path(output.dir, FolderName, paste0(DF, toupper(pol), ".dbf"))))))
+        
+        if (!file.exists(file.path(output.dir, FolderName, paste0("HR_", toupper(pol), ".dbf"))) &
+            (all(file.exists(file.path(output.dir, FolderName, paste0(DF, toupper(pol), ".dbf"))))))
         {
           if (Active.Subprofile$Dynamics == "dynamic")
           {
             ST.DF.HR_F = ToHourValuesFromDF(PPH.P, Time.Sub, output.dir, FolderName,
                                             TIME.P_F, TIME.S_F, TIME.T1_F, TIME.T2_F, pollutants)
-  
-            SaveAsDBF(ST.DF.HR_F, "HR", "HR", FolderName, OW, "ALL", 0)
+            
+            SaveAsDBF(ST.DF.HR_F, "HR", "HR", FolderName, OW, toupper(pol), 0)
           } else # if static
           {
-            SaveAsDBF(ST.DF.P_F, "HR", "HR", FolderName, OW, "ALL", 0)
+            SaveAsDBF(ST.DF.P_F, "HR", "HR", FolderName, OW, toupper(pol), 0)
           }
-
+          
           # if (Active.Subprofile$Dynamics == "dynamic")
           # {
           #   # To HR structure
@@ -801,7 +800,7 @@ for (Active.Type in Types[c(2,3)])
           #   SaveAsDBF(ST.DF.P_F, "HR", "HR", FolderName, OW, pol, 0)
           # }
           # gc()
-        
+          
         } # closing folder exists
         
         # Remove from memory/environment
@@ -848,7 +847,7 @@ for (Active.Type in Types[c(2,3)])
   gc()
   
 } # closing Type
-  
+
 
 ### Collect different calculation methods per profile
 
@@ -856,7 +855,7 @@ for (Active.Type in Types)
 {
   #Active.Type = Types[3]
   SubProfilesFullPeriod = ResidentialProfiles$Subtype[ResidentialProfiles$'T-gaps' == 0 &
-                                                        ResidentialProfiles$Type == Active.Type][c(1,2,5)]
+                                                        ResidentialProfiles$Type == Active.Type][c(1,2,8)]
   
   for (Active.Subtype in SubProfilesFullPeriod)
   {
@@ -889,7 +888,9 @@ for (Active.Type in Types)
           FolderName = paste0(Active.Subtype, "_", f)
           #FolderNameBase = paste0(Active.SubtypeBase, "_", f)
           
-          HR_ALL.Li[[f]] = read.dbf(file = file.path(output.dir, FolderName, paste0("HR_ALL", ".dbf")))[,1:4] #c("TIME", "IND")
+          HR_ALL.Li[[f]] = read.dbf(file = file.path(output.dir, FolderName, paste0("HR_", toupper(pol), ".dbf")))[,1:4] #c("TIME", "IND")
+          
+          # HR_ALL.Li[[f]] = read.dbf(file = file.path(output.dir, FolderName, paste0("HR_ALL", ".dbf")))[,1:4] #c("TIME", "IND")
           #colnames(HR_ALL.Li[[f]])[3:4] = paste0("PST1_", colnames(HR_ALL.Li[[f]])[3:4])
         }
         HR_ALL = do.call(rbind, HR_ALL.Li)
@@ -997,11 +998,11 @@ for (Active.Type in Types)
   HR_ALL = read.dbf(file = file.path(output.dir, Active.Type, paste0("HR_ALL", ".dbf")))
   
   HR_ALL_BiWeekly = HR_ALL[HR_ALL$TIME > BIWEEKLY[[1]][1] &
-                       HR_ALL$TIME <= tail(BIWEEKLY[[1]], 1) + 24*60**2 |
-                       HR_ALL$TIME > BIWEEKLY[[2]][1] &
-                       HR_ALL$TIME <= tail(BIWEEKLY[[2]], 1) + 24*60**2 |
-                       HR_ALL$TIME > BIWEEKLY[[3]][1] &
-                       HR_ALL$TIME <= tail(BIWEEKLY[[3]], 1) + 24*60**2 ,]
+                             HR_ALL$TIME <= tail(BIWEEKLY[[1]], 1) + 24*60**2 |
+                             HR_ALL$TIME > BIWEEKLY[[2]][1] &
+                             HR_ALL$TIME <= tail(BIWEEKLY[[2]], 1) + 24*60**2 |
+                             HR_ALL$TIME > BIWEEKLY[[3]][1] &
+                             HR_ALL$TIME <= tail(BIWEEKLY[[3]], 1) + 24*60**2 ,]
   
   nrow(HR_ALL_BiWeekly) == 24*14*3*GroupSize
   
@@ -1022,7 +1023,7 @@ for (Active.Type in Types)
   ReplacementColumns = paste0(unlist(StrSPlt3), ReplacementNumbers, "_", PolOfInterest)
   
   colnames(HR_ALL_BiWeekly)[3:length(HR_ALL_BiWeekly)] = ReplacementColumns
-                                     
+  
   SaveAsDBF(HR_ALL_BiWeekly, "HR", "HR", Active.Type, FALSE, "ALL_BiWeekly", 0)                       
   
 } # closign Active.Type
@@ -1071,7 +1072,7 @@ for (Active.Type in Types)
   colnames(HourBasedMeanPopulation_BiWeekly) = colnames(HR_ALL_BiWeekly)
   
   SaveAsDBF(HourBasedMeanPopulation_BiWeekly, "HR", "HR", Active.Type, FALSE, "ALL_Biweekly_MeanPopulation", 0)
-
+  
 } # closign Active.Type
 
 
@@ -1093,9 +1094,9 @@ for (Active.Type in Types)
   } # closing i
   
   IndividualBasedMean$TIME = year.active
-
+  
   SaveAsDBF(IndividualBasedMean, "HR", "HR", Active.Type, FALSE, "ALL_IndividualMean", 0)
-
+  
 } # closign Active.Type
 
 ### Individual-based mean BiWeekly
@@ -1204,7 +1205,7 @@ for (Active.Type in Types[c(1,3)])
     
     
   } # closing pol
-    
+  
 } # closign Active.Type
 
 
@@ -1266,7 +1267,7 @@ for (Active.Subtype in SubProfilesFullPeriod[1:2])
     colnames(ST.DF.HR.Collector)[ncol(ST.DF.HR.Collector)] = paste(Active.Subtype, "EXP", toupper(pol), sep = "_")
     head(ST.DF.HR.Collector)
   } # closing pol
-
+  
 } # closing Active.Subtype
 
 
@@ -1327,139 +1328,139 @@ ResidentialProfiles$Subtype[ResidentialProfiles$'T-gaps' == 0 &
                               ResidentialProfiles$Type == Active.Type]
 
 SubProfilesBiweeklyPeriod = ResidentialProfiles$Subtype[ResidentialProfiles$'T-gaps' == 1 &
-                                                      ResidentialProfiles$Type == Active.Type]
+                                                          ResidentialProfiles$Type == Active.Type]
 
 for (Active.Subtype in SubProfilesBiweeklyPeriod[1:2])
 {
   #Active.Subtype = SubProfilesFullPeriod[1]
   Active.Subprofile = ResidentialProfiles[ResidentialProfiles$Subtype == Active.Subtype,]
-
-
-
-c("TIME", "IND",
-  "EXP_PST1_NO2", "EXP_PST1_PM25", "EXP_PST3_NO2","EXP_PST3_PM25", "EXP_PST5_NO2","EXP_PST5_PM25", "EXP_PST7_NO2","EXP_PST7_PM25",
-  "EXP_P1_NO2", "EXP_P1_PM25", "EXP_P3_NO2","EXP_P3_PM25", "EXP_P5_NO2","EXP_P5_PM25", "EXP_P7_NO2","EXP_P7_PM25"
+  
+  
+  
+  c("TIME", "IND",
+    "EXP_PST1_NO2", "EXP_PST1_PM25", "EXP_PST3_NO2","EXP_PST3_PM25", "EXP_PST5_NO2","EXP_PST5_PM25", "EXP_PST7_NO2","EXP_PST7_PM25",
+    "EXP_P1_NO2", "EXP_P1_PM25", "EXP_P3_NO2","EXP_P3_PM25", "EXP_P5_NO2","EXP_P5_PM25", "EXP_P7_NO2","EXP_P7_PM25"
   )
-
-# biweekly
-if (Active.Subprofile$`T-gaps` == 1)
-{
-  # Subset biweekly
-  ST.DF.HR.BiWe = ST.DF.HR[ST.DF.HR$TIME >= BIWEEKLY[[1]][1] & ST.DF.HR$TIME <= BIWEEKLY[[1]][14] |
-                             ST.DF.HR$TIME >= BIWEEKLY[[2]][1] & ST.DF.HR$TIME <= BIWEEKLY[[2]][14] |
-                             ST.DF.HR$TIME >= BIWEEKLY[[3]][1] & ST.DF.HR$TIME <= BIWEEKLY[[3]][14],]
-}
-
-c("TIME", "IND",
-  "EXP_PST2_NO2", "EXP_PST2_PM25", "EXP_PST4_NO2","EXP_PST4_PM25", "EXP_PST6_NO2","EXP_PST6_PM25", "EXP_PST8_NO2","EXP_PST8_PM25",
-  "EXP_P2_NO2", "EXP_P2_PM25", "EXP_P4_NO2","EXP_P4_PM25", "EXP_P6_NO2","EXP_P6_PM25", "EXP_P8_NO2","EXP_P8_PM25"
-)
-
-OW = FALSE
-SaveAsDBF(ST.DF.HR_Type, "HR", "HR", Active.Type, OW, pol, 0)
-
-
-## Individual based calculations
-# Mean calculations
-for (i in seq_along(PPH.P))
-{
-  if (Active.Subprofile$Subtype == "01.OW_WS1") # change to WS
+  
+  # biweekly
+  if (Active.Subprofile$`T-gaps` == 1)
   {
-    if (!exists("OW_WS1.INDmean")) { OW_WS1.INDmean = NA }
-    if (!exists("OW_WS2.INDmean")) { OW_WS2.INDmean = NA }
-    if (!exists("OW_WS1.INDsum")) { OW_WS1.INDsum = NA }
-    
-    OW_WS1.INDmean[i] = mean(ST.DF.HR[ST.DF.HR$IND == i,]$EXP, na.rm = TRUE)
-    OW_WS2.INDmean[i] = mean(ST.DF.HR.BiWe[ST.DF.HR.BiWe$IND == i,]$EXP, na.rm = TRUE)
-    # OW_WS1.INDmax[i] = max(ST.DF.HR[ST.DF.HR$IND == i,]$EXP, na.rm = TRUE)
-    # OW_WS2.INDmax[i] = max(ST.DF.HR.BiWe[ST.DF.HR.BiWe$IND == i,]$EXP, na.rm = TRUE)
-    OW_WS1.INDsum[i] = sum(ST.DF.HR[ST.DF.HR$IND == i,]$EXP, na.rm = TRUE)
+    # Subset biweekly
+    ST.DF.HR.BiWe = ST.DF.HR[ST.DF.HR$TIME >= BIWEEKLY[[1]][1] & ST.DF.HR$TIME <= BIWEEKLY[[1]][14] |
+                               ST.DF.HR$TIME >= BIWEEKLY[[2]][1] & ST.DF.HR$TIME <= BIWEEKLY[[2]][14] |
+                               ST.DF.HR$TIME >= BIWEEKLY[[3]][1] & ST.DF.HR$TIME <= BIWEEKLY[[3]][14],]
   }
   
-  if (Active.Subprofile$Subtype == "01.OW_C1") # change to C
+  c("TIME", "IND",
+    "EXP_PST2_NO2", "EXP_PST2_PM25", "EXP_PST4_NO2","EXP_PST4_PM25", "EXP_PST6_NO2","EXP_PST6_PM25", "EXP_PST8_NO2","EXP_PST8_PM25",
+    "EXP_P2_NO2", "EXP_P2_PM25", "EXP_P4_NO2","EXP_P4_PM25", "EXP_P6_NO2","EXP_P6_PM25", "EXP_P8_NO2","EXP_P8_PM25"
+  )
+  
+  OW = FALSE
+  SaveAsDBF(ST.DF.HR_Type, "HR", "HR", Active.Type, OW, pol, 0)
+  
+  
+  ## Individual based calculations
+  # Mean calculations
+  for (i in seq_along(PPH.P))
   {
-    if (!exists("OW_C1.INDmean")) { OW_C1.INDmean = NA }
-    if (!exists("OW_C2.INDmean")) { OW_C2.INDmean = NA }
+    if (Active.Subprofile$Subtype == "01.OW_WS1") # change to WS
+    {
+      if (!exists("OW_WS1.INDmean")) { OW_WS1.INDmean = NA }
+      if (!exists("OW_WS2.INDmean")) { OW_WS2.INDmean = NA }
+      if (!exists("OW_WS1.INDsum")) { OW_WS1.INDsum = NA }
+      
+      OW_WS1.INDmean[i] = mean(ST.DF.HR[ST.DF.HR$IND == i,]$EXP, na.rm = TRUE)
+      OW_WS2.INDmean[i] = mean(ST.DF.HR.BiWe[ST.DF.HR.BiWe$IND == i,]$EXP, na.rm = TRUE)
+      # OW_WS1.INDmax[i] = max(ST.DF.HR[ST.DF.HR$IND == i,]$EXP, na.rm = TRUE)
+      # OW_WS2.INDmax[i] = max(ST.DF.HR.BiWe[ST.DF.HR.BiWe$IND == i,]$EXP, na.rm = TRUE)
+      OW_WS1.INDsum[i] = sum(ST.DF.HR[ST.DF.HR$IND == i,]$EXP, na.rm = TRUE)
+    }
     
-    OW_C1.INDmean[i] = mean(ST.DF.HR[ST.DF.HR$IND == i,]$EXP, na.rm = TRUE)
-    OW_C2.INDmean[i] = mean(ST.DF.HR.BiWe[ST.DF.HR.BiWe$IND == i,]$EXP, na.rm = TRUE)
+    if (Active.Subprofile$Subtype == "01.OW_C1") # change to C
+    {
+      if (!exists("OW_C1.INDmean")) { OW_C1.INDmean = NA }
+      if (!exists("OW_C2.INDmean")) { OW_C2.INDmean = NA }
+      
+      OW_C1.INDmean[i] = mean(ST.DF.HR[ST.DF.HR$IND == i,]$EXP, na.rm = TRUE)
+      OW_C2.INDmean[i] = mean(ST.DF.HR.BiWe[ST.DF.HR.BiWe$IND == i,]$EXP, na.rm = TRUE)
+    }
+    
+    if (Active.Subprofile$Subtype == "02.HO_WS1")
+    {
+      if (!exists("HO_WS1.INDmean")) { HO_WS1.INDmean = NA }
+      if (!exists("HO_WS2.INDmean")) { HO_WS2.INDmean = NA }
+      
+      HO_WS1.INDmean[i] = mean(ST.DF.HR[ST.DF.HR$IND == i,]$EXP, na.rm = TRUE)
+      HO_WS2.INDmean[i] = mean(ST.DF.HR.BiWe[ST.DF.HR.BiWe$IND == i,]$EXP, na.rm = TRUE)
+    }
+    
+    if (Active.Subprofile$Subtype == "03.SP_WS1")
+    {
+      if (!exists("SP_WS1.INDmean")) { SP_WS1.INDmean = NA }
+      if (!exists("SP_WS2.INDmean")) { SP_WS2.INDmean = NA }
+      
+      SP_WS1.INDmean[i] = mean(ST.DF.HR[ST.DF.HR$IND == i,]$EXP, na.rm = TRUE)
+      SP_WS2.INDmean[i] = mean(ST.DF.HR.BiWe[ST.DF.HR.BiWe$IND == i,]$EXP, na.rm = TRUE)
+    }
+    
+    if (Active.Subprofile$Subtype == "03.SP_C1")
+    {
+      if (!exists("SP_C1.INDmean")) { SP_C1.INDmean = NA }
+      if (!exists("SP_C2.INDmean")) { SP_C2.INDmean = NA }
+      
+      SP_C1.INDmean[i] = mean(ST.DF.HR[ST.DF.HR$IND == i,]$EXP, na.rm = TRUE)
+      SP_C2.INDmean[i] = mean(ST.DF.HR.BiWe[ST.DF.HR.BiWe$IND == i,]$EXP, na.rm = TRUE)
+    }
   }
   
-  if (Active.Subprofile$Subtype == "02.HO_WS1")
-  {
-    if (!exists("HO_WS1.INDmean")) { HO_WS1.INDmean = NA }
-    if (!exists("HO_WS2.INDmean")) { HO_WS2.INDmean = NA }
-    
-    HO_WS1.INDmean[i] = mean(ST.DF.HR[ST.DF.HR$IND == i,]$EXP, na.rm = TRUE)
-    HO_WS2.INDmean[i] = mean(ST.DF.HR.BiWe[ST.DF.HR.BiWe$IND == i,]$EXP, na.rm = TRUE)
-  }
   
-  if (Active.Subprofile$Subtype == "03.SP_WS1")
-  {
-    if (!exists("SP_WS1.INDmean")) { SP_WS1.INDmean = NA }
-    if (!exists("SP_WS2.INDmean")) { SP_WS2.INDmean = NA }
-    
-    SP_WS1.INDmean[i] = mean(ST.DF.HR[ST.DF.HR$IND == i,]$EXP, na.rm = TRUE)
-    SP_WS2.INDmean[i] = mean(ST.DF.HR.BiWe[ST.DF.HR.BiWe$IND == i,]$EXP, na.rm = TRUE)
-  }
+  # Plot and save the (13) Correlation plot graphs
+  CorPlotGraphAndSave("01.OW", OW_WS1.INDmean, OW_WS2.INDmean, "WS1", "WS2", Width = 720, Height = 480, pol = toupper(pol))
+  CorPlotGraphAndSave("01.OW", OW_WS1.INDmean, OW_C1.INDmean, "WS1", "C1", Width = 720, Height = 480, pol = toupper(pol))
+  CorPlotGraphAndSave("01.OW", OW_WS1.INDmean, OW_C2.INDmean, "WS1", "C2", Width = 720, Height = 480, pol = toupper(pol))
+  CorPlotGraphAndSave("01.OW", OW_WS2.INDmean, OW_C1.INDmean, "WS2", "C1", Width = 720, Height = 480, pol = toupper(pol))
+  CorPlotGraphAndSave("01.OW", OW_WS2.INDmean, OW_C2.INDmean, "WS2", "C2", Width = 720, Height = 480, pol = toupper(pol))
+  CorPlotGraphAndSave("01.OW", OW_C1.INDmean, OW_C2.INDmean, "C1", "C2", Width = 720, Height = 480, pol = toupper(pol))
   
-  if (Active.Subprofile$Subtype == "03.SP_C1")
-  {
-    if (!exists("SP_C1.INDmean")) { SP_C1.INDmean = NA }
-    if (!exists("SP_C2.INDmean")) { SP_C2.INDmean = NA }
-    
-    SP_C1.INDmean[i] = mean(ST.DF.HR[ST.DF.HR$IND == i,]$EXP, na.rm = TRUE)
-    SP_C2.INDmean[i] = mean(ST.DF.HR.BiWe[ST.DF.HR.BiWe$IND == i,]$EXP, na.rm = TRUE)
-  }
-}
-
-
-# Plot and save the (13) Correlation plot graphs
-CorPlotGraphAndSave("01.OW", OW_WS1.INDmean, OW_WS2.INDmean, "WS1", "WS2", Width = 720, Height = 480, pol = toupper(pol))
-CorPlotGraphAndSave("01.OW", OW_WS1.INDmean, OW_C1.INDmean, "WS1", "C1", Width = 720, Height = 480, pol = toupper(pol))
-CorPlotGraphAndSave("01.OW", OW_WS1.INDmean, OW_C2.INDmean, "WS1", "C2", Width = 720, Height = 480, pol = toupper(pol))
-CorPlotGraphAndSave("01.OW", OW_WS2.INDmean, OW_C1.INDmean, "WS2", "C1", Width = 720, Height = 480, pol = toupper(pol))
-CorPlotGraphAndSave("01.OW", OW_WS2.INDmean, OW_C2.INDmean, "WS2", "C2", Width = 720, Height = 480, pol = toupper(pol))
-CorPlotGraphAndSave("01.OW", OW_C1.INDmean, OW_C2.INDmean, "C1", "C2", Width = 720, Height = 480, pol = toupper(pol))
-
-CorPlotGraphAndSave("02.HO", HO_WS1.INDmean, HO_WS2.INDmean, "WS1", "WS2", Width = 720, Height = 480, pol = toupper(pol))
-
-CorPlotGraphAndSave("03.SP", SP_WS1.INDmean, SP_WS2.INDmean, "WS1", "WS2", Width = 720, Height = 480, pol = toupper(pol))
-CorPlotGraphAndSave("03.SP", SP_WS1.INDmean, SP_C1.INDmean, "WS1", "C1", Width = 720, Height = 480, pol = toupper(pol))
-CorPlotGraphAndSave("03.SP", SP_WS1.INDmean, SP_C2.INDmean, "WS1", "C2", Width = 720, Height = 480, pol = toupper(pol))
-CorPlotGraphAndSave("03.SP", SP_WS2.INDmean, SP_C1.INDmean, "WS2", "C1", Width = 720, Height = 480, pol = toupper(pol))
-CorPlotGraphAndSave("03.SP", SP_WS2.INDmean, SP_C2.INDmean, "WS2", "C2", Width = 720, Height = 480, pol = toupper(pol))
-CorPlotGraphAndSave("03.SP", SP_C1.INDmean, SP_C2.INDmean, "C1", "C2", Width = 720, Height = 480, pol = toupper(pol))
-
-# Plot and save the (3) Correlation plot tables
-CorPlotTableAndSave("01.OW", OW_WS1.INDmean, OW_WS2.INDmean, OW_C1.INDmean, OW_C2.INDmean, Width = 720, Height = 480, pol = toupper(pol))
-CorPlotTableAndSave("02.HO", HO_WS1.INDmean, HO_WS2.INDmean, Width = 720, Height = 480, pol = toupper(pol))
-CorPlotTableAndSave("03.SP", SP_WS1.INDmean, SP_WS2.INDmean, SP_C1.INDmean, SP_C2.INDmean, Width = 720, Height = 480, toupper(pol))
-
-# CorPlotTable("01.OW", "Numbers", OW_WS1.INDmean, OW_WS2.INDmean, OW_C1.INDmean, OW_C2.INDmean)
-# CorPlotTable("02.HO", "Numbers", HO_WS1.INDmean, HO_WS2.INDmean)
-# CorPlotTable("03.SP", "Numbers", SP_WS1.INDmean, SP_WS2.INDmean, SP_C1.INDmean, SP_C2.INDmean)
-
-
-
-#? Correlation on HR based values
-DF.WS1.collect = data.frame(cbind(OW_WS1.ST.DF.HR, HO_WS1.ST.DF.HR, SP_WS1.ST.DF.HR))
-C.WS1 = cor(DF.WS1.collect)
-corrplot(C.WS1, method="ellipse")
-corrplot(C.WS1, method="number", number.digits = 5)
-
-
-
-plot(WS1.INDmean, WS2.INDmean, main = paste(Active.Subtype,"WS1 vs. WS2 (µg/m³)", length(PPH.P), "individuals") , pch = "+")
-R.squared = cor(WS1.INDmean, WS2.INDmean)**2
-text(min(WS1.INDmean), max(WS1.INDmean), pos = 1, labels = "R²:", font = 2)
-text(min(WS1.INDmean)+4, max(WS1.INDmean), pos = 1, labels = R.squared)
-
-
-plot(WS1.INDmax, WS2.INDmax, main = "WS1 vs. WS2 (µg/m³)", pch = "+")
-
+  CorPlotGraphAndSave("02.HO", HO_WS1.INDmean, HO_WS2.INDmean, "WS1", "WS2", Width = 720, Height = 480, pol = toupper(pol))
   
-
+  CorPlotGraphAndSave("03.SP", SP_WS1.INDmean, SP_WS2.INDmean, "WS1", "WS2", Width = 720, Height = 480, pol = toupper(pol))
+  CorPlotGraphAndSave("03.SP", SP_WS1.INDmean, SP_C1.INDmean, "WS1", "C1", Width = 720, Height = 480, pol = toupper(pol))
+  CorPlotGraphAndSave("03.SP", SP_WS1.INDmean, SP_C2.INDmean, "WS1", "C2", Width = 720, Height = 480, pol = toupper(pol))
+  CorPlotGraphAndSave("03.SP", SP_WS2.INDmean, SP_C1.INDmean, "WS2", "C1", Width = 720, Height = 480, pol = toupper(pol))
+  CorPlotGraphAndSave("03.SP", SP_WS2.INDmean, SP_C2.INDmean, "WS2", "C2", Width = 720, Height = 480, pol = toupper(pol))
+  CorPlotGraphAndSave("03.SP", SP_C1.INDmean, SP_C2.INDmean, "C1", "C2", Width = 720, Height = 480, pol = toupper(pol))
+  
+  # Plot and save the (3) Correlation plot tables
+  CorPlotTableAndSave("01.OW", OW_WS1.INDmean, OW_WS2.INDmean, OW_C1.INDmean, OW_C2.INDmean, Width = 720, Height = 480, pol = toupper(pol))
+  CorPlotTableAndSave("02.HO", HO_WS1.INDmean, HO_WS2.INDmean, Width = 720, Height = 480, pol = toupper(pol))
+  CorPlotTableAndSave("03.SP", SP_WS1.INDmean, SP_WS2.INDmean, SP_C1.INDmean, SP_C2.INDmean, Width = 720, Height = 480, toupper(pol))
+  
+  # CorPlotTable("01.OW", "Numbers", OW_WS1.INDmean, OW_WS2.INDmean, OW_C1.INDmean, OW_C2.INDmean)
+  # CorPlotTable("02.HO", "Numbers", HO_WS1.INDmean, HO_WS2.INDmean)
+  # CorPlotTable("03.SP", "Numbers", SP_WS1.INDmean, SP_WS2.INDmean, SP_C1.INDmean, SP_C2.INDmean)
+  
+  
+  
+  #? Correlation on HR based values
+  DF.WS1.collect = data.frame(cbind(OW_WS1.ST.DF.HR, HO_WS1.ST.DF.HR, SP_WS1.ST.DF.HR))
+  C.WS1 = cor(DF.WS1.collect)
+  corrplot(C.WS1, method="ellipse")
+  corrplot(C.WS1, method="number", number.digits = 5)
+  
+  
+  
+  plot(WS1.INDmean, WS2.INDmean, main = paste(Active.Subtype,"WS1 vs. WS2 (µg/m³)", length(PPH.P), "individuals") , pch = "+")
+  R.squared = cor(WS1.INDmean, WS2.INDmean)**2
+  text(min(WS1.INDmean), max(WS1.INDmean), pos = 1, labels = "R²:", font = 2)
+  text(min(WS1.INDmean)+4, max(WS1.INDmean), pos = 1, labels = R.squared)
+  
+  
+  plot(WS1.INDmax, WS2.INDmax, main = "WS1 vs. WS2 (µg/m³)", pch = "+")
+  
+  
+  
   # Check if folder with fragments already exist
   TimeExp.lst = list.files(path = output.dir, pattern = paste0(Active.Subtype, "_", "[0-9]*"))
   # remove _ and backups in the lst
@@ -1470,12 +1471,12 @@ plot(WS1.INDmax, WS2.INDmax, main = "WS1 vs. WS2 (µg/m³)", pch = "+")
   }
   TimeExp.lst = TimeExp.lst[NChar == nchar(Active.Subtype)+2 | NChar == nchar(Active.Subtype)+3]
   TimeExp.lst = mixedsort(TimeExp.lst) # fixes string order 1 10 11 -> 1 2 3
-
+  
   if (Active.Subprofile$Dynamics == "dynamic")
   {
     Frag.lst = gsub(x = TimeExp.lst, pattern = paste0(Active.Subtype, "_"), replacement = "")
     Fragments = as.numeric(Frag.lst)
-
+    
     if (length(Fragments) == tail(Fragments,1))
     {
       DaySplit = length(YearDates)/length(Fragments)
@@ -1484,7 +1485,7 @@ plot(WS1.INDmax, WS2.INDmax, main = "WS1 vs. WS2 (µg/m³)", pch = "+")
     {
       stop(paste("Fragments are not correct."))
     }
-
+    
   } else # if static
   {
     if (is.na(TimeExp.lst))
@@ -1494,346 +1495,91 @@ plot(WS1.INDmax, WS2.INDmax, main = "WS1 vs. WS2 (µg/m³)", pch = "+")
     }
   }
   
-
-## reversed
-Fragments = 1:10
-DaySplit = length(YearDates)/length(Fragments)
-SeqFragment = floor(seq(0, length(YearDates), DaySplit))
-
-pol = pollutants[2]
-
-for (f in Fragments)
-{
-  FolderName = paste0(Active.Subtype, "_", f)
-
-  YearDates.Sub = YearDates2(year.active)[(SeqFragment[f]+1):(SeqFragment[f+1])]
-  Time.Sub = Time[Time > YearDates.Sub[1] & Time <= (tail(YearDates.Sub,1) + 24*60**2)]
-
-
-  # read from file
-  TIME.P_F = DBFreader("Time", "Primary", PPH.P, YearDates.Sub, FolderName)
-  if (Active.Subprofile$Dynamics == "dynamic")
-  {
-    TIME.S_F = DBFreader("Time", "Secondary", PPH.P, YearDates.Sub, FolderName)
-    TIME.T1_F = DBFreader("Time", "T1", PPH.P, YearDates.Sub, FolderName)
-    TIME.T2_F = DBFreader("Time", "T2", PPH.P, YearDates.Sub, FolderName)
-  }
   
-  # Hours of the year
-  HOURS.P_F = HourOfTheYear7(year.active, TIME.P_F, 0)
-  if (Active.Subprofile$Dynamics == "dynamic")
-  {
-    HOURS.S_F = HourOfTheYear7(year.active, TIME.S_F, 0)
-    HOURS.T1_F = HourOfTheYear7(year.active, TIME.T1_F, 0)
-    HOURS.T2_F = HourOfTheYear7(year.active, TIME.T2_F, 0)
-  }
-  
-  ExposureValue.P_F = DBFreader("Exposure", "Primary", PPH.P, YearDates.Sub, FolderName, pol)
-  ExposureValue.S_F = DBFreader("Exposure", "Secondary", PPH.P, YearDates.Sub, FolderName, pol)
-  ExposureValue.T1_F = DBFreader("Exposure", "T1", PPH.P, YearDates.Sub, FolderName, pol)
-  ExposureValue.T2_F = DBFreader("Exposure", "T2", PPH.P, YearDates.Sub, FolderName, pol)
-  
-
-
-  ST.DF.P_F = read.dbf(file = file.path(output.dir, FolderName, paste0("DF_P_", toupper(pol), ".dbf")))
-  ST.DF.S_F = read.dbf(file = file.path(output.dir, FolderName, paste0("DF_S_", toupper(pol), ".dbf")))
-  ST.DF.T1_F = read.dbf(file = file.path(output.dir, FolderName, paste0("DF_T1_", toupper(pol), ".dbf")))
-  ST.DF.T2_F = read.dbf(file = file.path(output.dir, FolderName, paste0("DF_T2_", toupper(pol), ".dbf")))
-
-  ExposureValue.P_F = list()
-  ExposureValue.S_F = list()
-  ExposureValue.T1_F = list()
-  ExposureValue.T2_F = list()
-
-  for (i in seq_along(PPH.P))
-  #for (i in 250:1000)
-  {
-    ExposureValue.P_F[[i]] = rep(list(), length(YearDates.Sub))
-    for (d in seq_along(TIME.P_F[[i]]))
-    {
-      ExposureValue.P_F[[i]][[d]] = ST.DF.P_F[ST.DF.P_F$IND %in% i &
-                                                ST.DF.P_F$TIME %in% TIME.P_F[[i]][[d]],]$EXP
-    }
-
-    ExposureValue.S_F[[i]] = rep(list(), length(YearDates.Sub))
-    for (d in seq_along(TIME.S_F[[i]]))
-    {
-      ExposureValue.S_F[[i]][[d]] = ST.DF.S_F[ST.DF.S_F$IND %in% i &
-                                                ST.DF.S_F$TIME %in% TIME.S_F[[i]][[d]],]$EXP
-    }
-
-    ExposureValue.T1_F[[i]] = rep(list(), length(YearDates.Sub))
-    for (d in seq_along(TIME.T1_F[[i]]))
-    {
-      ExposureValue.T1_F[[i]][[d]] = ST.DF.T1_F[ST.DF.T1_F$IND %in% i &
-                                                  ST.DF.T1_F$TIME %in% TIME.T1_F[[i]][[d]],]$EXP
-    }
-
-    ExposureValue.T2_F[[i]] = rep(list(), length(YearDates.Sub))
-    for (d in seq_along(TIME.T2_F[[i]]))
-    {
-      ExposureValue.T2_F[[i]][[d]] = ST.DF.T2_F[ST.DF.T2_F$IND %in% i &
-                                                  ST.DF.T2_F$TIME %in% TIME.T2_F[[i]][[d]],]$EXP
-    }
-
-  }
-
-  #! Save EXP
-
-
-  # Check if the lengths of TIME and EXP match
-  if (length(unlist(TIME.P_F)) != length(unlist(ExposureValue.P_F)) |
-      length(unlist(TIME.S_F)) != length(unlist(ExposureValue.S_F)) |
-      length(unlist(TIME.T1_F)) != length(unlist(ExposureValue.T1_F)) |
-      length(unlist(TIME.T2_F)) != length(unlist(ExposureValue.T2_F)))
-  {
-    stop(paste("Lengths of TIME and EXP do not match."))
-  }
-  
-
-  # Detect which hours belong to which points | change name systematically to HoP (Hour of Point) = HoP.P etc.
-  if (Active.Subprofile$Dynamics == "dynamic")
-  {
-    HOP = WhichHourForWhichPoint(PPH.P, Time.Sub, HOURS.P_F, HOURS.S_F, HOURS.T1_F, HOURS.T2_F,
-                                 Print = FALSE, Active.Subprofile, SeqFragment , f)
-    HoP.P_F = HOP[[1]]
-    HoP.S_F = HOP[[2]]
-    HoP.T1_F = HOP[[3]]
-    HoP.T2_F = HOP[[4]]
-  } else
-  {
-    HOP = WhichHourForWhichPoint(PPH.P, Time, HOURS.P_F, Print = FALSE,
-                                 Active.Subprofile = Active.Subprofile, SeqFragment = 0)
-    HoP.P_F = HOP[[1]]
-  }
-  rm(HOP)
-  gc()
-
-
-  # Convert to HR
-  # To HR structure
-  ExposureValueCombined_F = ToHourValues(PPH.P, Time.Sub, ExposureValue.P_F, ExposureValue.S_F, ExposureValue.T1_F, ExposureValue.T2_F,
-                                         TIME.P_F, TIME.S_F, TIME.T1_F, TIME.T2_F, HoP.P_F, HoP.S_F, HoP.T1_F, HoP.T2_F)
-
-  if (length(Time.Sub) * length(PPH.P) == length(unlist(ExposureValueCombined_F)))
-  {
-    ST.DF.HR_F = DF.Structure2(PPH.P, TIME.P_F, Time.Sub, ExposureValueCombined_F, rm.na = FALSE)
-    SaveAsDBF(ST.DF.HR_F, "HR", "HR", FolderName, OW, pol, 0)
-  }
-
-}
-
-
-
-#! if TimeExp already exists.. detect fragments
-
-
-# split time in Fragments (only dynamic)
-Fragments = 20
-
-if (Fragments > 1)
-{
-  DaySplit = length(YearDates)/Fragments
+  ## reversed
+  Fragments = 1:10
+  DaySplit = length(YearDates)/length(Fragments)
   SeqFragment = floor(seq(0, length(YearDates), DaySplit))
-  TimeTakenInterpolation = NA
   
-  for (f in 1:Fragments)
-    #for (f in 19:Fragments)
+  pol = pollutants[2]
+  
+  for (f in Fragments)
   {
-    print(paste0("Starting fragment ", f, " of ", Fragments))
-    
-    if (exists("YearDates.Sub")) {rm(YearDates.Sub)}
-    if (exists("Time.Sub ")) {rm(Time.Sub)}
+    FolderName = paste0(Active.Subtype, "_", f)
     
     YearDates.Sub = YearDates2(year.active)[(SeqFragment[f]+1):(SeqFragment[f+1])]
     Time.Sub = Time[Time > YearDates.Sub[1] & Time <= (tail(YearDates.Sub,1) + 24*60**2)]
     
-    if (exists("PPH.T1.PNT.RS")) {rm(PPH.T1.PNT.RS)}
-    if (exists("PPH.T2.PNT.RS")) {rm(PPH.T2.PNT.RS)}
-    
-    PPH.T1.PNT.RS = RandomSampleRoutesYears(PPH.T1, PPH.T1.Pnt.eq.Li, FALSE, RandomSamplePoints,
-                                            YearDates.Sub, BusinesDates, Active.SetSeedNr, f)
-    PPH.T2.PNT.RS = RandomSampleRoutesYears(PPH.T2, PPH.T2.Pnt.eq.Li, FALSE, RandomSamplePoints,
-                                            YearDates.Sub, BusinesDates, Active.SetSeedNr, f)
-    
-    Parts = 5
-    StepSize = length(PPH.P)/Parts
-    SeqParts = floor(seq(0, length(PPH.P), StepSize))
-    
-    for (p in (1:Parts))
-    {
-      if (exists("TIME.P")) {rm(TIME.P)}
-      if (exists("TIME.S")) {rm(TIME.S)}
-      if (exists("TIME.T1")) {rm(TIME.T1)}
-      if (exists("TIME.T2")) {rm(TIME.T2)}
-      
-      TIME = CreateCorrespondingDateAndTime(Active.Type, Active.Subprofile, PPH.P[(SeqParts[p]+1):(SeqParts[p+1]),],
-                                            YearDates.Sub, BusinesDates, WeekendDates, HoliDates,
-                                            PPH.T1.Pnt.Li, PPH.T2.Pnt.Li, TimeVertex.T1, TimeVertex.T2, PPH.T1.PNT.RS, PPH.T2.PNT.RS,
-                                            year.active, SeqFragment, f, SeqParts, p)
-      TIME.P = TIME[[2]]
-      if (Active.Subprofile$Dynamics == "dynamic")
-      {
-        PHASES = TIME[[1]]
-        TIME.S = TIME[[3]]
-        TIME.T1 = TIME[[4]]
-        TIME.T2 = TIME[[5]]
-      }
-      rm(TIME)
-      
-      # Write TIME to disk
-      WriteToDisk = TRUE
-      OW = FALSE
-      if (WriteToDisk)
-      {
-        SaveAsDBF(TIME.P, "Time", "Primary",
-                  paste0(Active.Subtype, "_", f), OW, pol, SeqParts[p])
-        if (Active.Subprofile$Dynamics == "dynamic")
-        {
-          SaveAsDBF(TIME.S, "Time", "Secondary",
-                    paste0(Active.Subtype, "_", f), OW, pol, SeqParts[p])
-          SaveAsDBF(TIME.T1, "Time", "T1",
-                    paste0(Active.Subtype, "_", f), OW, pol, SeqParts[p])
-          SaveAsDBF(TIME.T2, "Time", "T2",
-                    paste0(Active.Subtype, "_", f), OW, pol, SeqParts[p])
-        }
-      }
-      
-      
-    } # closing p(arts)
-    
-    
-    print(paste0("Starting fragment ", f, " of ", Fragments))
-    
-    if (exists("TIME.P")) {rm(TIME.P)}
-    if (exists("TIME.S")) {rm(TIME.S)}
-    if (exists("TIME.T1")) {rm(TIME.T1)}
-    if (exists("TIME.T2")) {rm(TIME.T2)}
-    
-    # attach TIME parts
-    TIME.P = DBFreader("Time", "Primary", PPH.P, YearDates.Sub, FolderName)
-    if (Active.Subprofile$Dynamics == "dynamic")
-    {
-      TIME.S = DBFreader("Time", "Secondary", PPH.P, YearDates.Sub, FolderName)
-      TIME.T1 = DBFreader("Time", "T1", PPH.P, YearDates.Sub, FolderName)
-      TIME.T2 = DBFreader("Time", "T2", PPH.P, YearDates.Sub, FolderName)
-    }
-    
-    if (exists("HOURS.P")) {rm(HOURS.P)}
-    if (exists("HOURS.S")) {rm(HOURS.S)}
-    if (exists("HOURS.T1")) {rm(HOURS.T1)}
-    if (exists("HOURS.T2")) {rm(HOURS.T2)}
-    
-    # Hours of the year
-    HOURS.P = HourOfTheYear7(year.active, TIME.P, 0)
-    if (Active.Subprofile$Dynamics == "dynamic")
-    {
-      HOURS.S = HourOfTheYear7(year.active, TIME.S, 0)
-      HOURS.T1 = HourOfTheYear7(year.active, TIME.T1, 0)
-      HOURS.T2 = HourOfTheYear7(year.active, TIME.T2, 0)
-    }
-    
-    if (exists("HoP.P")) {rm(HoP.P)}
-    if (exists("HoP.S")) {rm(HoP.S)}
-    if (exists("HoP.T1")) {rm(HoP.T1)}
-    if (exists("HoP.T2")) {rm(HoP.T2)}
-    
-    # Detect which hours belong to which points | change name systematically to HoP (Hour of Point) = HoP.P etc.
-    HOP = WhichHourForWhichPoint(PPH.P, Time.Sub, HOURS.P, HOURS.S, HOURS.T1, HOURS.T2,
-                                 Print = FALSE, Active.Subprofile, SeqFragment , f) 
-    HoP.P = HOP[[1]]
-    if (Active.Subprofile$Dynamics == "dynamic")
-    {
-      HoP.S = HOP[[2]]
-      HoP.T1 = HOP[[3]]
-      HoP.T2 = HOP[[4]]
-    }
-    rm(HOP)
-    
-    ## Interpolating the points
-    start.time = Sys.time()
-    ExposureValue.All = PPH.TIN.InterpolationWS(PPH.P, PPH.S, PPH.T1.PNT.RS, PPH.T2.PNT.RS,
-                                                Points.NoVal, PolDir, Plot = FALSE, pol,
-                                                StartHour = SeqFragment[f]*24+1, # Time[(SeqFragment[f]*24+1)]
-                                                EndHour = (SeqFragment[f+1])*24, # Time[(SeqFragment[f+1])*24]
-                                                HOURS.P, HOURS.S, HOURS.T1, HOURS.T2, 50,
-                                                HoP.P, HoP.S, HoP.T1, HoP.T2, Active.Subprofile, SeqFragment[f])
-    ExposureValue.P = ExposureValue.All[[1]]
-    if (Active.Subprofile$Dynamics == "dynamic")
-    {
-      ExposureValue.S = ExposureValue.All[[2]]
-      ExposureValue.T1 = ExposureValue.All[[3]]
-      ExposureValue.T2 = ExposureValue.All[[4]]
-    }
-    rm(ExposureValue.All)
-    end.time = Sys.time()
-    TimeTakenInterpolation[f] = end.time - start.time
-    print(TimeTakenInterpolation[f])
-    
-    rm(HOURS.P, HOURS.S, HOURS.T1, HOURS.T2)
-    rm(HoP.P, HoP.S, HoP.T1, HoP.T2)
-    rm(PPH.T1.PNT.RS, PPH.T2.PNT.RS)
-    
-    # Write EXP to disk
-    WriteToDisk = TRUE
-    OW = FALSE
-    if (WriteToDisk)
-    {
-      SaveAsDBF(ExposureValue.P, "Exposure", "Primary",
-                paste0(Active.Subtype, "_", f), OW, pol, 0)
-      if (Active.Subprofile$Dynamics == "dynamic")
-      {
-        SaveAsDBF(ExposureValue.S, "Exposure", "Secondary",
-                  paste0(Active.Subtype, "_", f), OW, pol, 0)
-        SaveAsDBF(ExposureValue.T1, "Exposure", "T1",
-                  paste0(Active.Subtype, "_", f), OW, pol, 0)
-        SaveAsDBF(ExposureValue.T2, "Exposure", "T2",
-                  paste0(Active.Subtype, "_", f), OW, pol, 0)
-      }
-    }
-    
-    gc()
-    
-  } # closing f(ragments)
-  
-  # # Connect TIME and EXP
-  # 
-  # TIME.P = list(list())
-  # TIME.S = list(list())
-  # TIME.T1 = list(list())
-  # TIME.T2 = list(list())
-  # ExposureValue.P = list(list())
-  # ExposureValue.S = list(list())
-  # ExposureValue.T1 = list(list())
-  # ExposureValue.T2 = list(list())
-  # 
-  # for (i in seq_along(PPH.P))
-  # {
-  #   TIME.P[[i]] = rep(list(), length(YearDates)) # use same structure
-  #   TIME.S[[i]] = rep(list(), length(YearDates)) # use same structure
-  #   TIME.T1[[i]] = rep(list(), length(YearDates)) # use same structure
-  #   TIME.T2[[i]] = rep(list(), length(YearDates)) # use same structure
-  #   ExposureValue.P[[i]] = rep(list(), length(YearDates)) # use same structure
-  #   ExposureValue.S[[i]] = rep(list(), length(YearDates)) # use same structure
-  #   ExposureValue.T1[[i]] = rep(list(), length(YearDates)) # use same structure
-  #   ExposureValue.T2[[i]] = rep(list(), length(YearDates)) # use same structure
-  # }
-  
-  for (f in 1:Fragments)
-    #for (f in Fragments)
-  {
-    YearDates.Sub = YearDates2(year.active)[(SeqFragment[f]+1):(SeqFragment[f+1])]
-    Time.Sub = Time[Time > YearDates.Sub[1] & Time <= (tail(YearDates.Sub,1) + 24*60**2)]
     
     # read from file
     TIME.P_F = DBFreader("Time", "Primary", PPH.P, YearDates.Sub, FolderName)
-    TIME.S_F = DBFreader("Time", "Secondary", PPH.P, YearDates.Sub, FolderName)
-    TIME.T1_F = DBFreader("Time", "T1", PPH.P, YearDates.Sub, FolderName)
-    TIME.T2_F = DBFreader("Time", "T2", PPH.P, YearDates.Sub, FolderName)
+    if (Active.Subprofile$Dynamics == "dynamic")
+    {
+      TIME.S_F = DBFreader("Time", "Secondary", PPH.P, YearDates.Sub, FolderName)
+      TIME.T1_F = DBFreader("Time", "T1", PPH.P, YearDates.Sub, FolderName)
+      TIME.T2_F = DBFreader("Time", "T2", PPH.P, YearDates.Sub, FolderName)
+    }
+    
+    # Hours of the year
+    HOURS.P_F = HourOfTheYear7(year.active, TIME.P_F, 0)
+    if (Active.Subprofile$Dynamics == "dynamic")
+    {
+      HOURS.S_F = HourOfTheYear7(year.active, TIME.S_F, 0)
+      HOURS.T1_F = HourOfTheYear7(year.active, TIME.T1_F, 0)
+      HOURS.T2_F = HourOfTheYear7(year.active, TIME.T2_F, 0)
+    }
+    
     ExposureValue.P_F = DBFreader("Exposure", "Primary", PPH.P, YearDates.Sub, FolderName, pol)
     ExposureValue.S_F = DBFreader("Exposure", "Secondary", PPH.P, YearDates.Sub, FolderName, pol)
     ExposureValue.T1_F = DBFreader("Exposure", "T1", PPH.P, YearDates.Sub, FolderName, pol)
     ExposureValue.T2_F = DBFreader("Exposure", "T2", PPH.P, YearDates.Sub, FolderName, pol)
+    
+    
+    
+    ST.DF.P_F = read.dbf(file = file.path(output.dir, FolderName, paste0("DF_P_", toupper(pol), ".dbf")))
+    ST.DF.S_F = read.dbf(file = file.path(output.dir, FolderName, paste0("DF_S_", toupper(pol), ".dbf")))
+    ST.DF.T1_F = read.dbf(file = file.path(output.dir, FolderName, paste0("DF_T1_", toupper(pol), ".dbf")))
+    ST.DF.T2_F = read.dbf(file = file.path(output.dir, FolderName, paste0("DF_T2_", toupper(pol), ".dbf")))
+    
+    ExposureValue.P_F = list()
+    ExposureValue.S_F = list()
+    ExposureValue.T1_F = list()
+    ExposureValue.T2_F = list()
+    
+    for (i in seq_along(PPH.P))
+      #for (i in 250:1000)
+    {
+      ExposureValue.P_F[[i]] = rep(list(), length(YearDates.Sub))
+      for (d in seq_along(TIME.P_F[[i]]))
+      {
+        ExposureValue.P_F[[i]][[d]] = ST.DF.P_F[ST.DF.P_F$IND %in% i &
+                                                  ST.DF.P_F$TIME %in% TIME.P_F[[i]][[d]],]$EXP
+      }
+      
+      ExposureValue.S_F[[i]] = rep(list(), length(YearDates.Sub))
+      for (d in seq_along(TIME.S_F[[i]]))
+      {
+        ExposureValue.S_F[[i]][[d]] = ST.DF.S_F[ST.DF.S_F$IND %in% i &
+                                                  ST.DF.S_F$TIME %in% TIME.S_F[[i]][[d]],]$EXP
+      }
+      
+      ExposureValue.T1_F[[i]] = rep(list(), length(YearDates.Sub))
+      for (d in seq_along(TIME.T1_F[[i]]))
+      {
+        ExposureValue.T1_F[[i]][[d]] = ST.DF.T1_F[ST.DF.T1_F$IND %in% i &
+                                                    ST.DF.T1_F$TIME %in% TIME.T1_F[[i]][[d]],]$EXP
+      }
+      
+      ExposureValue.T2_F[[i]] = rep(list(), length(YearDates.Sub))
+      for (d in seq_along(TIME.T2_F[[i]]))
+      {
+        ExposureValue.T2_F[[i]][[d]] = ST.DF.T2_F[ST.DF.T2_F$IND %in% i &
+                                                    ST.DF.T2_F$TIME %in% TIME.T2_F[[i]][[d]],]$EXP
+      }
+      
+    }
+    
+    #! Save EXP
     
     
     # Check if the lengths of TIME and EXP match
@@ -1843,100 +1589,355 @@ if (Fragments > 1)
         length(unlist(TIME.T2_F)) != length(unlist(ExposureValue.T2_F)))
     {
       stop(paste("Lengths of TIME and EXP do not match."))
-    } #else 
-    # {
-    #   print(paste0("Lengths of TIME and EXP match."))
-    # }
+    }
     
-    # Hours of the year
-    HOURS.P_F = HourOfTheYear7(year.active, TIME.P_F, 0)
-    HOURS.S_F = HourOfTheYear7(year.active, TIME.S_F, 0)
-    HOURS.T1_F = HourOfTheYear7(year.active, TIME.T1_F, 0)
-    HOURS.T2_F = HourOfTheYear7(year.active, TIME.T2_F, 0)
     
     # Detect which hours belong to which points | change name systematically to HoP (Hour of Point) = HoP.P etc.
-    HOP = WhichHourForWhichPoint(PPH.P, Time.Sub, HOURS.P_F, HOURS.S_F, HOURS.T1_F, HOURS.T2_F,
-                                 Print = FALSE, Active.Subprofile, SeqFragment , f) 
-    HoP.P_F = HOP[[1]]
     if (Active.Subprofile$Dynamics == "dynamic")
     {
+      HOP = WhichHourForWhichPoint(PPH.P, Time.Sub, HOURS.P_F, HOURS.S_F, HOURS.T1_F, HOURS.T2_F,
+                                   Print = FALSE, Active.Subprofile, SeqFragment , f)
+      HoP.P_F = HOP[[1]]
       HoP.S_F = HOP[[2]]
       HoP.T1_F = HOP[[3]]
       HoP.T2_F = HOP[[4]]
+    } else
+    {
+      HOP = WhichHourForWhichPoint(PPH.P, Time, HOURS.P_F, Print = FALSE,
+                                   Active.Subprofile = Active.Subprofile, SeqFragment = 0)
+      HoP.P_F = HOP[[1]]
     }
     rm(HOP)
+    gc()
     
-    # ST.DF.P_F = DF.Structure2(PPH.P, TIME.P_F, TIME.P_F, ExposureValue.P_F) #, rm.na = TRUE
-    # ST.DF.S_F = DF.Structure2(PPH.P, TIME.P_F, TIME.S_F, ExposureValue.S_F)
-    # ST.DF.T1_F = DF.Structure2(PPH.P, TIME.P_F, TIME.T1_F, ExposureValue.T1_F)
-    # ST.DF.T2_F = DF.Structure2(PPH.P, TIME.P_F, TIME.T2_F, ExposureValue.T2_F)
-    # 
-    # # Save DF structure
-    # OW = TRUE
-    # SaveAsDBF(ST.DF.P_F, "DF", "Primary", paste0(Active.Subtype, "_", f), OW, pol, 0)
-    # SaveAsDBF(ST.DF.S_F, "DF", "Secondary", paste0(Active.Subtype, "_", f), OW, pol, 0)
-    # SaveAsDBF(ST.DF.T1_F, "DF", "T1", paste0(Active.Subtype, "_", f), OW, pol, 0)
-    # SaveAsDBF(ST.DF.T2_F, "DF", "T2", paste0(Active.Subtype, "_", f), OW, pol, 0)
     
-    # stats.EXP.P_F = DF.Stats(ST.DF.P_F)
-    # stats.EXP.S_F = DF.Stats(ST.DF.S)
-    # stats.EXP.T1_F = DF.Stats(ST.DF.T1)
-    # stats.EXP.T2_F = DF.Stats(ST.DF.T2)
-    
+    # Convert to HR
+    # To HR structure
     ExposureValueCombined_F = ToHourValues(PPH.P, Time.Sub, ExposureValue.P_F, ExposureValue.S_F, ExposureValue.T1_F, ExposureValue.T2_F,
                                            TIME.P_F, TIME.S_F, TIME.T1_F, TIME.T2_F, HoP.P_F, HoP.S_F, HoP.T1_F, HoP.T2_F)
     
-    
-    length(Time.Sub) * length(PPH.P) == length(unlist(ExposureValueCombined_F))
-    
-    
-    ST.DF.HR_F = DF.Structure2(PPH.P, TIME.P_F, Time.Sub, ExposureValueCombined_F, rm.na = FALSE)
-    #stats.EXP.HR_F = DF.Stats(ST.DF.HR_F)
-    
-    # Validity check
-    if (nrow(ST.DF.HR_F) != length(Time.Sub) * length(PPH.P))
+    if (length(Time.Sub) * length(PPH.P) == length(unlist(ExposureValueCombined_F)))
     {
-      paste("missing", (length(Time.Sub) * length(PPH.P) - nrow(ST.DF.HR_F)), "values!")
-    } else
-    {
-      paste("valid!")
+      ST.DF.HR_F = DF.Structure2(PPH.P, TIME.P_F, Time.Sub, ExposureValueCombined_F, rm.na = FALSE)
+      SaveAsDBF(ST.DF.HR_F, "HR", "HR", FolderName, OW, pol, 0)
     }
     
-    # ValCheck = NA
+  }
+  
+  
+  
+  #! if TimeExp already exists.. detect fragments
+  
+  
+  # split time in Fragments (only dynamic)
+  Fragments = 20
+  
+  if (Fragments > 1)
+  {
+    DaySplit = length(YearDates)/Fragments
+    SeqFragment = floor(seq(0, length(YearDates), DaySplit))
+    TimeTakenInterpolation = NA
+    
+    for (f in 1:Fragments)
+      #for (f in 19:Fragments)
+    {
+      print(paste0("Starting fragment ", f, " of ", Fragments))
+      
+      if (exists("YearDates.Sub")) {rm(YearDates.Sub)}
+      if (exists("Time.Sub ")) {rm(Time.Sub)}
+      
+      YearDates.Sub = YearDates2(year.active)[(SeqFragment[f]+1):(SeqFragment[f+1])]
+      Time.Sub = Time[Time > YearDates.Sub[1] & Time <= (tail(YearDates.Sub,1) + 24*60**2)]
+      
+      if (exists("PPH.T1.PNT.RS")) {rm(PPH.T1.PNT.RS)}
+      if (exists("PPH.T2.PNT.RS")) {rm(PPH.T2.PNT.RS)}
+      
+      PPH.T1.PNT.RS = RandomSampleRoutesYears(PPH.T1, PPH.T1.Pnt.eq.Li, FALSE, RandomSamplePoints,
+                                              YearDates.Sub, BusinesDates, Active.SetSeedNr, f)
+      PPH.T2.PNT.RS = RandomSampleRoutesYears(PPH.T2, PPH.T2.Pnt.eq.Li, FALSE, RandomSamplePoints,
+                                              YearDates.Sub, BusinesDates, Active.SetSeedNr, f)
+      
+      Parts = 5
+      StepSize = length(PPH.P)/Parts
+      SeqParts = floor(seq(0, length(PPH.P), StepSize))
+      
+      for (p in (1:Parts))
+      {
+        if (exists("TIME.P")) {rm(TIME.P)}
+        if (exists("TIME.S")) {rm(TIME.S)}
+        if (exists("TIME.T1")) {rm(TIME.T1)}
+        if (exists("TIME.T2")) {rm(TIME.T2)}
+        
+        TIME = CreateCorrespondingDateAndTime(Active.Type, Active.Subprofile, PPH.P[(SeqParts[p]+1):(SeqParts[p+1]),],
+                                              YearDates.Sub, BusinesDates, WeekendDates, HoliDates,
+                                              PPH.T1.Pnt.Li, PPH.T2.Pnt.Li, TimeVertex.T1, TimeVertex.T2, PPH.T1.PNT.RS, PPH.T2.PNT.RS,
+                                              year.active, SeqFragment, f, SeqParts, p)
+        TIME.P = TIME[[2]]
+        if (Active.Subprofile$Dynamics == "dynamic")
+        {
+          PHASES = TIME[[1]]
+          TIME.S = TIME[[3]]
+          TIME.T1 = TIME[[4]]
+          TIME.T2 = TIME[[5]]
+        }
+        rm(TIME)
+        
+        # Write TIME to disk
+        WriteToDisk = TRUE
+        OW = FALSE
+        if (WriteToDisk)
+        {
+          SaveAsDBF(TIME.P, "Time", "Primary",
+                    paste0(Active.Subtype, "_", f), OW, pol, SeqParts[p])
+          if (Active.Subprofile$Dynamics == "dynamic")
+          {
+            SaveAsDBF(TIME.S, "Time", "Secondary",
+                      paste0(Active.Subtype, "_", f), OW, pol, SeqParts[p])
+            SaveAsDBF(TIME.T1, "Time", "T1",
+                      paste0(Active.Subtype, "_", f), OW, pol, SeqParts[p])
+            SaveAsDBF(TIME.T2, "Time", "T2",
+                      paste0(Active.Subtype, "_", f), OW, pol, SeqParts[p])
+          }
+        }
+        
+        
+      } # closing p(arts)
+      
+      
+      print(paste0("Starting fragment ", f, " of ", Fragments))
+      
+      if (exists("TIME.P")) {rm(TIME.P)}
+      if (exists("TIME.S")) {rm(TIME.S)}
+      if (exists("TIME.T1")) {rm(TIME.T1)}
+      if (exists("TIME.T2")) {rm(TIME.T2)}
+      
+      # attach TIME parts
+      TIME.P = DBFreader("Time", "Primary", PPH.P, YearDates.Sub, FolderName)
+      if (Active.Subprofile$Dynamics == "dynamic")
+      {
+        TIME.S = DBFreader("Time", "Secondary", PPH.P, YearDates.Sub, FolderName)
+        TIME.T1 = DBFreader("Time", "T1", PPH.P, YearDates.Sub, FolderName)
+        TIME.T2 = DBFreader("Time", "T2", PPH.P, YearDates.Sub, FolderName)
+      }
+      
+      if (exists("HOURS.P")) {rm(HOURS.P)}
+      if (exists("HOURS.S")) {rm(HOURS.S)}
+      if (exists("HOURS.T1")) {rm(HOURS.T1)}
+      if (exists("HOURS.T2")) {rm(HOURS.T2)}
+      
+      # Hours of the year
+      HOURS.P = HourOfTheYear7(year.active, TIME.P, 0)
+      if (Active.Subprofile$Dynamics == "dynamic")
+      {
+        HOURS.S = HourOfTheYear7(year.active, TIME.S, 0)
+        HOURS.T1 = HourOfTheYear7(year.active, TIME.T1, 0)
+        HOURS.T2 = HourOfTheYear7(year.active, TIME.T2, 0)
+      }
+      
+      if (exists("HoP.P")) {rm(HoP.P)}
+      if (exists("HoP.S")) {rm(HoP.S)}
+      if (exists("HoP.T1")) {rm(HoP.T1)}
+      if (exists("HoP.T2")) {rm(HoP.T2)}
+      
+      # Detect which hours belong to which points | change name systematically to HoP (Hour of Point) = HoP.P etc.
+      HOP = WhichHourForWhichPoint(PPH.P, Time.Sub, HOURS.P, HOURS.S, HOURS.T1, HOURS.T2,
+                                   Print = FALSE, Active.Subprofile, SeqFragment , f) 
+      HoP.P = HOP[[1]]
+      if (Active.Subprofile$Dynamics == "dynamic")
+      {
+        HoP.S = HOP[[2]]
+        HoP.T1 = HOP[[3]]
+        HoP.T2 = HOP[[4]]
+      }
+      rm(HOP)
+      
+      ## Interpolating the points
+      start.time = Sys.time()
+      ExposureValue.All = PPH.TIN.InterpolationWS(PPH.P, PPH.S, PPH.T1.PNT.RS, PPH.T2.PNT.RS,
+                                                  Points.NoVal, PolDir, Plot = FALSE, pol,
+                                                  StartHour = SeqFragment[f]*24+1, # Time[(SeqFragment[f]*24+1)]
+                                                  EndHour = (SeqFragment[f+1])*24, # Time[(SeqFragment[f+1])*24]
+                                                  HOURS.P, HOURS.S, HOURS.T1, HOURS.T2, 50,
+                                                  HoP.P, HoP.S, HoP.T1, HoP.T2, Active.Subprofile, SeqFragment[f])
+      ExposureValue.P = ExposureValue.All[[1]]
+      if (Active.Subprofile$Dynamics == "dynamic")
+      {
+        ExposureValue.S = ExposureValue.All[[2]]
+        ExposureValue.T1 = ExposureValue.All[[3]]
+        ExposureValue.T2 = ExposureValue.All[[4]]
+      }
+      rm(ExposureValue.All)
+      end.time = Sys.time()
+      TimeTakenInterpolation[f] = end.time - start.time
+      print(TimeTakenInterpolation[f])
+      
+      rm(HOURS.P, HOURS.S, HOURS.T1, HOURS.T2)
+      rm(HoP.P, HoP.S, HoP.T1, HoP.T2)
+      rm(PPH.T1.PNT.RS, PPH.T2.PNT.RS)
+      
+      # Write EXP to disk
+      WriteToDisk = TRUE
+      OW = FALSE
+      if (WriteToDisk)
+      {
+        SaveAsDBF(ExposureValue.P, "Exposure", "Primary",
+                  paste0(Active.Subtype, "_", f), OW, pol, 0)
+        if (Active.Subprofile$Dynamics == "dynamic")
+        {
+          SaveAsDBF(ExposureValue.S, "Exposure", "Secondary",
+                    paste0(Active.Subtype, "_", f), OW, pol, 0)
+          SaveAsDBF(ExposureValue.T1, "Exposure", "T1",
+                    paste0(Active.Subtype, "_", f), OW, pol, 0)
+          SaveAsDBF(ExposureValue.T2, "Exposure", "T2",
+                    paste0(Active.Subtype, "_", f), OW, pol, 0)
+        }
+      }
+      
+      gc()
+      
+    } # closing f(ragments)
+    
+    # # Connect TIME and EXP
+    # 
+    # TIME.P = list(list())
+    # TIME.S = list(list())
+    # TIME.T1 = list(list())
+    # TIME.T2 = list(list())
+    # ExposureValue.P = list(list())
+    # ExposureValue.S = list(list())
+    # ExposureValue.T1 = list(list())
+    # ExposureValue.T2 = list(list())
+    # 
     # for (i in seq_along(PPH.P))
     # {
-    #   ValCheck[i] = nrow(ST.DF.HR_F[ST.DF.HR_F$IND == i,])
+    #   TIME.P[[i]] = rep(list(), length(YearDates)) # use same structure
+    #   TIME.S[[i]] = rep(list(), length(YearDates)) # use same structure
+    #   TIME.T1[[i]] = rep(list(), length(YearDates)) # use same structure
+    #   TIME.T2[[i]] = rep(list(), length(YearDates)) # use same structure
+    #   ExposureValue.P[[i]] = rep(list(), length(YearDates)) # use same structure
+    #   ExposureValue.S[[i]] = rep(list(), length(YearDates)) # use same structure
+    #   ExposureValue.T1[[i]] = rep(list(), length(YearDates)) # use same structure
+    #   ExposureValue.T2[[i]] = rep(list(), length(YearDates)) # use same structure
     # }
-    # 
-    # Flawed = which(ValCheck != length(Time.Sub))
-    # 
-    # PPH.T1[Flawed,]@data
-    # 
-    # mean(PPH.T1[Flawed,]@data$distance)
-    # mean(PPH.T1@data$distance)
-    # 
-    # length(unlist(HoP.P_F))
-    # 
-    # HoP.P_F[[Flawed[1]]]
-    # HoP.P_F[[Flawed[1]]][[832]]
-    # TIME.P_F[[Flawed[1]]][[ceiling(832/24)]][HoP.P_F[[Flawed[1]]][[832]]]
-    # ExposureValue.P_F[[Flawed[1]]][[ceiling(832/24)]][HoP.P_F[[Flawed[1]]][[832]]]
-    # 
     
-    
-    # Save Hourly corrected
-    OW = TRUE
-    SaveAsDBF(ST.DF.HR_F, "HR", "HR", paste0(Active.Subtype, "_", f), OW, pol, 0)
-    
-    rm(YearDates.Sub, Time.Sub, TIME.P_F, TIME.S_F, TIME.T1_F, TIME.T2_F,
-       HOURS.P_F, HOURS.S_F, HOURS.T1_F, HOURS.T2_F,
-       HoP.P_F, HoP.S_F, HoP.T1_F, HoP.T2_F,
-       ExposureValue.P_F, ExposureValue.S_F, ExposureValue.T1_F, ExposureValue.T2_F,
-       ST.DF.P_F, ST.DF.S_F, ST.DF.T1_F, ST.DF.T2_F,
-       ExposureValueCombined_F, ST.DF.HR_F)
-    gc()
+    for (f in 1:Fragments)
+      #for (f in Fragments)
+    {
+      YearDates.Sub = YearDates2(year.active)[(SeqFragment[f]+1):(SeqFragment[f+1])]
+      Time.Sub = Time[Time > YearDates.Sub[1] & Time <= (tail(YearDates.Sub,1) + 24*60**2)]
+      
+      # read from file
+      TIME.P_F = DBFreader("Time", "Primary", PPH.P, YearDates.Sub, FolderName)
+      TIME.S_F = DBFreader("Time", "Secondary", PPH.P, YearDates.Sub, FolderName)
+      TIME.T1_F = DBFreader("Time", "T1", PPH.P, YearDates.Sub, FolderName)
+      TIME.T2_F = DBFreader("Time", "T2", PPH.P, YearDates.Sub, FolderName)
+      ExposureValue.P_F = DBFreader("Exposure", "Primary", PPH.P, YearDates.Sub, FolderName, pol)
+      ExposureValue.S_F = DBFreader("Exposure", "Secondary", PPH.P, YearDates.Sub, FolderName, pol)
+      ExposureValue.T1_F = DBFreader("Exposure", "T1", PPH.P, YearDates.Sub, FolderName, pol)
+      ExposureValue.T2_F = DBFreader("Exposure", "T2", PPH.P, YearDates.Sub, FolderName, pol)
+      
+      
+      # Check if the lengths of TIME and EXP match
+      if (length(unlist(TIME.P_F)) != length(unlist(ExposureValue.P_F)) |
+          length(unlist(TIME.S_F)) != length(unlist(ExposureValue.S_F)) |
+          length(unlist(TIME.T1_F)) != length(unlist(ExposureValue.T1_F)) |
+          length(unlist(TIME.T2_F)) != length(unlist(ExposureValue.T2_F)))
+      {
+        stop(paste("Lengths of TIME and EXP do not match."))
+      } #else 
+      # {
+      #   print(paste0("Lengths of TIME and EXP match."))
+      # }
+      
+      # Hours of the year
+      HOURS.P_F = HourOfTheYear7(year.active, TIME.P_F, 0)
+      HOURS.S_F = HourOfTheYear7(year.active, TIME.S_F, 0)
+      HOURS.T1_F = HourOfTheYear7(year.active, TIME.T1_F, 0)
+      HOURS.T2_F = HourOfTheYear7(year.active, TIME.T2_F, 0)
+      
+      # Detect which hours belong to which points | change name systematically to HoP (Hour of Point) = HoP.P etc.
+      HOP = WhichHourForWhichPoint(PPH.P, Time.Sub, HOURS.P_F, HOURS.S_F, HOURS.T1_F, HOURS.T2_F,
+                                   Print = FALSE, Active.Subprofile, SeqFragment , f) 
+      HoP.P_F = HOP[[1]]
+      if (Active.Subprofile$Dynamics == "dynamic")
+      {
+        HoP.S_F = HOP[[2]]
+        HoP.T1_F = HOP[[3]]
+        HoP.T2_F = HOP[[4]]
+      }
+      rm(HOP)
+      
+      # ST.DF.P_F = DF.Structure2(PPH.P, TIME.P_F, TIME.P_F, ExposureValue.P_F) #, rm.na = TRUE
+      # ST.DF.S_F = DF.Structure2(PPH.P, TIME.P_F, TIME.S_F, ExposureValue.S_F)
+      # ST.DF.T1_F = DF.Structure2(PPH.P, TIME.P_F, TIME.T1_F, ExposureValue.T1_F)
+      # ST.DF.T2_F = DF.Structure2(PPH.P, TIME.P_F, TIME.T2_F, ExposureValue.T2_F)
+      # 
+      # # Save DF structure
+      # OW = TRUE
+      # SaveAsDBF(ST.DF.P_F, "DF", "Primary", paste0(Active.Subtype, "_", f), OW, pol, 0)
+      # SaveAsDBF(ST.DF.S_F, "DF", "Secondary", paste0(Active.Subtype, "_", f), OW, pol, 0)
+      # SaveAsDBF(ST.DF.T1_F, "DF", "T1", paste0(Active.Subtype, "_", f), OW, pol, 0)
+      # SaveAsDBF(ST.DF.T2_F, "DF", "T2", paste0(Active.Subtype, "_", f), OW, pol, 0)
+      
+      # stats.EXP.P_F = DF.Stats(ST.DF.P_F)
+      # stats.EXP.S_F = DF.Stats(ST.DF.S)
+      # stats.EXP.T1_F = DF.Stats(ST.DF.T1)
+      # stats.EXP.T2_F = DF.Stats(ST.DF.T2)
+      
+      ExposureValueCombined_F = ToHourValues(PPH.P, Time.Sub, ExposureValue.P_F, ExposureValue.S_F, ExposureValue.T1_F, ExposureValue.T2_F,
+                                             TIME.P_F, TIME.S_F, TIME.T1_F, TIME.T2_F, HoP.P_F, HoP.S_F, HoP.T1_F, HoP.T2_F)
+      
+      
+      length(Time.Sub) * length(PPH.P) == length(unlist(ExposureValueCombined_F))
+      
+      
+      ST.DF.HR_F = DF.Structure2(PPH.P, TIME.P_F, Time.Sub, ExposureValueCombined_F, rm.na = FALSE)
+      #stats.EXP.HR_F = DF.Stats(ST.DF.HR_F)
+      
+      # Validity check
+      if (nrow(ST.DF.HR_F) != length(Time.Sub) * length(PPH.P))
+      {
+        paste("missing", (length(Time.Sub) * length(PPH.P) - nrow(ST.DF.HR_F)), "values!")
+      } else
+      {
+        paste("valid!")
+      }
+      
+      # ValCheck = NA
+      # for (i in seq_along(PPH.P))
+      # {
+      #   ValCheck[i] = nrow(ST.DF.HR_F[ST.DF.HR_F$IND == i,])
+      # }
+      # 
+      # Flawed = which(ValCheck != length(Time.Sub))
+      # 
+      # PPH.T1[Flawed,]@data
+      # 
+      # mean(PPH.T1[Flawed,]@data$distance)
+      # mean(PPH.T1@data$distance)
+      # 
+      # length(unlist(HoP.P_F))
+      # 
+      # HoP.P_F[[Flawed[1]]]
+      # HoP.P_F[[Flawed[1]]][[832]]
+      # TIME.P_F[[Flawed[1]]][[ceiling(832/24)]][HoP.P_F[[Flawed[1]]][[832]]]
+      # ExposureValue.P_F[[Flawed[1]]][[ceiling(832/24)]][HoP.P_F[[Flawed[1]]][[832]]]
+      # 
+      
+      
+      # Save Hourly corrected
+      OW = TRUE
+      SaveAsDBF(ST.DF.HR_F, "HR", "HR", paste0(Active.Subtype, "_", f), OW, pol, 0)
+      
+      rm(YearDates.Sub, Time.Sub, TIME.P_F, TIME.S_F, TIME.T1_F, TIME.T2_F,
+         HOURS.P_F, HOURS.S_F, HOURS.T1_F, HOURS.T2_F,
+         HoP.P_F, HoP.S_F, HoP.T1_F, HoP.T2_F,
+         ExposureValue.P_F, ExposureValue.S_F, ExposureValue.T1_F, ExposureValue.T2_F,
+         ST.DF.P_F, ST.DF.S_F, ST.DF.T1_F, ST.DF.T2_F,
+         ExposureValueCombined_F, ST.DF.HR_F)
+      gc()
+    }
   }
-}
 } else # close dynamic, start static
 {
   
