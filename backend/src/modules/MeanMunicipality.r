@@ -104,16 +104,8 @@ MeanMunicipalityIndividualCentric <- function(PPH.P, PPH.S, PPH.T1, PPH.T2, PPH.
   {
     for (d in seq_along(TIME.P[[i]]))
     {
-      if (length(MuniDF) == length(YearDates))
-      {
-        EXP.P.Li[[i]][[d]] = NA
-      }
-      
-      if (length(MuniDF) == length(Time))
-      {
-        EXP.P.Li[[i]] = TIME.P[[i]]
-        EXP.P.Li[[i]][[d]][EXP.P.Li[[i]][[d]] > 0] = NA
-      }
+      class(EXP.P.Li[[i]][[d]]) = "numeric"
+      EXP.P.Li[[i]][[d]][EXP.P.Li[[i]][[d]] > 0] = NA
     }
   }
   
@@ -154,7 +146,7 @@ MeanMunicipalityIndividualCentric <- function(PPH.P, PPH.S, PPH.T1, PPH.T2, PPH.
         
         Exp.P = MuniDF[MuniID, dayS]
         # print(Exp.P)
-        EXP.P.Li[[i]][[day]] = Exp.P
+        EXP.P.Li[[i]][[day]][1:length(EXP.P.Li[[i]][[day]])] = Exp.P
         # print(EXP.P.Li[[i]][[dayS]])
       }
     }
