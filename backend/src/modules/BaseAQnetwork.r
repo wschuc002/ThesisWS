@@ -23,20 +23,9 @@ if(length(new.packages)) install.packages(new.packages)
 library(sp)
 library(data.table)
 
-BaseAQnetwork <- function(pol, ExternalDrive = FALSE, DriveLetter, ...)
+BaseAQnetwork <- function(pol, aq.dir, ...)
 {
-  
-  # Read the values and place them in the Points SPDF
-  if (ExternalDrive)
-  {
-    DriveLetter = DriveLetter
-    PolDir = file.path(paste0(DriveLetter, ":"), "RIO-IFDM", toupper(pol))
-  } else 
-  {
-    #PolDir = file.path("..", "data", "BE", "IRCELINE")
-    #PolDir = file.path("..", "data", "BE", "IRCELINE", toupper(pol))
-    PolDir = file.path("..", "data", "BE", "RIO-IFDM", toupper(pol))
-  }
+  PolDir = file.path(aq.dir, toupper(pol))
   
   # unzip for sure
   base.txt.dr = ExtractBZ2(pol, PolDir, 1, 1)
@@ -61,5 +50,5 @@ BaseAQnetwork <- function(pol, ExternalDrive = FALSE, DriveLetter, ...)
   Points.NoVal@data[,1] = NA
   Points.NoVal@proj4string = BE_crs
   
-  return(list(Points.NoVal,PolDir))
+  return(Points.NoVal)
 }
