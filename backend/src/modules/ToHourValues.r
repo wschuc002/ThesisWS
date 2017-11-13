@@ -402,7 +402,7 @@ ToHourValues <- function(PPH.P, Time, ExposureValue.P, ExposureValue.S, Exposure
 # 
 # Time = Time_
 
-ToHourValuesFromDF <- function(PPH.P, Time.Sub, output.dir, FolderName,
+ToHourValuesFromDF.Dynamic <- function(PPH.P, Time.Sub, output.dir, FolderName,
                                #ST.DF.P, ST.DF.S, ST.DF.T1, ST.DF.T2,
                                #ST.DF.P_2, ST.DF.S_2, ST.DF.T1_2, ST.DF.T2_2,
                          TIME.P, TIME.S, TIME.T1, TIME.T2, pollutants, ...)
@@ -505,15 +505,11 @@ ToHourValuesFromDF <- function(PPH.P, Time.Sub, output.dir, FolderName,
       
       if (PolNR != 1)
       {
-        
         EXP2 = NA
         for (h in 1:length(Time.Sub))
         {
-          #testDF[h, paste0("EXP_", toupper(pol))] =
-          EXP2[h] =  
-            mean(ST.DF[ST.DF$TIME > Time.Sub[h]-(1*60**2) & ST.DF$TIME <= Time.Sub[h],]$EXP)
+          EXP2[h] = mean(ST.DF[ST.DF$TIME > Time.Sub[h]-(1*60**2) & ST.DF$TIME <= Time.Sub[h],]$EXP)
         }
-        
         HR_DF.Li_2[[i]] = EXP2
       }
       
@@ -534,4 +530,70 @@ ToHourValuesFromDF <- function(PPH.P, Time.Sub, output.dir, FolderName,
   
 
   return(HR_DF)
+}
+
+ToHourValuesFromDF.Static <- function(PPH.P, output.dir, FolderName, TIME.P, pollutants, ...)
+{
+  Columns = 2 + length(pollutants)
+  testDF = transpose(data.frame(1:Columns, stringsAsFactors = FALSE))
+  colnames(testDF) = c("TIME", "IND", paste0("EXP_", toupper(pollutants)))
+  testDF[1,] = NA
+  
+  class(testDF[,1]) = class(Time)
+  class(testDF[,2]) = "numeric"
+  class(testDF[,3:(2+length(pollutants))]) = "integer"
+  
+  HR_DF.Li = list()
+  HR_DF.Li_2 = list()
+  
+  for (pol in pollutants)
+  {
+    print(paste(pol))
+    cat("\n")
+    
+    PolNR = which(pollutants %in% pol)
+    
+    ST.DF.P = read.dbf(file = file.path(output.dir, FolderName, paste0("DF_P_", toupper(pol), ".dbf")))
+    
+    # add location phase
+    ST.DF.P$LocationPhase = "P"
+    
+    colnames(ST.DF.P)[colnames(ST.DF.P) == "EXP"] = paste0("EXP_", toupper(pol))
+    
+    for (i in as.numeric(rownames(PPH.P@data)))
+    {
+      cat(paste(i," "))
+      
+      if (!all(ST.DF.P[ST.DF.P$IND == i,]$TIME == unlist(TIME.P[[i]])))
+      {
+        ST.DF.P[ST.DF.P$IND == i,]$TIME = unlist(TIME.P[[i]])
+        
+        # collect per individual
+        ST.DF = ST.DF.P[i == ST.DF.P$IND,]
+        ST.DF = ST.DF[order(ST.DF$TIME),]
+      } else
+      {
+        ST.DF = ST.DF.P
+      }
+    
+      # Time class
+      class(ST.DF$TIME) = class(YearDates)
+      
+    } # closing i
+    
+    HR_DF.Li[[PolNR]] = ST.DF.P
+    
+  } # closing pol
+
+  HR_DF = do.call(cbind, HR_DF.Li)
+  
+  if (all(unlist(HR_DF[,c(1,2,4)]) == unlist(HR_DF[,c(5,6,8)])))
+  {
+    HR_DF2 = HR_DF[, c("TIME", "IND", paste0("EXP_", toupper(pollutants)))]
+  } else
+  {
+    stop(print("Inconsistent cbind"))
+  }
+  
+  return(HR_DF2)
 }
