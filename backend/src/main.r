@@ -46,7 +46,7 @@ if (Clear.WorkSpace)
 ## which should be placed in backend/data/.
 ## Note 3b: To download the input data from the irceline ftp server, you need a password.
 ## This password should we filled between the double quotes.
-ftp.pwd = "<passwordhere>" # fill in the password, without < >
+ftp.pwd = "schuch:<passwordhere>" # fill in the password, without < >
 
 ## ABBREVIATIONS:
 # PPH: Personal Place History
@@ -94,6 +94,14 @@ if (!dir.exists(data.dir)) { dir.create(data.dir) }
 BE.dir = file.path("..", "data", "BE")
 if (!dir.exists(BE.dir)) { dir.create(BE.dir) }
 
+# Select main folder for hi-res Air Quality data
+DriveLetter = "T" # NA (default) of e.g. "T"
+aq.dir = file.path(data.dir, "BE", "RIO-IFDM")
+if (!is.na(DriveLetter))
+{
+  aq.dir = file.path(paste0(DriveLetter, ":" ), "RIO-IFDM")
+}
+
 ## ONE DRIVE
 
 # Read OneDrive KEY
@@ -112,17 +120,9 @@ if (DownloadMode == "OneDrive")
   }
 }
 
-## irceline ftp server (as alternative for OneDrive) | not foolproof yet
-year.active = 2015
-#pol = "pm25" # "no2", "pm25"
-
-if (DownloadMode == "FTP")
-{
-  ftp.pwd = "" # password here
-  out.dir = file.path("..", "data", "IRCELINE_test")
-  ftp.filenames = c("20150101_1_", toupper(pol), ".txt.bz2", "20150101_2_", toupper(pol), ".txt.bz2")
-  DownloadInputFilesFromIrcelineFTP(ftp.filenames, ftp.pwd, out.dir)
-}
+ReproduceMode = TRUE
+pollutants = c("no2", "pm25")
+GroupSize = 1000
 
 #### FLANDERS ####
 
@@ -166,6 +166,7 @@ Flanders@data$NAME_1_EN = "Flanders"
 #SaveAsFile(Flanders, "Flanders", "GeoJSON", TRUE)
 
 # Set year of pollutant dataset, determine dates and date types (Workdays~Weekends)
+year.active = 2015
 YearDates = YearDates2(year.active)
 
 Time = seq(as.POSIXct(paste0(year.active,"-01-01 01:00:00")),
@@ -196,12 +197,6 @@ if (!exists("BIWEEKLY"))
   BIWEEKLY = BiWeekly(year.active, YearDates, SchoolHolidays, Time, SeedNr.BiWeekly)
 }
 
-ReproduceMode = TRUE
-
-pollutants = c("no2", "pm25")
-
-GroupSize = 1000
-
 LogCSVpath = file.path("..", "output", "log.csv")
 # check if logfile already exists
 if (!file.exists(LogCSVpath))
@@ -211,14 +206,20 @@ if (!file.exists(LogCSVpath))
   write.table(base, file = LogCSVpath, sep = ",", quote = FALSE, append = FALSE, col.names = FALSE, row.names = FALSE)
 }
 
+# read Air Quality Health Standards CSV
+csv.HealthStandards_in = file.path("..", "data", "AirQualityHealthStandards.csv")
+HealthStandards = fread(csv.HealthStandards_in, sep=",", header=TRUE)
+
 # End of general code
 # - - - 
 # Beginning of profile based code
 
+MoI = c("PST1", "P1", "P7") # Methods of Interest
+
 for (Active.Type in Types)
-  #for (Active.Type in Types[c(3)])
+#for (Active.Type in Types[c(2,3)])
 {
-  #Active.Type = Types[3]
+  #Active.Type = Types[1]
   print(Active.Type)
   
   FirstSubtype = ResidentialProfiles[ResidentialProfiles$Type == Active.Type][1]
@@ -280,7 +281,7 @@ for (Active.Type in Types)
       CRAB_Doel@proj4string = BE_crs
     } else
     {
-      CRAB_Doel = DetermineAddressGoals_FL(Subset.Gemeente,2)
+      CRAB_Doel = DetermineAddressGoals_FL(Subset.Gemeente, 2)
       CRAB_Doel@proj4string = BE_crs
       SaveAsFile(CRAB_Doel, CRAB.Name, "Shapefile", TRUE) # "GeoJSON" fails
     }
@@ -337,19 +338,22 @@ for (Active.Type in Types)
       PPH.T2@proj4string = BE_crs
     }
   }
-  
+
   
   SubProfilesFullPeriod = ResidentialProfiles$Subtype[ResidentialProfiles$'T-gaps' == 0 &
                                                         ResidentialProfiles$Type == Active.Type]
   
-  SpecificSubprofile = 8
-  if (length(SubProfilesFullPeriod) == 4) {SpecificSubprofile = SpecificSubprofile - 4}
-  if (is.na(SpecificSubprofile)) {SpecificSubprofile = 1:length(SubProfilesFullPeriod)}
+  SubProfilesFullPeriodMethodsOfInterest = SubProfilesFullPeriod[SubProfilesFullPeriod %in%
+                                                                   paste0(Active.Type, "_", MoI)]
   
-  #for (Active.Subtype in SubProfilesFullPeriod)
-  for (Active.Subtype in SubProfilesFullPeriod[SpecificSubprofile])  
+  # SpecificSubprofile = NA
+  # if (length(SubProfilesFullPeriod) == 4) {SpecificSubprofile = SpecificSubprofile - 4}
+  # if (is.na(SpecificSubprofile)) {SpecificSubprofile = 1:length(SubProfilesFullPeriod)}
+  
+  for (Active.Subtype in SubProfilesFullPeriodMethodsOfInterest)
+  #for (Active.Subtype in SubProfilesFullPeriod[SpecificSubprofile])  
   {
-    #Active.Subtype = SubProfilesFullPeriod[8]
+    #Active.Subtype = SubProfilesFullPeriodMethodsOfInterest[1]
     print(Active.Subtype)
     
     # Subtype base (for TIME: one for PST, one for P)
@@ -392,10 +396,16 @@ for (Active.Type in Types)
     for (pol in pollutants)
       #for (pol in pollutants[2]) #[2] = pm25 only | [1] = no2 only
     {
-      #BASEAQ = BaseAQnetwork(pol, ExternalDrive = TRUE, DriveLetter = "T")
-      BASEAQ = BaseAQnetwork(pol)
-      Points.NoVal = BASEAQ[[1]]
-      PolDir = BASEAQ[[2]]
+      ## irceline ftp server for downloading hi-res Air Quality data (as alternative for OneDrive)
+      if (DownloadMode == "FTP")
+      {
+        ftp.filenames = paste0(format(Time, "%Y"), format(Time, "%m"), format(Time, "%d"),
+                               "_", 1:24, "_", toupper(pol), ".txt.bz2")
+        DownloadInputFilesFromIrcelineFTP(ftp.filenames, ftp.pwd, aq.dir, pol)
+      }
+      
+      Points.NoVal = BaseAQnetwork(pol, aq.dir)
+      PolDir = file.path(aq.dir, toupper(pol))
       
       if (Active.Subprofile$`S-aggr` == 1) # Municipality related
       {
@@ -443,7 +453,7 @@ for (Active.Type in Types)
         }
       } # closing Municipality related
       
-      Fragments = 1:20
+      Fragments = 1:10
       DaySplit = length(YearDates)/length(Fragments)
       SeqFragment = floor(seq(0, length(YearDates), DaySplit))
       
@@ -453,7 +463,8 @@ for (Active.Type in Types)
       { # implement EXP_pol ST.DF and HR recognition
         print(paste("Testing if HR exists of Fragment", f))
         if (file.exists(file.path(output.dir, paste0(Active.Subtype, "_", f),
-                                  paste0("HR_", toupper(pol), ".dbf"))))
+                                  paste0("HR_", "ALL", ".dbf"))))
+                                  #paste0("HR_", toupper(pol), ".dbf"))))
         {
           print(paste("HR already exists of Fragment", f))
           next # f+1
@@ -552,6 +563,18 @@ for (Active.Type in Types)
           }
         }
         
+        # # correct time for daily
+        # if (Active.Subprofile$'T-aggr' == 1) #daily
+        # {
+        #   for (i in 1:GroupSize)
+        #   {
+        #     for (d in seq_along(TIME.P_F[[i]]))
+        #     {
+        #       TIME.P_F[[i]][[d]] = TIME.P_F[[i]][[d]][1]-1*60**2
+        #     }
+        #   }
+        # }
+        
         if (Active.Subprofile$Dynamics == "static") {EXP = c("EXP_P_")}
         if (Active.Subprofile$Dynamics == "dynamic") {EXP = c("EXP_P_", "EXP_S_","EXP_T1_","EXP_T2_")}
         
@@ -594,18 +617,6 @@ for (Active.Type in Types)
             }
             rm(HOP)
             gc()
-          }
-          
-          # correct time for daily
-          if (Active.Subprofile$'T-aggr' == 1) #daily
-          {
-            for (i in 1:GroupSize)
-            {
-              for (d in seq_along(TIME.P_F[[i]]))
-              {
-                TIME.P_F[[i]][[d]] = TIME.P_F[[i]][[d]][1]-1*60**2
-              }
-            }
           }
           
           ## Interpolating the points
@@ -743,11 +754,15 @@ for (Active.Type in Types)
         if (all(file.exists(file.path(output.dir, FolderName, paste0(DF, toupper(pol), ".dbf")))))
         {
           ST.DF.P_F = read.dbf(file = file.path(output.dir, FolderName, paste0("DF_P_", toupper(pol), ".dbf")))
+          class(ST.DF.P_F$TIME) = class(Time)
           if (Active.Subprofile$Dynamics == "dynamic")
           {
             ST.DF.S_F = read.dbf(file = file.path(output.dir, FolderName, paste0("DF_S_", toupper(pol), ".dbf")))
             ST.DF.T1_F = read.dbf(file = file.path(output.dir, FolderName, paste0("DF_T1_", toupper(pol), ".dbf")))
             ST.DF.T2_F = read.dbf(file = file.path(output.dir, FolderName, paste0("DF_T2_", toupper(pol), ".dbf")))
+            class(ST.DF.S_F$TIME) = class(Time)
+            class(ST.DF.T1_F$TIME) = class(Time)
+            class(ST.DF.T2_F$TIME) = class(Time)
           }
         } else
         {
@@ -770,19 +785,22 @@ for (Active.Type in Types)
           
         } # closing when ST.DF does not exist on HD
         
-        if (!file.exists(file.path(output.dir, FolderName, paste0("HR_", toupper(pol), ".dbf"))) &
-            (all(file.exists(file.path(output.dir, FolderName, paste0(DF, toupper(pol), ".dbf"))))))
+        if (!file.exists(file.path(output.dir, FolderName, paste0("HR_", "ALL", ".dbf"))) &
+            (all(file.exists(file.path(output.dir, FolderName, paste0(DF, toupper(pollutants), ".dbf"))))))
         {
           if (Active.Subprofile$Dynamics == "dynamic")
           {
-            ST.DF.HR_F = ToHourValuesFromDF(PPH.P, Time.Sub, output.dir, FolderName,
+            ST.DF.HR_F = ToHourValuesFromDF.Dynamic(PPH.P, Time.Sub, output.dir, FolderName,
                                             TIME.P_F, TIME.S_F, TIME.T1_F, TIME.T2_F, pollutants)
             
-            SaveAsDBF(ST.DF.HR_F, "HR", "HR", FolderName, OW, toupper(pol), 0)
+            #SaveAsDBF(ST.DF.HR_F, "HR", "HR", FolderName, OW, toupper(pol), 0)
           } else # if static
           {
-            SaveAsDBF(ST.DF.P_F, "HR", "HR", FolderName, OW, toupper(pol), 0)
+            ST.DF.HR_F = ToHourValuesFromDF.Static(PPH.P, output.dir, FolderName, TIME.P_F, toupper(pollutants))
           }
+          
+          SaveAsDBF(ST.DF.HR_F, "HR", "HR", FolderName, T, "ALL", 0)
+          
           
           # if (Active.Subprofile$Dynamics == "dynamic")
           # {
@@ -849,18 +867,25 @@ for (Active.Type in Types)
 } # closing Type
 
 
-### Collect different calculation methods per profile
-
+### Collect different calculation methods per profile (Saving 1 file HR_ALL per Type)
 for (Active.Type in Types)
 {
-  #Active.Type = Types[3]
-  SubProfilesFullPeriod = ResidentialProfiles$Subtype[ResidentialProfiles$'T-gaps' == 0 &
-                                                        ResidentialProfiles$Type == Active.Type][c(1,2,8)]
+  #Active.Type = Types[1]
+  TypeNr = which(Types %in% Active.Type)
   
-  for (Active.Subtype in SubProfilesFullPeriod)
+  # SubProfilesFullPeriod = ResidentialProfiles$Subtype[ResidentialProfiles$'T-gaps' == 0 &
+  #                                                       ResidentialProfiles$Type == Active.Type]
+  MethodsOfInterest = c("PST1", "P1", "P7")
+  if (TypeNr == 2) {MethodsOfInterest = c("P1", "P7")}
+  
+  MethodsOfInterest2 = paste0(Active.Type, "_", MethodsOfInterest)
+  print(MethodsOfInterest2)
+  
+  for (Active.Subtype in MethodsOfInterest2)
   {
-    #Active.Subtype = SubProfilesFullPeriod[3]
-    s = which(SubProfilesFullPeriod %in% Active.Subtype)
+    print(Active.Subtype)
+    #Active.Subtype = MethodsOfInterest2[3]
+    s = which(MethodsOfInterest2 %in% Active.Subtype)
     
     # Check if folder with fragments already exist
     TimeExp.lst = list.files(path = output.dir, pattern = paste0(Active.Subtype, "_", "[0-9]*"))
@@ -880,24 +905,31 @@ for (Active.Type in Types)
     {
       if (!file.exists(file.path(output.dir, Active.Subtype, paste0("HR_ALL", ".dbf"))))
       {
-        # Connect the fragments
-        HR_ALL.Li = list()
-        for (f in Fragments)
+        if (all(is.na(Fragments)))
         {
-          print(f)
-          FolderName = paste0(Active.Subtype, "_", f)
-          #FolderNameBase = paste0(Active.SubtypeBase, "_", f)
           
-          HR_ALL.Li[[f]] = read.dbf(file = file.path(output.dir, FolderName, paste0("HR_", toupper(pol), ".dbf")))[,1:4] #c("TIME", "IND")
           
-          # HR_ALL.Li[[f]] = read.dbf(file = file.path(output.dir, FolderName, paste0("HR_ALL", ".dbf")))[,1:4] #c("TIME", "IND")
-          #colnames(HR_ALL.Li[[f]])[3:4] = paste0("PST1_", colnames(HR_ALL.Li[[f]])[3:4])
+        } else
+        {
+          # Connect the fragments
+          HR_ALL.Li = list()
+          for (f in Fragments)
+          {
+            print(f)
+            FolderName = paste0(Active.Subtype, "_", f)
+            #FolderNameBase = paste0(Active.SubtypeBase, "_", f)
+            
+            #HR_ALL.Li[[f]] = read.dbf(file = file.path(output.dir, FolderName, paste0("HR_", toupper(pol), ".dbf")))[,1:4] #c("TIME", "IND")
+            
+            HR_ALL.Li[[f]] = read.dbf(file = file.path(output.dir, FolderName, paste0("HR_ALL", ".dbf")))[,1:4] #c("TIME", "IND")
+            #colnames(HR_ALL.Li[[f]])[3:4] = paste0("PST1_", colnames(HR_ALL.Li[[f]])[3:4])
+          }
+          HR_ALL = do.call(rbind, HR_ALL.Li)
+          HR_ALL = HR_ALL[order(HR_ALL$TIME),] # order on time
+          
+          rm(HR_ALL.Li)
+          gc()
         }
-        HR_ALL = do.call(rbind, HR_ALL.Li)
-        HR_ALL = HR_ALL[order(HR_ALL$TIME),] # order on time
-        
-        rm(HR_ALL.Li)
-        gc()
         
         if (nrow(HR_ALL) == length(Time)*GroupSize)
         {
@@ -909,69 +941,123 @@ for (Active.Type in Types)
       } else
       {
         HR_ALL = read.dbf(file = file.path(output.dir, Active.Subtype, paste0("HR_ALL", ".dbf")))[,1:4]
+        HR_ALL = HR_ALL[order(HR_ALL$TIME),] # order on time
       }
       
       class(HR_ALL$TIME) = class(YearDates)
       
     } else # closing (s == 1) opening (s != 1)
     {
-      if (all(is.na(Fragments)))
+      if (!file.exists(file.path(output.dir, Active.Subtype, paste0("HR_ALL", ".dbf"))))
       {
-        FolderName = Active.Subtype
-        HR.Li = list()
-        HR2.Li = list()
-        for (pol in pollutants)
+        if (all(is.na(Fragments)))
         {
-          p = which(pollutants %in% pol)
-          HR.Li[[p]] = read.dbf(file = file.path(output.dir, FolderName, paste0("HR_", toupper(pol), ".dbf")))
-          
-          if (!all(HR.Li[[p]]$IND == HR_ALL$IND))
+          HR_ALL.Li = list()
+          for (pol in pollutants)
           {
-            HR2.Li[[p]] = HR.Li[[p]][order(HR.Li[[p]]$TIME),]
-            all(HR2.Li[[p]]$IND == HR_ALL$IND)
+            p = which(pollutants %in% pol)
+            HR_ALL.Li[[p]] = read.dbf(file = file.path(output.dir, Active.Subtype, paste0("HR_", toupper(pol), ".dbf")))
           }
-          #HR_ALL = do.call(rbind, HR2.Li)
-          HR_ALL = cbind(HR_ALL[,1:(2*s+p-1)], HR2.Li[[p]]$EXP)
-        }
-        rm(HR.Li, HR2.Li)
-        gc()
-      } else
-      {
-        HR_SUB.Li = list()
-        for (pol in pollutants)
+          
+          if (all(HR_ALL.Li[[1]][,"TIME"] == HR_ALL.Li[[2]][,"TIME"]))
+          {
+            HR = cbind(HR_ALL.Li[[1]][,c("TIME", "IND", "EXP")], HR_ALL.Li[[2]]$EXP)
+          }
+          HR = HR[order(HR$TIME),] # order on time
+          
+        } else
         {
-          EXP.Li = list()
-          p = which(pollutants %in% pol)
+          HR.Li = list()
           for (f in Fragments)
           {
             print(f)
             FolderName = paste0(Active.Subtype, "_", f)
             
-            EXP.Li[[f]] = read.dbf(file = file.path(output.dir, FolderName, paste0("HR_", toupper(pol), ".dbf")))#$EXP
+            HR.Li[[f]] = read.dbf(file = file.path(output.dir, FolderName, paste0("HR_ALL", ".dbf")))
           }
-          #HR_SUB.Li[[p]] = EXP.Li
-          HR_SUB.Li[[p]] = do.call(rbind, EXP.Li)
+          HR = do.call(rbind, HR.Li)
           
-          if (!all(HR_SUB.Li[[p]]$IND == HR_ALL$IND))
+          if (!all(HR$IND == HR_ALL$IND))
           {
-            HR_SUB.Li[[p]] = HR_SUB.Li[[p]][order(HR_SUB.Li[[p]]$TIME),]
-            all(HR_SUB.Li[[p]]$IND == HR_ALL$IND)
+            HR2 = HR[order(HR$TIME),]
+            
+            if (!all(HR2$TIME == HR_ALL$TIME) | !all(HR2$IND == HR_ALL$IND))
+            {
+              stop(print(paste0("Cannot make correct order for data frame merging.")))
+            }
+            HR = HR2
+            rm(HR2)
           }
-          
-          HR_ALL = cbind(HR_ALL[,1:(2+s+p-1)], HR_SUB.Li[[p]]$EXP)
-        } # closing p
+        }
+
+        HR_ALL = cbind(HR_ALL, HR[,3:length(HR)])
+        HR_ALL = HR_ALL[order(HR_ALL$TIME),] # order on time
         
-        ## Connect HR_ALL(base) and second
-        #HR_ALL = cbind(HR_ALL, unlist(HR_SUB.Li[[1]]), unlist(HR_SUB.Li[[2]]))
-        
-        rm(EXP.Li, HR_SUB.Li)
+        rm(HR.Li, HR)
         gc()
+        
+      } else
+      {
+        if (all(is.na(Fragments)))
+        {
+          FolderName = Active.Subtype
+          HR.Li = list()
+          HR2.Li = list()
+          for (pol in pollutants)
+          {
+            p = which(pollutants %in% pol)
+            HR.Li[[p]] = read.dbf(file = file.path(output.dir, FolderName, paste0("HR_", toupper(pol), ".dbf")))
+            
+            if (!all(HR.Li[[p]]$IND == HR_ALL$IND))
+            {
+              HR2.Li[[p]] = HR.Li[[p]][order(HR.Li[[p]]$TIME),]
+              all(HR2.Li[[p]]$IND == HR_ALL$IND)
+            }
+            #HR_ALL = do.call(rbind, HR2.Li)
+            HR_ALL = cbind(HR_ALL[,1:(2*s+p-1)], HR2.Li[[p]]$EXP)
+            HR_ALL = HR_ALL[order(HR_ALL$TIME),] # order on time
+          }
+          rm(HR.Li, HR2.Li)
+          gc()
+        } else
+        {
+          HR_SUB.Li = list()
+          for (pol in pollutants)
+          {
+            EXP.Li = list()
+            p = which(pollutants %in% pol)
+            for (f in Fragments)
+            {
+              print(f)
+              FolderName = paste0(Active.Subtype, "_", f)
+              
+              EXP.Li[[f]] = read.dbf(file = file.path(output.dir, FolderName, paste0("HR_", toupper(pol), ".dbf")))#$EXP
+            }
+            #HR_SUB.Li[[p]] = EXP.Li
+            HR_SUB.Li[[p]] = do.call(rbind, EXP.Li)
+            
+            if (!all(HR_SUB.Li[[p]]$IND == HR_ALL$IND))
+            {
+              HR_SUB.Li[[p]] = HR_SUB.Li[[p]][order(HR_SUB.Li[[p]]$TIME),]
+              all(HR_SUB.Li[[p]]$IND == HR_ALL$IND)
+            }
+            
+            HR_ALL = cbind(HR_ALL[,1:(2*s+p-1)], HR_SUB.Li[[p]]$EXP)
+            HR_ALL = HR_ALL[order(HR_ALL$TIME),] # order on time
+          } # closing p
+          
+          ## Connect HR_ALL(base) and second
+          #HR_ALL = cbind(HR_ALL, unlist(HR_SUB.Li[[1]]), unlist(HR_SUB.Li[[2]]))
+          
+          rm(EXP.Li, HR_SUB.Li)
+          gc()
+        }
       }
       
     } # closing (s != 1)
     
     # regex the calc method
-    StrSPlt = strsplit(SubProfilesFullPeriod, paste0(Active.Type, "_"))
+    StrSPlt = strsplit(MethodsOfInterest2, paste0(Active.Type, "_"))
     EvenNr = seq(2, length(unlist(StrSPlt)), 2)
     MethodsOfInterest = unlist(StrSPlt)[EvenNr]
     
@@ -982,10 +1068,183 @@ for (Active.Type in Types)
     
   } # closing Active.Subtype
   
-  SaveAsDBF(HR_ALL, "HR", "HR", Active.Type, FALSE, "ALL", 0)
+  SaveAsDBF(HR_ALL, "HR", "HR", Active.Type, F, "ALL", 0)
+  
+} # closing Active.Type
+
+# #!! Check if order is correct
+# HR_ALL.OW = read.dbf(file = file.path(output.dir, "01.OW", paste0("HR_ALL", ".dbf")))
+# HR_ALL.HO = read.dbf(file = file.path(output.dir, "02.HO", paste0("HR_ALL", ".dbf")))
+# HR_ALL.SP = read.dbf(file = file.path(output.dir, "03.SP", paste0("HR_ALL", ".dbf")))
+# 
+# all(HR_ALL.OW$TIME == HR_ALL.SP$TIME)
+# all(HR_ALL.OW$IND == HR_ALL.SP$IND)
+
+### Stats & Plots 
+for (Active.Type in Types[c(3)])
+{
+  # Active.Type = Types[1]
+  
+  HR_ALL = read.dbf(file = file.path(output.dir, Active.Type, paste0("HR_", "ALL", ".dbf")))
+  
+  Stats.HR_ALL_HourBased = DF.Stats2(HR_ALL, BasedOn = "TIME", Time)
+  Stats.HR_ALL_IndividualBased = DF.Stats2(HR_ALL, BasedOn = "IND", Time)
+  
+  MethodsOfInterest = c("PST1", "P1", "P7")
+  if (Active.Type == "02.HO") {MethodsOfInterest = c("P1", "P7")}
+  
+  # for (cm in 3:length(IndividualBasedMean))
+  # {
+  #   print(cm)
+  #   print(colnames(IndividualBasedMean[cm]))
+  #   
+  #   hist(IndividualBasedMean[,cm], 100, xlim = c(0, 50), ylim = c(0, 150), plot = TRUE, 
+  #        main = paste("Histogram of", Active.Type, ": ", colnames(IndividualBasedMean)[cm], "(IndividualBasedMean)"),
+  #        xlab = colnames(IndividualBasedMean)[cm])
+  #   
+  #   hist(HR_ALL[,cm], 100, xlim = c(0, 50), plot = TRUE, 
+  #        main = paste("Histogram of", Active.Type, ": ", colnames(IndividualBasedMean)[cm]),
+  #        xlab = colnames(IndividualBasedMean)[cm])
+  # }
+  
+  StatsMethod = "mean" # mean, min, max, sd
+  StatsMethodWithMethodsOfInterest = paste(StatsMethod, MethodsOfInterest, sep = "_")
+  StatsMethodWithMethodsOfInterest = c(StatsMethodWithMethodsOfInterest, StatsMethodWithMethodsOfInterest)
+  #StatsMethodWithMethodsOfInterestPol = paste(StatsMethodWithMethodsOfInterest, toupper(pollutants), sep = "_")
+  
+  #hist(Stats.HR_ALL_IndividualBased[,StatsMethodWithMethodsOfInterestPol], 100)
+  # hist(HR_ALL, 100, xlim = c(0, 50), ylim = c(0, 50), plot = TRUE)
+  
+  PlotSave = FALSE
+  
+  for (pol in pollutants)
+  {
+    # pol = pollutants[1]
+    
+    MethodsOfInterestPol = paste(MethodsOfInterest, toupper(pol), sep = "_")
+    StatsMethodWithMethodsOfInterestPol = paste(StatsMethod, MethodsOfInterestPol, sep = "_")
+    
+    for (cm in MethodsOfInterest)
+    {
+      # cm = MethodsOfInterest[1]
+      Plot.Group3(Active.Type, 5, 1, HR_ALL, Stats.HR_ALL_HourBased, cm, PlotMinMax = TRUE, pol = pol)
+
+    } #closing cm
+    
+    # ScatterplotMatrixAndSave(Active.Type, Stats.HR_ALL_IndividualBased, StatsMethodWithMethodsOfInterestPol,
+    #                          PlotSave = PlotSave, Width = 720, Height = 480, toupper(pol), StatsMethod)
+    
+    MethodsOfInterest2 = paste(StatsMethod, MethodsOfInterest, sep = "_")
+    Plot.DeltaProposedAndSave(Active.Type, 1, 21, MethodsOfInterest2, toupper(pol), Stats.HR_ALL_HourBased,
+                              PlotSave = PlotSave, Width = 720, Height = 480, PointSize = 15, StatsMethod)
+    
+    # Plot.DeltaProposed(Active.Type, 1, 21, MethodsOfInterest2, toupper(pol), Stats.HR_ALL_HourBased)
+    
+    # # How many individuals above 150?
+    # HR_ALL[HR_ALL$PST1_NO2 > 150,]
+    # HR_ALL[HR_ALL$PST1_NO2 > 150,]
+    # 
+    # # How many individuals of 1000?
+    # nrow(HR_ALL[HR_ALL$PST1_NO2 > 100,])
+    # nrow(HR_ALL[HR_ALL$PST1_PM25 > 100,])
+
+    # CorPlotTable2(Active.Type, "Mixed", StatsMethodWithMethodsOfInterest, toupper(pol), Stats.HR_ALL_IndividualBased)
+
+    # ScatterPlotMatrix(Active.Type, StatsMethodWithMethodsOfInterest, Stats.HR_ALL_IndividualBased, pol)
+    
+    # CorPlotGraph(Active.Type, paste(StatsMethod, MethodsOfInterest[1], toupper(pol), sep = "_"),
+    #              paste(StatsMethod, MethodsOfInterest[2], toupper(pol), sep = "_"),
+    #              Width = 1208, Height = 720, pol, GroupSize, Stats.HR_ALL_IndividualBased)
+    # CorPlotGraph(Active.Type, paste(StatsMethod, MethodsOfInterest[1], toupper(pol), sep = "_"),
+    #              paste(StatsMethod, MethodsOfInterest[3], toupper(pol), sep = "_"),
+    #              Width = 1208, Height = 720, pol, GroupSize, Stats.HR_ALL_IndividualBased)
+
+
+
+  } # closing pol
   
 } # closign Active.Type
 
+
+
+
+
+## Cumsum (for nice graph, with AQ standards)
+
+for (Active.Type in Types)
+{
+  # Active.Type = Types[1]
+  HR_ALL = read.dbf(file = file.path(output.dir, Active.Type, paste0("HR_ALL", ".dbf")))
+
+  class(HR_ALL$TIME) = class(Time)
+  
+  for (cm in 3:length(HR_ALL))
+  {
+    CumSum = tapply(HR_ALL[,cm], HR_ALL[,"IND"], cumsum)
+    cum = unlist(CumSum)
+    BaseHR = HR_ALL[, c("TIME", "IND")]
+    BaseHR = BaseHR[order(BaseHR$IND),]
+    DF.CumSum = cbind(BaseHR, cum)
+    
+    # Plot.CumExposureGraph2(DF.CumSum[DF.CumSum$IND == 1:GroupSize,], pol)
+    Plot.CumExposureGraph2(DF.CumSum, pol)
+    #Plot.CumExposureGraph2(DF.CumSum[DF.CumSum$IND == 1:250,], pol)
+    
+    DF.CumSum2 = DF.CumSum[DF.CumSum$TIME == tail(Time,1),]
+    DF.CumSum3 = DF.CumSum2[order(DF.CumSum2$cum, decreasing = TRUE),]
+    
+    head(DF.CumSum3, 10)
+    
+    
+  }
+    
+    # Query, Pie chart / donut plot
+  for (cm in 3:length(HR_ALL))
+  {
+    print(HR_ALL[HR_ALL[, cm] > 150, c(1,2,cm)])
+    
+    
+    
+  }
+  HR_ALL[HR_ALL[, (3:length(HR_ALL))] > 150,]
+  
+    # How many individuals above 150?
+    HR_ALL[HR_ALL$PST1_NO2 > 150,]
+    
+    # How many individuals of 1000?
+    nrow(HR_ALL[HR_ALL$PST1_NO2 > 100,])
+    nrow(HR_ALL[HR_ALL$PST1_PM25 > 100,])
+    
+    # # Input the ad data
+    # ad = data.frame(
+    #   type = c("Poster", "Billboard", "Bus", "Digital"),
+    #   n = c(529, 356, 59, 81)
+    # )
+    # 
+    # # Add addition columns to data, needed for donut plot.
+    # ad$fraction = ad$n / sum(ad$n)
+    # ad$ymax = cumsum(ad$fraction)
+    # ad$ymin = c(0, head(ad$ymax, n = -1))
+    # 
+    # ggplot(data = ad, aes(fill = type, ymax = ymax, ymin = ymin, xmax = 4, xmin = 3)) +
+    #   geom_rect(colour = "grey30", show_guide = FALSE) +
+    #   coord_polar(theta = "y") +
+    #   xlim(c(0, 4)) +
+    #   theme_bw() +
+    #   theme(panel.grid=element_blank()) +
+    #   theme(axis.text=element_blank()) +
+    #   theme(axis.ticks=element_blank()) +
+    #   geom_text(aes(x = 3.5, y = ((ymin+ymax)/2), label = type)) +
+    #   xlab("") +
+    #   ylab("")
+    # 
+    
+  } # closing cm
+  
+} # closing Active.Type
+
+
+### END OF USED CODE
 
 ### Biweekly subset
 for (Active.Type in Types)
@@ -1026,13 +1285,10 @@ for (Active.Type in Types)
   
   SaveAsDBF(HR_ALL_BiWeekly, "HR", "HR", Active.Type, FALSE, "ALL_BiWeekly", 0)                       
   
-} # closign Active.Type
-
-
+} # closing Active.Type
 
 ### Time-based mean FullPeriod
-
-for (Active.Type in Types)
+for (Active.Type in Types[1])
 {
   if (!file.exists(file.path(output.dir, Active.Type, paste0("HR_", "ALL_MeanPopulation", ".dbf"))))
   {
@@ -1040,10 +1296,12 @@ for (Active.Type in Types)
     HourBasedMeanPopulation = HR_ALL[1,]
     HourBasedMeanPopulation[,] = NA
     
+    cat("\n")
+    
     for (date in Time)
     {
       d = which(Time %in% date)
-      print(paste0(round(d/length(Time)*100, 3), " %"))
+      cat(paste(paste0(round(d/length(Time)*100, 3), " % ")," "))
       
       HourBasedMeanPopulation[d, "TIME"] = date
       HourBasedMeanPopulation[d, "IND"] = "ALL"
@@ -1073,13 +1331,13 @@ for (Active.Type in Types)
   
   SaveAsDBF(HourBasedMeanPopulation_BiWeekly, "HR", "HR", Active.Type, FALSE, "ALL_Biweekly_MeanPopulation", 0)
   
-} # closign Active.Type
-
+} # closing Active.Type
 
 ### Individual-based mean
-
 for (Active.Type in Types)
 {
+  HR_ALL = read.dbf(file = file.path(output.dir, Active.Type, paste0("HR_ALL", ".dbf")))
+  
   # Use same structure
   IndividualBasedMean = HR_ALL[1,]
   IndividualBasedMean[,] = NA
@@ -1097,10 +1355,9 @@ for (Active.Type in Types)
   
   SaveAsDBF(IndividualBasedMean, "HR", "HR", Active.Type, FALSE, "ALL_IndividualMean", 0)
   
-} # closign Active.Type
+} # closing Active.Type
 
 ### Individual-based mean BiWeekly
-
 for (Active.Type in Types)
 {
   # Use same structure
@@ -1121,100 +1378,7 @@ for (Active.Type in Types)
   
   SaveAsDBF(IndividualBasedMean_BiWeekly, "HR", "HR", Active.Type, FALSE, "ALL_Biweekly_IndividualMean", 0)
   
-} # closign Active.Type
-
-## Stats
-for (Active.Type in Types[c(1,3)])
-{
-  # Active.Type = Types[1]
-  HR_ALL = read.dbf(file = file.path(output.dir, Active.Type, paste0("HR_ALL", ".dbf")))
-  #HR_ALL_BiWeekly = read.dbf(file = file.path(output.dir, Active.Type, paste0("HR_ALL_BiWeekly", ".dbf")))
-  
-  Stats.HR_ALL_HourBased = DF.Stats2(HR_ALL, BasedOn = "TIME", Time)
-  Stats.HR_ALL_IndividualBased = DF.Stats2(HR_ALL, BasedOn = "IND", Time)
-  
-} # closign Active.Type
-
-
-
-
-### Plots 
-for (Active.Type in Types[c(1,3)])
-{
-  # Active.Type = Types[1]
-  
-  HourBasedMeanPopulation = read.dbf(file = file.path(output.dir, Active.Type, paste0("HR_", "ALL_MeanPopulation", ".dbf")))
-  class(HourBasedMeanPopulation$TIME) = class(Time)
-  HourBasedMeanPopulation_BiWeekly = read.dbf(file = file.path(output.dir, Active.Type, paste0("HR_", "ALL_BiWeekly_MeanPopulation", ".dbf")))
-  class(HourBasedMeanPopulation_BiWeekly$TIME) = class(Time)
-  IndividualBasedMean = read.dbf(file = file.path(output.dir, Active.Type, paste0("HR_", "ALL_IndividualMean", ".dbf")))
-  IndividualBasedMean_BiWeekly = read.dbf(file = file.path(output.dir, Active.Type, paste0("HR_", "ALL_BiWeekly_IndividualMean", ".dbf")))
-  
-  for (pol in pollutants)
-  {
-    # pol = pollutants[2]
-    
-    Plot.Group3(Active.Type, 1, 9, HR_ALL, Stats.HR_ALL_HourBased, PlotMinMax = FALSE, pol)
-    Plot.Group3(Active.Type, 255, 21, HR_ALL, Stats.HR_ALL_HourBased, "PST1", PlotMinMax = FALSE, pol)
-    
-    # How many individuals above 150?
-    HR_ALL[HR_ALL$PST1_NO2 > 150,]
-    HR_ALL[HR_ALL$PST1_NO2 > 150,]
-    
-    # How many individuals of 1000?
-    nrow(HR_ALL[HR_ALL$PST1_NO2 > 100,])
-    nrow(HR_ALL[HR_ALL$PST1_PM25 > 100,])
-    
-    CorPlotTable2(Active.Type, "Mixed", c("PST1", "PST2", "PST3", "PST4", "P1", "P2"), toupper(pol), IndividualBasedMean, IndividualBasedMean_BiWeekly)
-    
-    CorPlotTable2(Active.Type, "Mixed", c("mean_PST1", "mean_PST3", "mean_P1"), toupper(pol),
-                  Stats.HR_ALL_IndividualBased, IndividualBasedMean_BiWeekly)
-    
-    CorPlotTable2(Active.Type, "Mixed", c("max_PST1", "max_PST3", "max_P1"), toupper(pol),
-                  Stats.HR_ALL_IndividualBased, IndividualBasedMean_BiWeekly)
-    
-    
-    CorPlotGraph(Active.Type, c("PST1", "PST2"),
-                 Width = 1208, Height = 720, pol, GroupSize, IndividualBasedMean, IndividualBasedMean_BiWeekly)
-    
-    CorPlotGraph(Active.Type, c("PST1", "PST3"),
-                 Width = 1208, Height = 720, pol, GroupSize, IndividualBasedMean, IndividualBasedMean_BiWeekly)
-    
-    CorPlotGraph(Active.Type, c("PST1", "PST4"),
-                 Width = 1208, Height = 720, pol, GroupSize, IndividualBasedMean, IndividualBasedMean_BiWeekly)
-    
-    CorPlotGraph(Active.Type, c("PST1", "P1"),
-                 Width = 1208, Height = 720, pol, GroupSize, IndividualBasedMean, IndividualBasedMean_BiWeekly)
-    
-    CorPlotGraph(Active.Type, c("PST1", "P2"),
-                 Width = 1208, Height = 720, pol, GroupSize, IndividualBasedMean, IndividualBasedMean_BiWeekly)
-    
-    # CorPlotTableAndSave(Active.Type, IndividualBasedMean$`PST1_NO2`, IndividualBasedMean$`PST3_NO2`,
-    #                     IndividualBasedMean$`P1_NO2`, OW_C2.INDmean, Width = 720, Height = 480, pol = toupper(pol))
-    
-    # CorPlotGraphAndSave(Active.Type, IndividualBasedMean$`PST1_NO2`, IndividualBasedMean$`P1_NO2`,
-    #                     "PST1", "P1", Width = 720, Height = 480, pol = toupper(pol), GroupSize)
-    # 
-    # CorPlotTable(Active.Type, "Numbers", IndividualBasedMean$`PST1_NO2`, IndividualBasedMean$`PST3_NO2`,
-    #              IndividualBasedMean$`P1_NO2`, IndividualBasedMean_BiWeekly$`P2_NO2` , pol)
-    
-    Plot.DeltaProposed(Active.Type, 1, 365, c("PST1", "PST3", "P1"), pol, HourBasedMeanPopulation)
-    
-    Plot.DeltaProposed(Active.Type, 1, 365, c("mean_PST1", "mean_PST3", "mean_P1"), pol, Stats.HR_ALL_HourBased)
-    Plot.DeltaProposed(Active.Type, 1, 365, c("max_PST1", "max_PST3", "max_P1"), pol, Stats.HR_ALL_HourBased)
-    
-    
-  } # closing pol
-  
-} # closign Active.Type
-
-
-
-### END OF USED CODE
-
-
-
-
+} # closing Active.Type
 
 
 ## Collecting the EXP (HR) values [method 2]
@@ -2279,7 +2443,7 @@ Plot.Group2(Active.Type, 1, 7, 25, TRUE)
 
 
 ## Raster Municipality
-RasterMunicipality(pollutants[2], "T", 50, "Oudergem", 1+(24*5), 1+(24*5))
+RasterMunicipality(pollutants[2], aq.dir, 10, "Antwerpen", 1+(24*5), 1+(24*5)) # BE_crs, output.dir, year.active, 
 
 # # Calculate a raster from RIO-IFDM points with the Triangulation method
 # res = 100
@@ -2423,21 +2587,21 @@ Sys.setenv(TZ = OriginalTimezone)
 # # Cummulative sum per day
 # HO.02.CumSum.Day = Weighted.Static(ExposureValue.P, "CumSum.Day")
 # 
-# TIME.unlisted.P = TIME.P
-# ExposureValueCum.P = ExposureValue.P # use same structure
-# ExposureValueCumYear.P = NA
-# ExposureValue.unlisted.P = ExposureValue.P # use same structure
-# 
-# 
-# for (i in seq_along(ExposureValue.P)) # per individual
-# {
-#   ExposureValueCum.P[[i]] = cumsum(unlist(ExposureValue.P[[i]]))
-#   TIME.unlisted.P[[i]] = unlist(TIME.P[[i]])
-#   
-#   ExposureValueCumYear.P[i] = tail(ExposureValueCum.P[[i]],1)
-#   
-#   ExposureValue.unlisted.P[[i]] = unlist(ExposureValue.P[[i]])
-# }
+TIME.unlisted.P = TIME.P
+ExposureValueCum.P = ExposureValue.P # use same structure
+ExposureValueCumYear.P = NA
+ExposureValue.unlisted.P = ExposureValue.P # use same structure
+
+
+for (i in seq_along(ExposureValue.P)) # per individual
+{
+  ExposureValueCum.P[[i]] = cumsum(unlist(ExposureValue.P[[i]]))
+  TIME.unlisted.P[[i]] = unlist(TIME.P[[i]])
+
+  ExposureValueCumYear.P[i] = tail(ExposureValueCum.P[[i]],1)
+
+  ExposureValue.unlisted.P[[i]] = unlist(ExposureValue.P[[i]])
+}
 # 
 # hist(ExposureValueCumYear.P,100)
 # 
@@ -2451,28 +2615,28 @@ Sys.setenv(TZ = OriginalTimezone)
 #   
 # }
 # 
-# # slope method (using cumulative)
-# Standard.24h = 35
-# Hours = 24
-# norm = Standard.24h * Hours
-# 
-# ExposureValueDiff = ExposureValueCum.P # use same structure
-# ExposureValueDiff2 = ExposureValueDiff
-# 
-# #for (i in seq_along(ExposureValueCum.P))
-# for (i in seq(1,3))
-# {
-#   ExposureValueDiff[[i]] = NA
-#   ExposureValueDiff2[[i]] = NA
-#   for (h in seq_along(ExposureValueCum.P[[i]]))
-#   {
-#     diff = ExposureValueCum.P[[i]][h+Hours-1]-ExposureValueCum.P[[i]][h]
-#     ExposureValueDiff[[i]][h] = diff > norm # only first hour of serie
-#     
-#     #ExposureValueDiff2[[i]][h:(h+Hours-1)] = ExposureValueDiff[[i]][h] # for complete serie
-#     
-#   }
-# }
+# slope method (using cumulative)
+Standard.24h = 35
+Hours = 24
+norm = Standard.24h * Hours
+
+ExposureValueDiff = ExposureValueCum.P # use same structure
+ExposureValueDiff2 = ExposureValueDiff
+
+#for (i in seq_along(ExposureValueCum.P))
+for (i in seq(1,3))
+{
+  ExposureValueDiff[[i]] = NA
+  ExposureValueDiff2[[i]] = NA
+  for (h in seq_along(ExposureValueCum.P[[i]]))
+  {
+    diff = ExposureValueCum.P[[i]][h+Hours-1]-ExposureValueCum.P[[i]][h]
+    ExposureValueDiff[[i]][h] = diff > norm # only first hour of serie
+
+    #ExposureValueDiff2[[i]][h:(h+Hours-1)] = ExposureValueDiff[[i]][h] # for complete serie
+
+  }
+}
 # 
 # for (o in seq(1, length(ExposureValueCum.P[[3]])-(Hours-1)))
 # {
