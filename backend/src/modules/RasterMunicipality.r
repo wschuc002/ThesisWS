@@ -15,7 +15,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 ## Check for required packages and install them (incl dependencies) if they are not installed yet.
-list.of.packages <- c("rgdal", "raster", "sp", "geoR")
+list.of.packages <- c("rgdal", "raster", "sp", "geoR", "rgeos", "akima", "SearchTrees")
 new.packages <- list.of.packages[!(list.of.packages %in% installed.packages()[,"Package"])]
 if(length(new.packages)) install.packages(new.packages)
 
@@ -24,14 +24,20 @@ library(rgdal)
 library(raster)
 library(sp)
 library(geoR)
+library(rgeos)
+library(akima)
+library(SearchTrees)
 
-RasterMunicipality <- function(pol, DriveLetter, mpp, Name.Municipality, StartHour = 1+(24*5), EndHour = 24+(24*5), ...)
+RasterMunicipality <- function(pol, aq.dir, mpp, Name.Municipality, StartHour = 1+(24*5), EndHour = 24+(24*5), ...)
 {
   ## Read base
   #pol = pollutants[1]
-  BASEAQ = BaseAQnetwork(pol, ExternalDrive = TRUE, DriveLetter = DriveLetter)
-  Points.NoVal = BASEAQ[[1]]
-  PolDir = BASEAQ[[2]]
+  # BASEAQ = BaseAQnetwork(pol, ExternalDrive = TRUE, DriveLetter = DriveLetter)
+  # Points.NoVal = BASEAQ[[1]]
+  # PolDir = BASEAQ[[2]]
+  
+  Points.NoVal = BaseAQnetwork(pol, aq.dir)
+  PolDir = file.path(aq.dir, toupper(pol))
   
   # Read municipalities
   Municipalities = getData("GADM", country = "Belgium", level = 4, path = output.dir)
@@ -39,17 +45,18 @@ RasterMunicipality <- function(pol, DriveLetter, mpp, Name.Municipality, StartHo
   Municipality = Municipalities[Municipalities@data$NAME_4 == Name.Municipality,]
   Municipality = spTransform(Municipality, BE_crs)
   Municipality@proj4string = BE_crs
+  plot(Municipality)
   
   # Subset Base RIO-IFDM on Municipality
   points.sel = 1000
   Points.Base.Samples = gIntersection(Points.NoVal[1:points.sel,], Municipality,  byid = TRUE)
   
-  while (is.null(Points.Base.Samples))
+  while (is.null(Points.Base.Samples) | length(Points.Base.Samples) < 3)
   {
     points.sel = points.sel + 1000
     Points.Base.Samples = gIntersection(Points.NoVal[(points.sel-1000):points.sel,], Municipality,  byid = TRUE)
   }
-  plot(Points.Base.Samples)
+  points(Points.Base.Samples)
   
   # find most central points
   X.min = Points.Base.Samples@bbox[1,1]
@@ -66,15 +73,18 @@ RasterMunicipality <- function(pol, DriveLetter, mpp, Name.Municipality, StartHo
   # Create search trees
   tree = createTree(coordinates(Points.NoVal))
   test = as.numeric(knnLookup(tree, newdat = coordinates(Central.Point), k = Radius * 4))
-  plot(Points.NoVal[test,])
+  points(Points.NoVal[test,])
   lines(Municipality, col = "green")
   
   Municipality.Buffer = gBuffer(Municipality, byid = F, id = NULL, width = 1000)
   lines(Municipality.Buffer, col = "red")
   
   Points.Base.Municipality.Buffer = gIntersects(Points.NoVal[test,], Municipality.Buffer,  byid = TRUE)
-  plot(Points.NoVal[rownames(Points.NoVal@data) %in% Points.Base.Municipality.Buffer,])
   
+  PointsOfInterest.over = Points.NoVal[test,] %over% Municipality.Buffer
+  PointsOfInterest = Points.NoVal[test,][which(PointsOfInterest.over == 1),]
+  plot(PointsOfInterest)
+
   length(Points.NoVal[test,])
   length(Points.Base.Municipality.Buffer)
   
