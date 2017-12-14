@@ -338,14 +338,13 @@ for (Active.Type in Types)
       PPH.T2@proj4string = BE_crs
     }
   }
-
   
   SubProfilesFullPeriod = ResidentialProfiles$Subtype[ResidentialProfiles$'T-gaps' == 0 &
                                                         ResidentialProfiles$Type == Active.Type]
   
   SubProfilesFullPeriodMethodsOfInterest = SubProfilesFullPeriod[SubProfilesFullPeriod %in%
                                                                    paste0(Active.Type, "_", MoI)]
-  
+ 
   # SpecificSubprofile = NA
   # if (length(SubProfilesFullPeriod) == 4) {SpecificSubprofile = SpecificSubprofile - 4}
   # if (is.na(SpecificSubprofile)) {SpecificSubprofile = 1:length(SubProfilesFullPeriod)}
@@ -519,7 +518,7 @@ for (Active.Type in Types)
           if (Active.Subprofile$Dynamics == "dynamic")
           {
             TIME.S_F = DBFreader("Time", "Secondary", PPH.P, YearDates.Sub, FolderNameBase)
-            TIME.T1_F = DBFreader("Time", "T1", PPH.P, YearDates.Sub, FolderNameBase)
+            TIME.T1_F = DBFreader("Time", "T1", PPH.P, YearDates.Sub, FolderName)
             TIME.T2_F = DBFreader("Time", "T2", PPH.P, YearDates.Sub, FolderNameBase)
           }
         } else # TIME files do not exist
@@ -1079,6 +1078,271 @@ for (Active.Type in Types)
 # 
 # all(HR_ALL.OW$TIME == HR_ALL.SP$TIME)
 # all(HR_ALL.OW$IND == HR_ALL.SP$IND)
+
+
+### Collect different calculation methods per profile (Saving 1 file DF per Type)
+for (Active.Type in Types)
+{
+  #Active.Type = Types[3]
+  print(Active.Type)
+  TypeNr = which(Types %in% Active.Type)
+  
+  if (Active.Type == "01.OW")
+  {
+    HoliDates = as.POSIXct(OfficialHolidays$Datum)
+    SimplifyRemainingPoints = 100 # desirable resulting amount
+    RandomSamplePoints = 25 # desirable resulting amount of points, after random sampling the equal points
+    
+    BusinesDates = DateType(YearDates, "Workdays", HoliDates)
+    WeekendDates = DateType(YearDates, "Weekends")
+  }
+  if (Active.Type == "03.SP")
+  {
+    HoliDates = HolidayGenerator(SchoolHolidays, Time) #2015 only
+    SimplifyRemainingPoints = 10 # should be desirable resulting amount
+    RandomSamplePoints = 5 # desirable resulting amount of points, after random sampling the equal points
+    
+    BusinesDates = DateType(YearDates, "Workdays", HoliDates)
+    WeekendDates = DateType(YearDates, "Weekends")
+  }
+
+  MethodsOfInterest = c("PST1", "P1", "P7")
+  if (TypeNr == 2) {MethodsOfInterest = c("P1", "P7")}
+  
+  MethodsOfInterest2 = paste0(Active.Type, "_", MethodsOfInterest)
+  print(MethodsOfInterest2)
+  
+  for (Active.Subtype in MethodsOfInterest2)
+  {
+    #Active.Subtype = MethodsOfInterest2[1]
+    print(Active.Subtype)
+    Active.Subprofile = ResidentialProfiles[ResidentialProfiles$Subtype == Active.Subtype,]
+    
+    s = which(MethodsOfInterest2 %in% Active.Subtype)
+    
+    # Check if folder with fragments already exist
+    TimeExp.lst = list.files(path = output.dir, pattern = paste0(Active.Subtype, "_", "[0-9]*"))
+    # remove _ and backups in the lst
+    NChar = NA
+    for (c in seq_along(TimeExp.lst))
+    {
+      NChar[c] = nchar(TimeExp.lst[c])
+    }
+    TimeExp.lst = TimeExp.lst[NChar == nchar(Active.Subtype)+2 | NChar == nchar(Active.Subtype)+3]
+    TimeExp.lst = mixedsort(TimeExp.lst) # fixes string order 1 10 11 -> 1 2 3
+    
+    Frag.lst = gsub(x = TimeExp.lst, pattern = paste0(Active.Subtype, "_"), replacement = "")
+    Fragments = as.numeric(Frag.lst)
+
+    DF.name = c("DF_P", "DF_S","DF_T1","DF_T2")
+    
+    if (grepl("PST", Active.Subtype))
+    {
+      for (lp in seq_along(DF.name)) # per Location Phase
+      {
+        print(DF.name[lp])
+        #if (length(list.files(path = file.path(output.dir, Active.Subtype), pattern = DF[lp])) < 1)
+        if (!file.exists(file.path(output.dir, Active.Subtype, paste0(DF.name[lp], "_ALL", ".dbf"))))
+        {
+          DF_ALL.Li = list()
+          for (f in Fragments)
+          #for (f in 11:14)
+          {
+            print(f)
+            FolderName = paste0(Active.Subtype, "_", f)
+
+            DaySplit = length(YearDates)/length(Fragments)
+            SeqFragment = floor(seq(0, length(YearDates), DaySplit))
+            YearDates.Sub = YearDates2(year.active)[(SeqFragment[f]+1):(SeqFragment[f+1])]
+
+            # check if the fragment includes a business day
+            if (!any(YearDates.Sub %in% BusinesDates) & lp > 1)
+            {
+              next # f+1
+            }
+            
+            DF.Li = list()
+            for (pol in pollutants)
+            {
+              p = which(pollutants %in% pol)
+              DF.Li[[p]] = read.dbf(file = file.path(output.dir, FolderName, paste0(DF.name[lp],"_", toupper(pol), ".dbf")))
+            }
+            CHECK = NA
+            for (p in 1:(length(pollutants)-1))
+            {
+              CHECK[p] = all(c(all(DF.Li[[p]]$TIME == DF.Li[[p+1]]$TIME), all(DF.Li[[p]]$IND == DF.Li[[p+1]]$IND)))
+            }
+            if (!all(CHECK))
+            {
+              stop(print("DID NOT PASS CHECKPOINT"))
+              #sort
+              DF.Li[[1]] = DF.Li[[1]][order(DF.Li[[1]]$IND),]
+              # DF.Li[[1]][order(DF.Li[[1]]$TIME),] # order on time
+
+            } else
+            {
+              # merge dataframes
+              DF = cbind(DF.Li[[1]], DF.Li[[2]]$EXP)
+              DF[,2] = DF.Li[[1]]$IND
+              colnames(DF)[2] = "IND"
+              DF[,3] = DF.Li[[1]]$EXP
+              colnames(DF)[3] = paste0("EXP_", toupper(pollutants[1]))
+              colnames(DF)[length(DF)] = paste0("EXP_", toupper(pollutants[2]))
+            }
+            DF_ALL.Li[[f]] = DF
+            rm(DF)
+          } # closing f
+          DF_ALL = do.call(rbind, DF_ALL.Li)
+          DF_ALL = DF_ALL[order(DF_ALL$TIME),] # order on time
+          
+          rm(DF_ALL.Li)
+          gc()
+          
+          # if (nrow(DF_ALL) == length(Time)*GroupSize)
+          # {
+            SaveAsDBF(DF_ALL, "DF", DF.name[lp], Active.Subtype, FALSE, "ALL", 0)
+          # } else
+          # {
+          #   stop(print(paste0("Data frame should have ", length(Time)*GroupSize, " observations/rows.")))
+          # }
+        } # closing file existance
+        } # closing location phase (lp)
+      } else # if not "PST"
+      {
+        
+      }
+  } # closing Active.Subtype
+} # closing Active.Type
+    
+#       
+#       class(DF_ALL$TIME) = class(YearDates)
+#       
+#     } else # closing (s == 1) opening (s != 1)
+#     {
+#       if (!file.exists(file.path(output.dir, Active.Subtype, paste0("HR_ALL", ".dbf"))))
+#       {
+#         if (all(is.na(Fragments)))
+#         {
+#           HR_ALL.Li = list()
+#           for (pol in pollutants)
+#           {
+#             p = which(pollutants %in% pol)
+#             HR_ALL.Li[[p]] = read.dbf(file = file.path(output.dir, Active.Subtype, paste0("HR_", toupper(pol), ".dbf")))
+#           }
+#           
+#           if (all(HR_ALL.Li[[1]][,"TIME"] == HR_ALL.Li[[2]][,"TIME"]))
+#           {
+#             HR = cbind(HR_ALL.Li[[1]][,c("TIME", "IND", "EXP")], HR_ALL.Li[[2]]$EXP)
+#           }
+#           HR = HR[order(HR$TIME),] # order on time
+#           
+#         } else
+#         {
+#           HR.Li = list()
+#           for (f in Fragments)
+#           {
+#             print(f)
+#             FolderName = paste0(Active.Subtype, "_", f)
+#             
+#             HR.Li[[f]] = read.dbf(file = file.path(output.dir, FolderName, paste0("HR_ALL", ".dbf")))
+#           }
+#           HR = do.call(rbind, HR.Li)
+#           
+#           if (!all(HR$IND == HR_ALL$IND))
+#           {
+#             HR2 = HR[order(HR$TIME),]
+#             
+#             if (!all(HR2$TIME == HR_ALL$TIME) | !all(HR2$IND == HR_ALL$IND))
+#             {
+#               stop(print(paste0("Cannot make correct order for data frame merging.")))
+#             }
+#             HR = HR2
+#             rm(HR2)
+#           }
+#         }
+#         
+#         HR_ALL = cbind(HR_ALL, HR[,3:length(HR)])
+#         HR_ALL = HR_ALL[order(HR_ALL$TIME),] # order on time
+#         
+#         rm(HR.Li, HR)
+#         gc()
+#         
+#       } else
+#       {
+#         if (all(is.na(Fragments)))
+#         {
+#           FolderName = Active.Subtype
+#           HR.Li = list()
+#           HR2.Li = list()
+#           for (pol in pollutants)
+#           {
+#             p = which(pollutants %in% pol)
+#             HR.Li[[p]] = read.dbf(file = file.path(output.dir, FolderName, paste0("HR_", toupper(pol), ".dbf")))
+#             
+#             if (!all(HR.Li[[p]]$IND == HR_ALL$IND))
+#             {
+#               HR2.Li[[p]] = HR.Li[[p]][order(HR.Li[[p]]$TIME),]
+#               all(HR2.Li[[p]]$IND == HR_ALL$IND)
+#             }
+#             #HR_ALL = do.call(rbind, HR2.Li)
+#             HR_ALL = cbind(HR_ALL[,1:(2*s+p-1)], HR2.Li[[p]]$EXP)
+#             HR_ALL = HR_ALL[order(HR_ALL$TIME),] # order on time
+#           }
+#           rm(HR.Li, HR2.Li)
+#           gc()
+#         } else
+#         {
+#           HR_SUB.Li = list()
+#           for (pol in pollutants)
+#           {
+#             EXP.Li = list()
+#             p = which(pollutants %in% pol)
+#             for (f in Fragments)
+#             {
+#               print(f)
+#               FolderName = paste0(Active.Subtype, "_", f)
+#               
+#               EXP.Li[[f]] = read.dbf(file = file.path(output.dir, FolderName, paste0("HR_", toupper(pol), ".dbf")))#$EXP
+#             }
+#             #HR_SUB.Li[[p]] = EXP.Li
+#             HR_SUB.Li[[p]] = do.call(rbind, EXP.Li)
+#             
+#             if (!all(HR_SUB.Li[[p]]$IND == HR_ALL$IND))
+#             {
+#               HR_SUB.Li[[p]] = HR_SUB.Li[[p]][order(HR_SUB.Li[[p]]$TIME),]
+#               all(HR_SUB.Li[[p]]$IND == HR_ALL$IND)
+#             }
+#             
+#             HR_ALL = cbind(HR_ALL[,1:(2*s+p-1)], HR_SUB.Li[[p]]$EXP)
+#             HR_ALL = HR_ALL[order(HR_ALL$TIME),] # order on time
+#           } # closing p
+#           
+#           ## Connect HR_ALL(base) and second
+#           #HR_ALL = cbind(HR_ALL, unlist(HR_SUB.Li[[1]]), unlist(HR_SUB.Li[[2]]))
+#           
+#           rm(EXP.Li, HR_SUB.Li)
+#           gc()
+#         }
+#       }
+#       
+#     } # closing (s != 1)
+#     
+#     # regex the calc method
+#     StrSPlt = strsplit(MethodsOfInterest2, paste0(Active.Type, "_"))
+#     EvenNr = seq(2, length(unlist(StrSPlt)), 2)
+#     MethodsOfInterest = unlist(StrSPlt)[EvenNr]
+#     
+#     colnames(HR_ALL)[2*s+1] = paste0(MethodsOfInterest[s], "_", toupper(pollutants[1]))
+#     colnames(HR_ALL)[2*s+2] = paste0(MethodsOfInterest[s], "_", toupper(pollutants[2]))
+#     
+#     head(HR_ALL)
+#     
+#   } # closing Active.Subtype
+#   
+#   SaveAsDBF(HR_ALL, "HR", "HR", Active.Type, F, "ALL", 0)
+#   
+# } # closing Active.Type
+
 
 ### Stats & Plots 
 for (Active.Type in Types[c(3)])

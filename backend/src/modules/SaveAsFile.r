@@ -67,10 +67,10 @@ SaveAsDBF <- function(INput, FileType, PhaseType, FolderName, OverwriteLayer, po
   if (FileType == "DF") {FileString = "DF_"}
   if (FileType == "HR") {FileString = ""}
   
-  if (PhaseType == "Primary") {PhaseLetter = "P"}
-  if (PhaseType == "Secondary") {PhaseLetter = "S"}
-  if (PhaseType == "T1") {PhaseLetter = "T1"}
-  if (PhaseType == "T2") {PhaseLetter = "T2"}
+  if (PhaseType == "Primary" | PhaseType == "DF_P") {PhaseLetter = "P"}
+  if (PhaseType == "Secondary" | PhaseType == "DF_S") {PhaseLetter = "S"}
+  if (PhaseType == "T1" | PhaseType == "DF_T1") {PhaseLetter = "T1"}
+  if (PhaseType == "T2" | PhaseType == "DF_T2") {PhaseLetter = "T2"}
   if (PhaseType == "HR") {PhaseLetter = "HR"}
   
   Folder = file.path("..", "output", FolderName)
@@ -133,7 +133,7 @@ SaveAsDBF <- function(INput, FileType, PhaseType, FolderName, OverwriteLayer, po
     
     dbf_out = file.path(Folder, paste0(FileString, PhaseLetter, "_", toupper(pol), ".dbf"))
     
-    class(DF[,1]) = "integer"
+    #class(DF[,1]) = "integer"
 
     write.dbf(DF, dbf_out, factor2char = TRUE, max_nchar = 254)
   }
