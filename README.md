@@ -1,8 +1,16 @@
 # GISCAPE
-Geographic Information System for Calculating Air Pollution Exposure
+Geoscientific Information System for Calculating Air Pollution Exposure
 
-Information available soon.
+Information available in week 6, 2018.
 
-![alt text](https://wageningenur4-my.sharepoint.com/personal/william_schuch_wur_nl/_layouts/15/guestaccess.aspx?docid=1a2202c39210c47aab879e3b7ef0beec9&authkey=AfuJ1_-MLDrh7q-gyiqpoqs&e=4744ba62dc924fafb178f759228d04c3)
+![alt text](https://raw.githubusercontent.com/wschuc002/ThesisWS/master/backend/img/GISCAPE_228px.png)
+![alt text](https://raw.githubusercontent.com/wschuc002/ThesisWS/master/backend/img/ThesisWS2_cover_20180123.png)
 
-<embed src="https://wageningenur4-my.sharepoint.com/personal/william_schuch_wur_nl/_layouts/15/guestaccess.aspx?docid=18aecda7386774b74bdac23be763829dd&authkey=ATZSkFyv8B5PYallIdQtBQQ&e=ba13b56500214e4283250bbd84327b66"> 
+```{r}
+library("knitr")
+library("devtools")
+url<-"https://plot.ly/~wschuc002/17.embed?width=550&height=550"
+plotly_iframe <- paste("<center><iframe scrolling='no' seamless='seamless' style='border:none' src='", url, "/800/1200' width='800' height='1200'></iframe><center>", sep = "")
+
+```
+`r I(plotly_iframe)`
