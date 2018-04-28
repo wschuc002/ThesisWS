@@ -9,6 +9,6 @@ Information available in week 17, 2018.
 These environments are still in progress. All the main interactive plots from my thesis report will be
 available before Sunday 2018-04-29.
 
-<a href="https://wageningenur4-my.sharepoint.com/:f:/g/personal/william_schuch_wur_nl/EtbwkZgdsNpCphofWuZxy20BUaXYN5pepXvcpTo-RKcX6g?e=FxHarC" target="_blank">OneDrive interactive plots</a>
+<a href="https://wageningenur4-my.sharepoint.com/:f:/g/personal/william_schuch_wur_nl/EtbwkZgdsNpCphofWuZxy20BUaXYN5pepXvcpTo-RKcX6g?e=FxHarC" target="_blank" New Tab>OneDrive interactive plots</a>
 
-<a href="https://plot.ly/~wschuc002" target="_blank">Plotly interactive plots</a>
+<a href="https://plot.ly/~wschuc002" target="_blank" New Tab>Plotly interactive plots</a>
