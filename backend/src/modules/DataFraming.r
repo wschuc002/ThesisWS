@@ -261,6 +261,23 @@ DF.Stats2 <- function(InDF, BasedOn, Time, ...)
   return(Stats.DF)
 }
 
+DF.Stats1 <- function(ST.DF.WS, EXP, ...)
+{
+  # calculating mean, min and max and standard deviation
+  mean.EXP = data.frame (with (ST.DF.WS, tapply(EXP, factor(TIME), mean)))
+  min.EXP = data.frame (with (ST.DF.WS, tapply(EXP, factor(TIME), min)))
+  max.EXP = data.frame (with (ST.DF.WS, tapply(EXP, factor(TIME), max)))
+  sd.EXP = data.frame (with (ST.DF.WS, tapply(EXP, factor(TIME), sd)))
+  
+  stats.EXP = cbind(mean.EXP, min.EXP, max.EXP, sd.EXP)
+  names(stats.EXP) = c("meanEXP", "minEXP", "maxEXP", "sdEXP")
+  stats.EXP$TIME = rownames(stats.EXP)
+  
+  #class(stats.EXP$TIME) = class(TIME.P[[1]][[1]])
+  
+  return(stats.EXP)
+}
+
 DF.Stats <- function(ST.DF.WS, ...)
 {
   # calculating mean, min and max and standard deviation

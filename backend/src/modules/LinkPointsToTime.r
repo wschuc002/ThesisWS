@@ -69,16 +69,29 @@ LinkPointsToTime.Transport <- function(Direction.T, PPH.T, PPH.T.SP, Year, Activ
   
   for (i in seq_along(PPH.T.SP))
   {
-    TimeVertex = NA
+    # TimeVertex = NA
+    # 
+    # # count vertices/nodes
+    # vertices = length(PPH.T.SP[[i]])
+    # durVer = PPH.T@data$duration[i]/vertices # duration between vertices (in minutes)
     
-    # count vertices/nodes
-    vertices = length(PPH.T.SP[[i]])
-    durVer = PPH.T@data$duration[i]/vertices # duration between vertices (in minutes)
-    
-    for (t in seq_along(PPH.T.SP[[i]]))
+    SubDis = NA
+    for (v in 1:(length(PPH.T.SP[[i]])-1))
     {
-      TimeVertex[t] = TimeLeaveFrom+durVer*(t*60)
+      # fill elements subsequent distance
+      SubDis[v] = gDistance(PPH.T.SP[[i]][v], PPH.T.SP[[i]][v+1])
     }
+    SubDisSum = sum(SubDis)
+    SubDisRelative = SubDis/SubDisSum
+    MinutesPerLinepart = SubDisRelative * PPH.T@data$duration[i]
+    MinutesPerLinepartCum = cumsum(MinutesPerLinepart)
+    
+    TimeVertex = TimeLeaveFrom + MinutesPerLinepartCum*60
+    
+    # for (t in seq_along(PPH.T.SP[[i]]))
+    # {
+    #   TimeVertex[t] = TimeLeaveFrom+durVer*(t*60)
+    # }
     class(TimeVertex) = class(YearDates)
     
     TimeVertex.POSIXct[[i]] = TimeVertex

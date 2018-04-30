@@ -15,7 +15,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 ## Check for required packages and install them (incl dependencies) if they are not installed yet.
-list.of.packages <- c("corrplot", "lattice", "ggplot2", "plyr")
+list.of.packages <- c("corrplot", "lattice", "ggplot2", "plyr", "plotly", "rmarkdown")
 new.packages <- list.of.packages[!(list.of.packages %in% installed.packages()[,"Package"])]
 if(length(new.packages)) install.packages(new.packages)
 
@@ -23,6 +23,678 @@ if(length(new.packages)) install.packages(new.packages)
 library(corrplot)
 library(lattice)
 library(ggplot2)
+library(plotly)
+library(htmlwidgets)
+library(RCurl)
+library(rmarkdown)
+library(rjson)
+library(knitr)
+
+
+Plot.EXCpie <- function(Profile, EXC_NO2.pc, EXC_PM25.pc, Location = "Local", ...)
+{
+  Profiles <- c("Office workers", "Homeworkers","School pupils")
+  pro = which(Types %in% Profile)
+  
+  trace1 <- list(
+    domain = list(x = c(0, 0.48)), 
+    hole = 0.4, 
+    hoverinfo = "label+percent+name", 
+    labels = c("Exceeded", "Not exceeded"),
+    name = "NO2 exceedance",
+    textposition = "inside",
+    type = "pie",
+    marker = list( colors = I(c(rgb(red=1, green=0, blue=0, alpha=1),"green"))),
+    values = c(EXC_NO2.pc, 100-EXC_NO2.pc)
+  )
+  trace2 <- list(
+    domain = list(x = c(0.52, 1)), 
+    hole = 0.4, 
+    hoverinfo = "label+percent+name", 
+    labels = c("Exceeded", "Not exceeded"), 
+    name = "PM25 exceedance", 
+    text = "PM2.5", 
+    textposition = "inside", 
+    type = "pie",
+    marker = list( colors = I(c(rgb(red=1, green=0, blue=0, alpha=1),"green"))),
+    values = c(EXC_PM25.pc, 100-EXC_PM25.pc)
+  )
+  data <- list(trace1, trace2)
+  layout <- list(
+    annotations = list(
+      list(
+        x = 0.185, 
+        y = 0.5, 
+        font = list(size = 20), 
+        showarrow = FALSE, 
+        text = "NO2"
+      ), 
+      list(
+        x = 0.820, 
+        y = 0.5, 
+        font = list(size = 20), 
+        showarrow = FALSE, 
+        text = "PM2.5"
+      )
+    ),
+    title = paste("Yearly WHO health standard exceedances for", Profiles[pro])
+  )
+  p <- plot_ly()
+  p <- add_trace(p, domain=trace1$domain, hole=trace1$hole, hoverinfo=trace1$hoverinfo, labels=trace1$labels, name=trace1$name,
+                 type=trace1$type, values=trace1$values, marker=trace1$marker, textposition=trace1$textposition)
+  p <- add_trace(p, domain=trace2$domain, hole=trace2$hole, hoverinfo=trace2$hoverinfo, labels=trace2$labels, name=trace2$name,
+                 text=trace2$text, type=trace2$type, values=trace2$values, marker=trace2$marker)
+  p <- layout(p, annotations=layout$annotations, title=layout$title)
+  
+  
+  CurrentDateAndTime = Sys.time() + 1*60**2
+  NameForInteractivePlot = paste("GISCAPE_YearlyEXC", Profile,
+                                 paste0(format(CurrentDateAndTime, "%Y"), format(CurrentDateAndTime, "%m"),
+                                        format(CurrentDateAndTime, "%d")), paste0(format(CurrentDateAndTime, "%H%M")),
+                                 sep = "_")
+  
+  if (Location == "Local")
+  {
+    widget_out = gsub(pattern = "backend/src", replacement = paste0("frontend/html/", NameForInteractivePlot, ".html"), x = getwd())
+    htmlwidgets::saveWidget(p, widget_out)
+  }
+  if (Location == "Online")
+  {
+    NameForInteractivePlot = paste("Figure 4-40: Individual-based mean exceedances", "for", Profiles[pro])
+    api_create(p, filename = NameForInteractivePlot, sharing = "public")
+  }
+  
+  return(p)
+}
+
+Plot.EXCfrequences <- function(EXC_OW, EXC_SP, EXC_HO, Profiles2, Col.Profiles, pol, Location = "Local", ...)
+{
+  EXCrange = range(c(EXC_OW, EXC_SP, EXC_HO))
+  
+  p = plot_ly() %>%
+    layout(
+      title = paste0("Individual exceedance frequency distribution for ", toupper(pol)),
+      xaxis = list(title = "Amount of exceedances in group"),
+      yaxis = list(title = "Frequency"),
+      barmode = "overlay",
+      images = list(
+        list(source = "https://raw.githubusercontent.com/wschuc002/ThesisWS/master/backend/img/GISCAPE_150px_2.png?raw=true",
+             xref = "paper",
+             yref = "paper",
+             x= 0,
+             y= 1,
+             sizex = 0.2,
+             sizey = 0.2,
+             opacity = 1
+        )
+      )
+    )
+  
+  # df.Li = list()
+  # smooth.Li = list()
+  for (pr in 1:3)
+  {
+    if (pr == 1) {EXC = EXC_OW}
+    if (pr == 2) {EXC = EXC_SP}
+    if (pr == 3) {EXC = EXC_HO}
+    
+    y = NA
+    x = seq(EXCrange[1], EXCrange[2], 1)
+    for (e in x)
+    {
+      y[e+1] = length(which(EXC == e))
+    }
+    # df.Li[[pr]] = data.frame(x,y)
+    
+    
+    
+    # add bars
+    # p = add_trace(p, x = x, y = y, name = Profiles2[pr], type = "bar",
+    #               marker = list(color = "transparent",
+    #                             line = list(color = Col.Profiles[pr],
+    #                                         width = 1)))
+    # add markers
+    p = add_trace(p, x = x, y = y, name = Profiles2[pr], type = "scatter", mode = "markers",
+                  marker = list(color = Col.Profiles[pr], symbol = 141, sizeref = 50))
+    
+    # p
+    # plot_ly() %>% add_bars(x = x, y = y, name = "FD")
+    
+    
+    
+    myhist <- hist(EXC, plot = FALSE, breaks = diff(EXCrange))
+    dens <- density(EXC, n = diff(EXCrange))
+    # axis(side=1, at=seq(0,100, 20), labels=seq(0,100,20))
+    
+    freqs.y = dens$y*(1/sum(myhist$density))*length(EXC)
+    
+    freqs.y[dens$x < 0] = NA
+    dens$x[dens$x < 0] = NA
+    
+    # plot(dens$x,freqs.y, type = "l", col = "green")
+    
+    # hist(EXC, plot = TRUE, breaks = diff(EXCrange))
+    # lines(dens$x,freqs.y, type = "l", col = "green")
+    
+    p = add_trace(p, x = dens$x, y = freqs.y, name = Profiles2[pr], type = "scatter", mode = "lines", color = I(Col.Profiles[pr]))
+    
+    
+    # y = NA
+    # x = seq(0, max(EXC), 1)
+    # for (e in x)
+    # {
+    #   y[e+1] = length(which(EXC == e))
+    # }
+    # df.Li[[pr]] = data.frame(x,y)
+    # 
+    # smooth <- loess(df.Li[[pr]]$y~df.Li[[pr]]$x)
+    # # print(lo)
+    # smooth.Li[[pr]] = smooth
+    
+    # d = density(EXC, bw = 1)
+    # d[[1]][d[[1]] < 0] = NA
+    # d[[2]][d[[1]] < 0] = NA
+    # 
+    # f = d[1:2]
+    # f[[2]] = f[[2]] * GroupSize
+    # df = data.frame(f[[1]], f[[2]])
+    # colnames(df) = c("x", "y")
+    # 
+    # df.Li[[pr]] = df
+  }
+  # return(df.Li)
+  
+  
+  # for (pr in (1:length(df.Li)))
+  # {
+  #   
+  #   # # p = add_bars(p, x = df.Li[[pr]]$x, y = df.Li[[pr]]$y, name = Profiles2[pr], color = I(Col.Profiles)[pr])
+  #   # 
+  #   # # p = add_histogram(p, x = df.Li[[pr]]$x, y = df.Li[[pr]]$y, name = Profiles2[pr], color = I(Col.Profiles)[pr])
+  #   # 
+  #   # # p = add_trace(p, data = df.Li[[pr]], x = ~x, y = ~y, name = Profiles2[pr], type="scatter", mode="markers",
+  #   # #               color = I(Col.Profiles)[pr], alpha = 0.5, sizes = 0.75)
+  #   # # 
+  #   # # p = add_trace(p, data = smooth.Li[[pr]], x = ~x, y = ~y, name = Profiles2[pr], type="scatter", mode="lines",
+  #   # #               color = I(Col.Profiles)[pr], alpha = 0.5, sizes = 0.75)
+  # }
+  
+  CurrentDateAndTime = Sys.time() + 2*60**2
+  NamePlotType = "GISCAPE_EXCfreq"
+  NameForInteractivePlot = paste(NamePlotType, toupper(pol),
+                                 paste0(format(CurrentDateAndTime, "%Y"), format(CurrentDateAndTime, "%m"),
+                                        format(CurrentDateAndTime, "%d")), paste0(format(CurrentDateAndTime, "%H%M")),
+                                 sep = "_")
+  
+  if (Location == "Local")
+  {
+    widget_out = gsub(pattern = "backend/src", replacement = paste0("frontend/html/", NameForInteractivePlot, ".html"), x = getwd())
+    htmlwidgets::saveWidget(p, widget_out) # adaptive sizing in browser, but less stable creating
+    # htmltools::save_html(p, widget_out) # static sizing in browser, but more stable creating
+  }
+  if (Location == "Online")
+  {
+    NameForInteractivePlot = paste("Figure 4-42: Frequency distribution of individual exceedances for", toupper(pol))
+    api_create(p, filename = NameForInteractivePlot, sharing = "public")
+  }
+  
+  return(p)
+}
+
+
+# EXC_OW_1H_PST1 = EXC_OW_1H_PM25_PST1
+# EXC_OW_1H_P1 = EXC_OW_1H_PM25_P1
+# EXC_OW_1H_P7 = EXC_OW_1H_PM25_P7
+# EXC_SP_1H_PST1 = EXC_SP_1H_PM25_PST1
+# EXC_SP_1H_P1 = EXC_SP_1H_PM25_P1
+# EXC_SP_1H_P7 = EXC_SP_1H_PM25_P7
+# EXC_HO_1H_P1 = EXC_HO_1H_PM25_P1
+# EXC_HO_1H_P7 = EXC_HO_1H_PM25_P7
+
+Plot.EXCpercentages2 <- function(EXC_OW_1H_PST1, EXC_OW_1H_P1, EXC_OW_1H_P7,
+                                 EXC_SP_1H_PST1, EXC_SP_1H_P1, EXC_SP_1H_P7,
+                                 EXC_HO_1H_P1, EXC_HO_1H_P7,
+                                 Profiles2, Col.Profiles, pol, GroupSize, ...)
+{
+  p = plot_ly() %>%
+    layout(
+      title = paste0("% of exceedances for ", toupper(pol)),
+      xaxis = list(title = "Yearly permitted exceedances"),
+      yaxis = list(title = "% of group"),
+      images = list(
+        list(source = "https://raw.githubusercontent.com/wschuc002/ThesisWS/master/backend/img/GISCAPE_150px_2.png?raw=true",
+             xref = "paper",
+             yref = "paper",
+             x= 0,
+             y= 1,
+             sizex = 0.2,
+             sizey = 0.2,
+             opacity = 1
+        )
+      )
+    )
+  
+  # class(EXC_OW_1H_PST1$TIME) = class(Time)
+  # class(EXC_OW_1H_P1$TIME) = class(Time)
+  # class(EXC_OW_1H_P7$TIME) = class(Time)
+  # class(EXC_SP_1H_PST1$TIME) = class(Time)
+  # class(EXC_SP_1H_P1$TIME) = class(Time)
+  # class(EXC_SP_1H_P7$TIME) = class(Time)
+  # class(EXC_HO_1H_P1$TIME) = class(Time)
+  # class(EXC_HO_1H_P7$TIME) = class(Time)
+  
+  # EXCfr_OW_1H_PST1 = NA
+  # EXCfr_OW_1H_P1 = NA
+  # EXCfr_OW_1H_P7 = NA
+  
+  for (i in (1:GroupSize))
+  {
+    EXCfr_OW_1H_PST1[i] = length(EXC_OW_1H_PST1[EXC_OW_1H_PST1$IND == i,]$IND)
+    EXCfr_OW_1H_P1[i] = length(EXC_OW_1H_P1[EXC_OW_1H_P1$IND == i,]$IND)
+    EXCfr_OW_1H_P7[i] = length(EXC_OW_1H_P7[EXC_OW_1H_P7$IND == i,]$IND)
+  }
+  
+  for (pr in 1:3)
+  {
+    EXCfr_1H_PST1 = NA
+    EXCfr_1H_P1 = NA
+    EXCfr_1H_P7 = NA
+    
+    for (i in (1:GroupSize))
+    {
+      if (pr != 3) {EXCfr_1H_PST1[i] = length(EXC_OW_1H_PST1[EXC_OW_1H_PST1$IND == i,]$IND)}
+      EXCfr_1H_P1[i] = length(EXC_OW_1H_P1[EXC_OW_1H_P1$IND == i,]$IND)
+      EXCfr_1H_P7[i] = length(EXC_OW_1H_P7[EXC_OW_1H_P7$IND == i,]$IND)
+    }
+    
+    if (pr == 1) {EXC = list(EXCfr_OW_1H_PST1, EXCfr_OW_1H_P1, EXCfr_OW_1H_P7)}
+    if (pr == 2) {EXC = list(EXCfr_SP_1H_PST1, EXCfr_SP_1H_P1, EXCfr_SP_1H_P7)}
+    if (pr == 3) {EXC = list(EXCfr_HO_1H_P1, EXCfr_HO_1H_P7)}
+    
+    df.Li = list()
+    for (cm in seq_along(EXC))
+    {
+      y = NA
+      x = seq(1, max(EXC[[cm]])+1, 1)
+      for (e in x)
+      {
+        y[e] = length(which(EXC[[cm]] > e))
+      }
+      y = y / GroupSize * 100
+      
+      df.Li[[cm]] = data.frame(x,y)
+      
+      if (cm == 1) {LINE = list()}
+      if (cm == 2) {LINE = list(dash = "dash")}
+      if (cm == 3) {LINE = list(dash = "dot")}
+      
+      p = add_trace(p, data = df.Li[[cm]], x = ~x, y = ~y, name = Profiles2[pr], type="scatter", mode="markers+lines",
+                    color = I(Col.Profiles)[pr], alpha = 0.5, sizes = 0.75, line = LINE)
+    }
+    p
+    
+  }
+  
+  for (pr in (1:length(df.Li)))
+  {
+    p = add_trace(p, data = df.Li[[pr]], x = ~x, y = ~y, name = Profiles2[pr], type="scatter", mode="markers+lines",
+                  color = I(Col.Profiles)[pr], alpha = 0.5, sizes = 0.75, line = LINE)
+  }
+  
+  return(p)
+}
+
+Plot.EXCpercentages <- function(EXC_OW, EXC_SP, EXC_HO, Profiles2, Col.Profiles, pol, GroupSize, Location = "Local",  ...)
+{
+  df.Li = list()
+  for (pr in 1:3)
+  {
+    if (pr == 1) {EXC = EXC_OW}
+    if (pr == 2) {EXC = EXC_SP}
+    if (pr == 3) {EXC = EXC_HO}
+    
+    y = NA
+    x = seq(1, max(EXC)+1, 1)
+    for (e in x)
+    {
+      y[e] = length(which(EXC > e))
+    }
+    y = y / GroupSize * 100
+    
+    # df = data.frame(x,y)
+    df.Li[[pr]] = data.frame(x,y)
+  }
+  # df = do.call(merge.data.frame, df.Li[[pr]])
+  # df = unlist(df.Li[[pr]])
+  
+  p = plot_ly() %>%
+    layout(
+      title = paste("% of yearly permitted exceedances for", toupper(pol)),
+      xaxis = list(title = "Yearly permitted exceedances"),
+      yaxis = list(title = "% of group"),
+      images = list(
+        list(source = "https://raw.githubusercontent.com/wschuc002/ThesisWS/master/backend/img/GISCAPE_150px_2.png?raw=true",
+             xref = "paper",
+             yref = "paper",
+             x= 0,
+             y= 1,
+             sizex = 0.2,
+             sizey = 0.2,
+             opacity = 1
+        )
+      )
+    )
+  
+  for (pr in (1:length(df.Li)))
+  {
+    p = add_trace(p, data = df.Li[[pr]], x = ~x, y = ~y, name = Profiles2[pr], type="scatter", mode="markers+lines",
+                  color = I(Col.Profiles)[pr], alpha = 0.5, sizes = 0.75)
+  }
+  
+  CurrentDateAndTime = Sys.time() + 2*60**2
+  NamePlotType = "GISCAPE_EXCperc"
+  NameForInteractivePlot = paste(NamePlotType, toupper(pol),
+                                 paste0(format(CurrentDateAndTime, "%Y"), format(CurrentDateAndTime, "%m"),
+                                        format(CurrentDateAndTime, "%d")), paste0(format(CurrentDateAndTime, "%H%M")),
+                                 sep = "_")
+  
+  if (Location == "Local")
+  {
+    widget_out = gsub(pattern = "backend/src", replacement = paste0("frontend/html/", NameForInteractivePlot, ".html"), x = getwd())
+    htmlwidgets::saveWidget(p, widget_out) # adaptive sizing in browser, but less stable creating
+    # htmltools::save_html(p, widget_out) # static sizing in browser, but more stable creating
+  }
+  if (Location == "Online")
+  {
+    NameForInteractivePlot = paste("Figure 4-41: Yearly permitted exceedances for", toupper(pol))
+    api_create(p, filename = NameForInteractivePlot, sharing = "public")
+  }
+  
+  return(p)
+}
+
+# Profile = Active.Type
+# pol = pollutants[2]
+# knitr::opts_chunk$set(cache = FALSE)
+
+# EXC = EXC_SP_1H_PM25_PST1
+
+
+Plot.CumExposureGraph4 <- function(Profile, Time, DF.CumSum, pol, EXC, Location = "Local", Size, ...)
+{
+  Profiles <- c("Office workers", "Homeworkers", "School pupils")
+  pro = which(Types %in% Profile)
+  
+  Col.Comb = c("black", rgb(red=0, green=0.5, blue=0.5, alpha=1), rgb(red=255/255, green=165/255, blue=0, alpha=1))
+  ColFill.Comb = c("black", rgb(red=0, green=0.5, blue=0.5, alpha=0.25), rgb(red=255/255, green=165/255, blue=0, alpha=0.25))
+  
+  p = plot_ly(text = paste0("Individual: ", 1), name = "Cumulative exposure",
+              type="scatter", mode="lines", color = I(Col.Comb)[2]) %>%
+    layout(
+      title = paste0("Cumulative exposure to ", toupper(pol), " for ", Size, " ", Profiles[pro]),
+      yaxis = list(title = paste0(toupper(pol), " (??g/m3)")),
+      showlegend = FALSE,
+      images = list(
+        list(source = "https://raw.githubusercontent.com/wschuc002/ThesisWS/master/backend/img/GISCAPE_150px_2.png?raw=true",
+             xref = "paper",
+             yref = "paper",
+             x= 0,
+             y= 1,
+             sizex = 0.2,
+             sizey = 0.2,
+             opacity = 1
+        )
+      )
+      
+    )
+  
+  # Size = 250 # GroupSize
+  
+  # SEL.CUM = which(DF.CumSum$TIME %in% EXC$TIME &
+  #               DF.CumSum$IND %in% EXC$IND[EXC$IND <= Size])
+  # SEL.EXC = which(EXC$IND <= Size)
+  
+  cat("\n")
+  for (i in 1:Size)
+  {
+    cat(paste(i," "))
+    SEL.CUM = which(DF.CumSum$TIME %in% EXC$TIME &
+                      DF.CumSum$IND %in% EXC$IND[EXC$IND == i])
+    SEL.EXC = which(EXC$IND %in% i)
+    
+    SEL.CUM = which(DF.CumSum$TIME %in% EXC$TIME[SEL.EXC] & DF.CumSum$IND %in% i)
+    
+    #plot cum line
+    p = add_trace(p, x = Time, y = DF.CumSum$cumInt[DF.CumSum$IND == i],
+                  text = paste0("Individual: ", i),
+                  alpha = 0.02, sizes = 0.05
+                  # mode = "lines", color = I(Col.Comb)[2], name = "Cumulative exposure"
+    )
+    
+    # EXC.sub = EXC[EXC$IND == i,]
+    
+    DF.CumSum[SEL.CUM,]
+    
+    #plot exceedance point
+    p = add_trace(p, x = DF.CumSum$TIME[SEL.CUM], y = DF.CumSum$cumInt[SEL.CUM], mode="markers", color = I("#ca0020"),
+                  name = "Exceeded values",
+                  alpha = 0.05, sizes = 0.005,
+                  text = paste('Individual: ', i,
+                               '</br>Exposure: ', round(EXC$PST1_PM25[SEL.EXC],3))
+    )
+  }
+  cat("\n")
+  # p
+  # rm(p)
+  # gc()
+  
+  # p = add_trace(p, x = DF.CumSum[DF.CumSum$IND <= Size,]$TIME, y = DF.CumSum[DF.CumSum$IND <= Size,]$cum,
+  #               text = paste0("Individual: ", DF.CumSum[DF.CumSum$IND <= Size,]$IND),
+  #               alpha = 0.2, sizes = 0.05
+  #               # mode = "lines", color = I(Col.Comb)[2], name = "Cumulative exposure"
+  #               )
+  # 
+  # p = add_trace(p, x = DF.CumSum$TIME[SEL.CUM], y = DF.CumSum$cum[SEL.CUM], mode="markers", color = I("#ca0020"),
+  #               name = "Exceeded values",
+  #               alpha = 0.2, sizes = 0.05,
+  #               text = paste('Individual: ', DF.CumSum[DF.CumSum$IND <= Size,]$IND[SEL.CUM],
+  #                            '</br> Exposure: ', round(EXC$PST1_PM25[SEL.EXC],3))
+  #               )
+  # p
+  
+  CurrentDateAndTime = Sys.time() + 1*60**2
+  NameForInteractivePlot = paste("GISCAPE_CumExc", Profile, toupper(pol),
+                                 paste0(format(CurrentDateAndTime, "%Y"), format(CurrentDateAndTime, "%m"),
+                                        format(CurrentDateAndTime, "%d")), paste0(format(CurrentDateAndTime, "%H%M")),
+                                 Size,
+                                 sep = "_")
+  
+  if (Location == "Local")
+  { 
+    widget_out = gsub(pattern = "backend/src", replacement = paste0("frontend/html/", NameForInteractivePlot, ".html"), x = getwd())
+    # htmlwidgets::saveWidget(p, widget_out) # adaptive sizing in browser, but less stable creating
+    htmltools::save_html(p, widget_out) # static sizing in browser, but more stable creating
+  }
+  if (Location == "Online")
+  {
+    NameForInteractivePlot = paste("Figure 4-43: Cumulative exposure with hourly", toupper(pol), "exceedances",
+                                   "for", Size, Profiles[pro])
+    api_create(p, filename = NameForInteractivePlot, sharing = "public")
+  }
+  
+  return(p)
+  
+  # # read the html file
+  # resRaw = RCurl::getURL(utils::URLencode(paste0("C:/git/ThesisWS/frontend/html/", "GISCAPE_CumExc_01OW_PM25_20180129_1228", ".html")))
+  # 
+  # doc.html = htmlTreeParse(paste0("C:/git/ThesisWS/frontend/html/", "GISCAPE_CumExc_01OW_PM25_20180129_1228", ".html"),
+  #                          useInternal = TRUE)
+  # doc.text = unlist(xpathApply(doc.html, '//p', xmlValue))
+  # doc.text = gsub('\\n', ' ', doc.text)
+  # # replace the data
+  # 
+  # 
+  # library(xml2)
+  # xmlhtml = read_xml(doc.html)
+  
+}
+
+
+Plot.CumExposureGraph3 <- function(Profile, DF.CumSum, pol, EXC, Location = "Local", ...)
+{
+  p = plot_ly(x = DF.CumSum$TIME[DF.CumSum$IND == 1], y = DF.CumSum$cum[DF.CumSum$IND == 1],
+              type="scatter", mode="lines", color = I(Col.Comb[2]), alpha = 0.1, sizes = 0.05)
+  
+  for (i in (2:GroupSize)) # GroupSize
+  {
+    p = add_lines(p, x = DF.CumSum$TIME[DF.CumSum$IND == i], y = DF.CumSum$cum[DF.CumSum$IND == i],
+                  type="scatter", mode="lines", color = I(Col.Comb[2]), alpha = 0.1)
+  }
+  
+  HR_S = DF.CumSum[DF.CumSum$TIME %in% EXC$TIME & DF.CumSum$IND %in% EXC$IND,]
+  
+  for (i in (1:nrow(HR_S)))
+  {
+    p = add_trace(p, x = HR_S$TIME[i], y = HR_S$cum[i],
+                  type="scatter", mode="markers", color = I(Col.Comb[3]), alpha = 0.75)
+  }
+  
+  CurrentDateAndTime = Sys.time() + 1*60**2
+  NameForInteractivePlot = paste("GISCAPE_CumExc", Profile, toupper(pol),
+                                 paste0(format(CurrentDateAndTime, "%Y"), format(CurrentDateAndTime, "%m"),
+                                        format(CurrentDateAndTime, "%d")), paste0(format(CurrentDateAndTime, "%H%M")),
+                                 sep = "_")
+  
+  if (Location == "Local")
+  {
+    widget_out = gsub(pattern = "src", replacement = paste0("output/plots/", NameForInteractivePlot, ".html"), x = getwd())
+    htmlwidgets::saveWidget(p, widget_out)
+  }
+  if (Location == "Online")
+  {
+    api_create(p, filename = NameForInteractivePlot, sharing = "public")
+  }
+  
+  return(p)
+}
+
+# Profile = Active.Type
+# DAY.start = 68
+# DAYS = 8
+# CombinedValues = c("mean_PST1", "mean_P1", "mean_P7")
+# pol = "no2"
+# HourBasedMeanPopulation = Stats.HR_ALL_HourBased
+# InteractivePlot = TRUE
+# Location = "Local" # "Online"
+
+Plot.DeltaProposed <- function(Profile, MethodsOfInterest, DAY.start, DAYS, CombinedValues, pol, HourBasedMeanPopulation, InteractivePlot = FALSE,
+                               Location = "Local", ...)
+{
+  Profiles <- c("Office workers", "Homeworkers","School pupils")
+  pro = which(Types %in% Profile)
+  
+  StartHr = DAY.start*24-23
+  EndHr = (DAY.start + DAYS - 1)*24
+  
+  SubPeriodHours = StartHr:EndHr
+  
+  DeltaDF = HourBasedMeanPopulation[SubPeriodHours, paste(CombinedValues, toupper(pol), sep = "_")]
+  DeltaDF = cbind(HourBasedMeanPopulation$TIME[SubPeriodHours], DeltaDF)
+  colnames(DeltaDF)[1] = "TIME"
+  
+  CM = paste(CombinedValues, toupper(pol), sep = "_")
+  for (cm in CM)
+  {
+    print(cm)
+    DeltaDF[,cm] = HourBasedMeanPopulation[SubPeriodHours, cm] - HourBasedMeanPopulation[SubPeriodHours, CM[1]]
+  }
+  
+  Ymin = min(DeltaDF[,2:length(DeltaDF)], na.rm = T)
+  Ymax = max(DeltaDF[,2:length(DeltaDF)], na.rm = T)
+  
+  # plot (interactive)
+  # With only one trace
+  if(InteractivePlot)
+  {
+    Col.Comb = c("black", rgb(red=0, green=0.5, blue=0.5, alpha=1), rgb(red=255/255, green=165/255, blue=0, alpha=1))
+    ColFill.Comb = c("black", rgb(red=0, green=0.5, blue=0.5, alpha=0.25), rgb(red=255/255, green=165/255, blue=0, alpha=0.25))
+    
+    if (Profile == "02.HO")
+    {
+      Col.Comb = c(Col.Comb[1], Col.Comb[3])
+      ColFill.Comb = c(ColFill.Comb[1], ColFill.Comb[3])
+    }
+    
+    p = plot_ly(x = HourBasedMeanPopulation$TIME[SubPeriodHours], y = DeltaDF[,2],
+                name = paste0(MethodsOfInterest[1], " - ", MethodsOfInterest[1]),
+                type="scatter", mode="lines", fill = "tozeroy", color = I(Col.Comb[1])) %>%
+      layout(
+        title = paste0("Delta analysis: ", "Means of ", Profiles[pro], " for ", toupper(pol)),
+        images = list(
+          list(source = "https://raw.githubusercontent.com/wschuc002/ThesisWS/master/backend/img/GISCAPE_150px_2.png?raw=true",
+               xref = "paper",
+               yref = "paper",
+               x= 0,
+               y= 1,
+               sizex = 0.2,
+               sizey = 0.2,
+               opacity = 1
+          )
+        )
+      )
+    
+    for (cm in 3:length(DeltaDF))
+    {
+      p = add_trace(p, x = HourBasedMeanPopulation$TIME[SubPeriodHours], y = DeltaDF[,cm],
+                    name = paste0(MethodsOfInterest[cm-1], " - ", MethodsOfInterest[1]),
+                    type="scatter", mode="lines", fill = "tonexty", color = I(Col.Comb[cm-1]), alpha = 0.25)
+    }
+    p
+    
+    CurrentDateAndTime = Sys.time() + 1*60**2
+    NameForInteractivePlot = paste("GISCAPE_Delta", Profile, toupper(pol),
+                                   paste0(format(CurrentDateAndTime, "%Y"), format(CurrentDateAndTime, "%m"),
+                                          format(CurrentDateAndTime, "%d")), paste0(format(CurrentDateAndTime, "%H%M")),
+                                   DAY.start, DAYS,
+                                   sep = "_")
+    
+    if (Location == "Local")
+    {
+      widget_out = gsub(pattern = "backend/src", replacement = paste0("frontend/html/", NameForInteractivePlot, ".html"), x = getwd())
+      htmlwidgets::saveWidget(p, widget_out)
+    }
+    if (Location == "Online")
+    {
+      NameForInteractivePlot = paste("Figure 4-38: Delta analysis", toupper(pol), "exposure", Profiles[pro])
+      api_create(p, filename = NameForInteractivePlot, sharing = "public")
+    }
+  }
+  
+  
+  if(!InteractivePlot)
+  {
+    # Plot base
+    plot(HourBasedMeanPopulation$TIME[SubPeriodHours], DeltaDF[,2], pch = "-", cex = 1, col = "white",
+         ylim = c(Ymin, Ymax), xlab = "Time", ylab = paste("Delta", toupper(pol), "concentration (µg/m³)"),
+         main = paste(Profile, ":", "Hour-based difference with ", CombinedValues[1]))
+    
+    Col.Comb = c("black", rgb(red=0, green=0.5, blue=0.5, alpha=1), rgb(red=255/255, green=165/255, blue=0, alpha=1))
+    ColFill.Comb = c("black", rgb(red=0, green=0.5, blue=0.5, alpha=0.25), rgb(red=255/255, green=165/255, blue=0, alpha=0.25))
+    
+    for (cv in seq_along(CombinedValues))
+    {
+      lines(DeltaDF[,1], DeltaDF[,1+cv], pch = "-", cex = 1, col = Col.Comb[cv])
+      polygon(c(DeltaDF[,1], rev(DeltaDF[,1])), c(as.numeric(DeltaDF[,1+cv]), as.numeric(rev(DeltaDF[,2]))),
+              col = ColFill.Comb[cv], border = NA)
+    }
+    
+    legend("bottomright", paste(tail(CombinedValues, 2), toupper(pol), sep = "_"), xpd = FALSE, horiz = TRUE, inset = c(0,0),
+           bty = "n", bg = "grey", cex = 1, col = tail(Col.Comb, 2), pch = 22, pt.bg = tail(ColFill.Comb, 2))
+    
+    mtext(paste(head(HourBasedMeanPopulation$TIME[SubPeriodHours],1), "-", tail(HourBasedMeanPopulation$TIME[SubPeriodHours],1) + 0.001))
+  }
+  return(p)
+}
 
 ScatterplotMatrixAndSave <- function(Type, Stats.HR_ALL_IndividualBased, StatsMethodWithMethodsOfInterestPol,
                                      PlotSave = FALSE, Width = 1208, Height = 720, pol, StatsMethod, ...)
@@ -47,7 +719,7 @@ ScatterplotMatrixAndSave <- function(Type, Stats.HR_ALL_IndividualBased, StatsMe
   
   if (PlotSave) {dev.off()}
 }
-  
+
 CorPlotGraphAndSave <- function(Type, Subtype1, Subtype2, Abbr1, Abbr2, Width = 1208, Height = 720, pol, GroupSize, ...)
 {
   Plot_dir = file.path("..", "output", "plots")
@@ -55,7 +727,7 @@ CorPlotGraphAndSave <- function(Type, Subtype1, Subtype2, Abbr1, Abbr2, Width = 
   {
     dir.create(Plot_dir)
   }
-
+  
   png(filename = file.path(Plot_dir, paste("CORPLOT", Type, paste(Abbr1, Abbr2 , sep = "~"), pol,
                                            paste0(GroupSize, ".png"), sep = "_")),
       width = Width, height = Height, units = "px", pointsize = 12)
@@ -65,7 +737,7 @@ CorPlotGraphAndSave <- function(Type, Subtype1, Subtype2, Abbr1, Abbr2, Width = 
   R.squared = cor(Subtype1, Subtype2)**2
   text(min(Subtype1), max(Subtype2)-1, pos = 1, labels = "R²:", font = 2)
   text(min(Subtype1)+5, max(Subtype2)-1, pos = 1, labels = R.squared)
-
+  
   dev.off()
 }
 
@@ -165,14 +837,14 @@ ScatterPlotMatrix <- function(Active.Type, CombinedValues, Stats.HR_ALL_Individu
 {
   # http://statmethods.net/graphs/scatterplot.html
   # Scatterplot Matrices from the lattice Package
-
+  
   collectFull = colnames(Stats.HR_ALL_IndividualBased) %in% paste(CombinedValues, toupper(pol), sep = "_")
   collect = Stats.HR_ALL_IndividualBased[,collectFull]
   
   splom(collect, main = paste0("Scatter plot matrix of ", Active.Type, " for ", toupper(pol)))
   
   splom(collect, main = paste0("Scatter plot matrix of ", Active.Type, " for ", toupper(pol)),
-        )
+  )
   
 }
 
@@ -200,65 +872,6 @@ CorPlotTable <- function(GroupName, CorType, WS1, WS2, C1 = -9999, C2 = -9999, p
     corrplot(C_squared, method="number", number.digits = 5, title = paste(GroupName, "R²", pol), #type = "upper"
              mar = c(1, 0, 1, 0), tl.col = "black", tl.srt = 45, cl.lim = c(0,1))
   }
-}
-
-# Profile = Active.Type
-# DAY.start = 1
-# DAYS = 100
-# CombinedValues = c("mean_PST1", "mean_P1", "mean_P7")
-# pol = "no2"
-# HourBasedMeanPopulation = Stats.HR_ALL_HourBased
-
-Plot.DeltaProposed <- function(Profile, DAY.start, DAYS, CombinedValues, pol, HourBasedMeanPopulation, ...)
-{
-  StartHr = DAY.start*24-23
-  EndHr = (DAY.start + DAYS - 1)*24
-  
-  SubPeriodHours = StartHr:EndHr
-  
-  DeltaDF = HourBasedMeanPopulation[SubPeriodHours, paste(CombinedValues, toupper(pol), sep = "_")]
-  DeltaDF = cbind(HourBasedMeanPopulation$TIME[SubPeriodHours], DeltaDF)
-  colnames(DeltaDF)[1] = "TIME"
-
-  for (CV in paste(CombinedValues, toupper(pol), sep = "_"))
-  {
-    #print(CV)
-    DeltaDF[,CV] = DeltaDF[,CV] - HourBasedMeanPopulation[SubPeriodHours, paste(CombinedValues[1], toupper(pol), sep = "_")]
-  }
-  
-  Ymin = min(DeltaDF[,2:length(DeltaDF)], na.rm = T)
-  Ymax = max(DeltaDF[,2:length(DeltaDF)], na.rm = T)
-  
-  
-  # plot (interactive)
-  # With only one trace
-  p <- plot_ly(x = HourBasedMeanPopulation$TIME[SubPeriodHours], y = DeltaDF[,2],
-               type="scatter", mode="lines", fill = "tozeroy", color = I(Col.Comb[1]))
-  p = add_trace(p, x = HourBasedMeanPopulation$TIME[SubPeriodHours], y = DeltaDF[,3],
-                type="scatter", mode="lines", fill = "tonexty", color = I(Col.Comb[2]), alpha = 0.25)
-  p = add_trace(p, x = HourBasedMeanPopulation$TIME[SubPeriodHours], y = DeltaDF[,4],
-                type="scatter", mode="lines", fill = "tonexty", color = I(Col.Comb[3]), alpha = 0.25)
-  p
-  
-  # Plot base
-  plot(HourBasedMeanPopulation$TIME[SubPeriodHours], DeltaDF[,2], pch = "-", cex = 1, col = "white",
-       ylim = c(Ymin, Ymax), xlab = "Time", ylab = paste("Delta", toupper(pol), "concentration (µg/m³)"),
-       main = paste(Profile, ":", "Hour-based difference with ", CombinedValues[1]))
-  
-  Col.Comb = c("black", rgb(red=0, green=0.5, blue=0.5, alpha=1), rgb(red=255/255, green=165/255, blue=0, alpha=1))
-  ColFill.Comb = c("black", rgb(red=0, green=0.5, blue=0.5, alpha=0.25), rgb(red=255/255, green=165/255, blue=0, alpha=0.25))
-  
-  for (cv in seq_along(CombinedValues))
-  {
-    lines(DeltaDF[,1], DeltaDF[,1+cv], pch = "-", cex = 1, col = Col.Comb[cv])
-    polygon(c(DeltaDF[,1], rev(DeltaDF[,1])), c(as.numeric(DeltaDF[,1+cv]), as.numeric(rev(DeltaDF[,2]))),
-            col = ColFill.Comb[cv], border = NA)
-  }
-
-  legend("bottomright", paste(tail(CombinedValues, 2), toupper(pol), sep = "_"), xpd = FALSE, horiz = TRUE, inset = c(0,0),
-         bty = "n", bg = "grey", cex = 1, col = tail(Col.Comb, 2), pch = 22, pt.bg = tail(ColFill.Comb, 2))
-
-  mtext(paste(head(HourBasedMeanPopulation$TIME[SubPeriodHours],1), "-", tail(HourBasedMeanPopulation$TIME[SubPeriodHours],1) + 0.001))
 }
 
 Plot.DeltaProposedAndSave <- function(Profile, DAY.start, DAYS, CombinedValues, pol, HourBasedMeanPopulation,
@@ -324,9 +937,10 @@ Plot.DeltaProposedAndSave <- function(Profile, DAY.start, DAYS, CombinedValues, 
          bty = "n", bg = "grey", cex = 1, col = tail(Col.Comb, 2), pch = 22, pt.bg = tail(ColFill.Comb, 2))
   
   mtext(paste(head(HourBasedMeanPopulation$TIME[SubPeriodHours],1), "-", tail(HourBasedMeanPopulation$TIME[SubPeriodHours],1) + 0.001))
-
+  
   if (PlotSave) {dev.off()}
 }
+
 
 # Profile = Active.Type
 # PlotMinMax = FALSE
@@ -336,11 +950,14 @@ Plot.DeltaProposedAndSave <- function(Profile, DAY.start, DAYS, CombinedValues, 
 # StatsDFinHourBased = Stats.HR_ALL_HourBased
 # CalcMethod = MethodsOfInterest[1]
 
-Plot.Group3 <- function(Profile, DAY.start, DAYS, DFin, StatsDFinHourBased, CalcMethod, PlotMinMax, pol, ...)
+Plot.HourExposure <- function(Profile, DAY.start, DAYS, DFin, StatsDFinHourBased, CalcMethod, PlotMinMax, pol, ...)
 {
   CalcMethodPol = paste(CalcMethod, toupper(pol), sep = "_")
   
   IND.amount = length(unique(DFin[, "IND"]))
+  
+  Profiles <- c("Office workers", "Homeworkers","School pupils")
+  pro = which(Types %in% Profile)
   
   ColnamesOfInterest = colnames(DFin)[colnames(DFin) != "TIME" & colnames(DFin) != "IND"]
   Transparency = 1/IND.amount*30
@@ -368,10 +985,10 @@ Plot.Group3 <- function(Profile, DAY.start, DAYS, DFin, StatsDFinHourBased, Calc
   plot(DF.sub[, "TIME"], DF.sub[, CalcMethodPol],
        pch = PSH, cex = CEX, col = Col.HR, ylim=c(0, E.max),
        xlab = "Time", ylab = paste(CalcMethodPol, "concentration (µg/m³)"),
-       main = paste(Profile, ":", IND.amount, "out of", GroupSize, "individuals"))
+       main = paste("Hourly", toupper(pol), "concentrations for", IND.amount, Profiles[pro]))
   
   mtext(paste(head(DF.sub[, "TIME"],1), "-", tail(DF.sub[, "TIME"],1) + 0.001))
-
+  
   if (PlotMinMax)
   {
     lines(StatsDFinHourBased.sub$TIME, StatsDFinHourBased.sub[, paste0("max_", CalcMethodPol)], col = Col.HR.max, pch=22, lty=2)
@@ -400,7 +1017,7 @@ Plot.CumExposureGraph2 <- function(DF.CumSum, pol, ...)
        x = Time, y = 1:length(Time), col = 'white', xlim=c(head(Time,1), tail(Time,1)), ylim=c(0, E.max+100),
        xlab = "Time", ylab = paste(pol, "Cumulative hourly concentration (µg/m³)"), pch = 19)
   
-  Selected.Standard.Bool =HealthStandards$'Averaging period' == "1 year" &
+  Selected.Standard.Bool = HealthStandards$'Averaging period' == "1 year" &
     HealthStandards$Pollutant == toupper(pol2) &
     HealthStandards$Agency == "EU"
   
@@ -410,16 +1027,16 @@ Plot.CumExposureGraph2 <- function(DF.CumSum, pol, ...)
   {
     cat(paste(i," "))
     
-    if (tail(DF.CumSum[DF.CumSum$IND == i, "cum"],1) > HealthStandards$Concentration[Selected.Standard.Bool] * (24*365))
+    if (tail(DF.CumSum[DF.CumSum$IND == i, "cum"],1) > HealthStandards$Concentration[Selected.Standard.Bool] * (24*length(YearDates)))
     {
       WS.col = rgb(red=1, green=0.5, blue=0.5, alpha=0.5)
     }
-    if (tail(DF.CumSum[DF.CumSum$IND == i, "cum"],1) > 20 * (24*365) &
-        tail(DF.CumSum[DF.CumSum$IND == i, "cum"],1) < HealthStandards$Concentration[Selected.Standard.Bool] * (24*365))
+    if (tail(DF.CumSum[DF.CumSum$IND == i, "cum"],1) > 20 * (24*length(YearDates)) &
+        tail(DF.CumSum[DF.CumSum$IND == i, "cum"],1) < HealthStandards$Concentration[Selected.Standard.Bool] * (24*length(YearDates)))
     {
       WS.col = rgb(red=255/255, green=165/255, blue=0, alpha=0.2)
     }
-    if (tail(DF.CumSum[DF.CumSum$IND == i, "cum"],1) < 20 * (24*365))
+    if (tail(DF.CumSum[DF.CumSum$IND == i, "cum"],1) < 20 * (24*length(YearDates)))
     {
       WS.col = rgb(red=0, green=0.5, blue=0.5, alpha=0.1)
     }
@@ -429,7 +1046,7 @@ Plot.CumExposureGraph2 <- function(DF.CumSum, pol, ...)
     selcumdf = DF.CumSum[DF.CumSum$IND == i,]
     lines(selcumdf$TIME, selcumdf$cum, col = WS.col)
     
-  
+    
   } # closing i
   
   
@@ -455,29 +1072,36 @@ Plot.CumExposureGraph2 <- function(DF.CumSum, pol, ...)
   
 }
 
-
-
 #Profile = Active.Type
-#IND.amount = length(PPH.P)
+#IND.amount = 1000 length(PPH.P)
 #PlotMinMax = FALSE
-#DAY.start = 5
+#DAY.start = 1
 #DAYS = length(YearDates)-1
-#DAYS = 1 length(TIME.P[[1]]) #21 #length(YearDates)-1
+#DAYS = 21 length(TIME.P[[1]]) #21 #length(YearDates)-1
 
-Plot.Group2 <- function(Profile, DAY.start, DAYS, IND.amount, PlotMinMax, ST.DF.P, ST.DF.S, ST.DF.T1, ST.DF.T2,
-                        stats.EXP.P, stats.EXP.S, stats.EXP.T1, stats.EXP.T2, ...)
+Plot.RawExposure <- function(Profile, DAY.start, DAYS, IND.amount, PlotMinMax, ST.DF.P, ST.DF.S, ST.DF.T1, ST.DF.T2,
+                             stats.EXP.P, stats.EXP.S, stats.EXP.T1, stats.EXP.T2, ...)
 {
-  if (IND.amount > length(ExposureValue.P))
+  Profiles <- c("Office workers", "Homeworkers","School pupils")
+  pro = which(Types %in% Profile)
+  
+  # if (IND.amount > length(ExposureValue.P))
+  # {
+  #   print(paste0("Warning: The amount of individuals to be plotted is higher than available in the data set. This
+  #                amount is reduced to this number:", length(ExposureValue.P)))
+  #   IND.amount = length(ExposureValue.P)
+  # }
+  
+  INDmin = min(length(unique(ST.DF.P$IND)), length(unique(ST.DF.S$IND)), length(unique(ST.DF.T1$IND)), length(unique(ST.DF.T2$IND)))
+  
+  if (IND.amount > INDmin)
   {
     print(paste0("Warning: The amount of individuals to be plotted is higher than available in the data set. This
-                 amount is reduced to this number:", length(ExposureValue.P)))
-    IND.amount = length(ExposureValue.P)
+                 amount is reduced to this number:", INDmin))
+    IND.amount = INDmin
   }
-  IND.amount = GroupSize
-  IND.amount = length(unique(ST.DF.HR_F$IND))
   
-  ST.DF.HR = HO_WS1.ST.DF.HR
-  
+  # ST.DF.HR = HO_WS1.ST.DF.HR
   
   ST.DF.P.sub = ST.DF.P[ST.DF.P$TIME > YearDates[DAY.start] & ST.DF.P$TIME <= YearDates[DAY.start+DAYS],]
   ST.DF.S.sub = ST.DF.S[ST.DF.S$TIME > YearDates[DAY.start] & ST.DF.S$TIME <= YearDates[DAY.start+DAYS],]
@@ -486,18 +1110,20 @@ Plot.Group2 <- function(Profile, DAY.start, DAYS, IND.amount, PlotMinMax, ST.DF.
   
   class(ST.DF.P.sub$TIME) = class(Time)
   
-  stats.EXP.P.sub = DF.Stats(ST.DF.P.sub)
-  stats.EXP.S.sub = DF.Stats(ST.DF.S.sub)
-  stats.EXP.T1.sub = DF.Stats(ST.DF.T1.sub)
-  stats.EXP.T2.sub = DF.Stats(ST.DF.T2.sub)
+  if (PlotMinMax)
+  {
+    stats.EXP.P.sub = DF.Stats(ST.DF.P.sub)
+    stats.EXP.S.sub = DF.Stats(ST.DF.S.sub)
+    stats.EXP.T1.sub = DF.Stats(ST.DF.T1.sub)
+    stats.EXP.T2.sub = DF.Stats(ST.DF.T2.sub)
+  }
   
-  
-  ST.DF.HR.sub = ST.DF.HR[ST.DF.HR$TIME > YearDates[DAY.start] & ST.DF.HR$TIME <= YearDates[DAY.start+DAYS],]
-  stats.EXP.HR.sub = DF.Stats(ST.DF.HR.sub)
+  # ST.DF.HR.sub = ST.DF.HR[ST.DF.HR$TIME > YearDates[DAY.start] & ST.DF.HR$TIME <= YearDates[DAY.start+DAYS],]
+  if (PlotMinMax) {stats.EXP.HR.sub = DF.Stats(ST.DF.HR.sub)}
   
   #E.max = max(stats.EXP.P.sub$maxEXP, na.rm = T)
-  E.max = max(c(stats.EXP.P.sub$maxEXP, stats.EXP.S.sub$maxEXP, stats.EXP.T1.sub$maxEXP, stats.EXP.T2.sub$maxEXP), na.rm = T)
-  E.max = max(stats.EXP.HR.sub$maxEXP, na.rm = T)
+  # E.max = max(c(stats.EXP.P.sub$maxEXP, stats.EXP.S.sub$maxEXP, stats.EXP.T1.sub$maxEXP, stats.EXP.T2.sub$maxEXP), na.rm = T)
+  # E.max = max(stats.EXP.HR.sub$maxEXP, na.rm = T)
   E.max = 100
   
   Transparency = 1/IND.amount*30
@@ -510,76 +1136,80 @@ Plot.Group2 <- function(Profile, DAY.start, DAYS, IND.amount, PlotMinMax, ST.DF.
   Col.HRMean = rgb(red=0.6, green=0.2, blue=0.2, alpha=1)
   
   # point plot with transparency in color
-
-  with (ST.DF.P.sub, plot(TIME, EXP, pch = "-", cex=1, col = Col.P, ylim=c(0, E.max+20),
-                        xlab = "Time", ylab = paste(toupper(pol), "concentration (µg/m³)"),
-                        main = paste("Office Worker", "|", "Method:", MoI[1], "|", "Multiple location phases")))
-                        # main = paste("Office Worker", ":", IND.amount, "out of", IND.amount, "individuals")))
   
-  with (ST.DF.HR.sub, plot(TIME, EXP, pch = ".", cex=1, col = Col.P, ylim=c(0, E.max+20),
-                      xlab = "Time", ylab = paste(toupper(pol), "concentration (µg/m³)"),
-                      main = paste(Active.Subprofile$FullName, ":", IND.amount, "out of", length(PPH.P), "individuals")))
-
+  with (ST.DF.P.sub, plot(TIME, EXP_NO2, pch = "-", cex=1, col = Col.P, ylim=c(0, E.max+20),
+                          xlab = "Time", ylab = paste(toupper(pol), "concentration (µg/m³)"),
+                          main = paste("Raw", toupper(pol), "concentrations for", IND.amount, Profiles[pro])))
+  # main = paste("Office Worker", ":", IND.amount, "out of", IND.amount, "individuals")))
   
-  with (HourBasedMeanPopulation, plot(TIME[1:(30*24)], (PST1_NO2[1:(30*24)] - P1_NO2[1:(30*24)]), pch = "-", cex=1, col = Col.HRMean, ylim=c(-50, 50),
-                           xlab = "Time", ylab = paste(toupper(pol), "concentration (µg/m³)"),
-                           main = paste(Active.Subtype, ":", IND.amount, "out of", GroupSize, "individuals")))
+  WhichCol = which(colnames(ST.DF.P.sub) %in% paste0("EXP_", toupper(pol)))
+  
+  plot(ST.DF.P.sub$TIME, ST.DF.P.sub[,WhichCol], pch = "-", cex=1, col = Col.P, ylim=c(0, E.max+20),
+       xlab = "Time", ylab = paste(toupper(pol), "concentration (µg/m³)"),
+       main = paste("Raw", toupper(pol), "concentrations for", IND.amount, Profiles[pro]))
   
   
+  # with (ST.DF.HR.sub, plot(TIME, EXP, pch = ".", cex=1, col = Col.P, ylim=c(0, E.max+20),
+  #                     xlab = "Time", ylab = paste(toupper(pol), "concentration (µg/m³)"),
+  #                     main = paste(Active.Subprofile$FullName, ":", IND.amount, "out of", length(PPH.P), "individuals")))
   
   
-  with (ST.DF.HR_F, plot(as.numeric(TIME), EXP, pch = ".", cex=1, col = Col.HR, ylim=c(0, E.max+20),
-                           xlab = "Time", ylab = paste(toupper(pol), "concentration (µg/m³)"),
-                           main = paste(Active.Subprofile$FullName, ":", IND.amount, "out of", length(PPH.P), "individuals")))
+  # with (HourBasedMeanPopulation, plot(TIME[1:(30*24)], (PST1_NO2[1:(30*24)] - P1_NO2[1:(30*24)]), pch = "-", cex=1, col = Col.HRMean, ylim=c(-50, 50),
+  #                          xlab = "Time", ylab = paste(toupper(pol), "concentration (µg/m³)"),
+  #                          main = paste(Active.Subtype, ":", IND.amount, "out of", GroupSize, "individuals")))
   
-  axis.POSIXct(1, at = ST.DF.HR_F$TIME, labels = format(ST.DF.HR_F$TIME,"%b-%d"), las=2)
+  # with (ST.DF.HR_F, plot(as.numeric(TIME), EXP, pch = ".", cex=1, col = Col.HR, ylim=c(0, E.max+20),
+  #                          xlab = "Time", ylab = paste(toupper(pol), "concentration (µg/m³)"),
+  #                          main = paste(Active.Subprofile$FullName, ":", IND.amount, "out of", length(PPH.P), "individuals")))
+  # 
+  # axis.POSIXct(1, at = ST.DF.HR_F$TIME, labels = format(ST.DF.HR_F$TIME,"%b-%d"), las=2)
+  # 
+  # plot(ST.DF.HR_F$TIME, ST.DF.HR_F$EXP)
+  # 
+  # with (OW_C2.ST.DF.HR, plot(TIME, EXP, pch = ".", cex=1, col = Col.HR, ylim=c(0, E.max+20),
+  #                           xlab = "Time", ylab = paste(toupper(pol), "Biweekly concentration (µg/m³)"),
+  #                           main = paste(Active.Subprofile$Type, ":", IND.amount, "out of", length(ExposureValue.P), "individuals")))
+  # 
   
-  plot(ST.DF.HR_F$TIME, ST.DF.HR_F$EXP)
-  
-  with (OW_C2.ST.DF.HR, plot(TIME, EXP, pch = ".", cex=1, col = Col.HR, ylim=c(0, E.max+20),
-                            xlab = "Time", ylab = paste(toupper(pol), "Biweekly concentration (µg/m³)"),
-                            main = paste(Active.Subprofile$Type, ":", IND.amount, "out of", length(ExposureValue.P), "individuals")))
-  
-  
-  with (ST.DF.S.sub, points(TIME, EXP, pch = "-", cex=1, col = Col.S))
-  with (ST.DF.T1.sub, points(TIME, EXP, pch = ".", cex=1, col = Col.T1))
-  with (ST.DF.T2.sub, points(TIME, EXP, pch = ".", cex=1, col = Col.T2))
+  points(ST.DF.S.sub$TIME, ST.DF.S.sub[,WhichCol], pch = "-", cex=1, col = Col.S)
+  points(ST.DF.T1.sub$TIME, ST.DF.T1.sub[,WhichCol], pch = ".", cex=1, col = Col.T1)
+  points(ST.DF.T2.sub$TIME, ST.DF.T2.sub[,WhichCol], pch = ".", cex=1, col = Col.T2)
   
   mtext(paste(head(ST.DF.P.sub$TIME,1), "-", tail(ST.DF.P.sub$TIME,1) + 0.001))
-  mtext(paste(head(ST.DF.HR.sub$TIME,1), "-", tail(ST.DF.HR.sub$TIME,1) + 0.001))
-
-  #add mean, min and max to plot
-  points(as.POSIXct(stats.EXP.P$TIME), stats.EXP.P$meanEXP, col = "orange", pch = "-", cex = 1)
-  points(as.POSIXct(stats.EXP.HR$TIME), stats.EXP.HR$meanEXP, col = "orange", pch = ".", cex = 1) 
-  points(as.POSIXct(stats.EXP.HR.sub$TIME), stats.EXP.HR.sub$meanEXP, col = "orange", pch = "-", cex = 1)
+  # mtext(paste(head(ST.DF.HR.sub$TIME,1), "-", tail(ST.DF.HR.sub$TIME,1) + 0.001))
   
-  if (PlotMinMax == TRUE)
+  if (PlotMinMax)
   {
+    #add mean, min and max to plot
+    points(as.POSIXct(stats.EXP.P$TIME), stats.EXP.P$meanEXP, col = "orange", pch = "-", cex = 1)
+    points(as.POSIXct(stats.EXP.HR$TIME), stats.EXP.HR$meanEXP, col = "orange", pch = ".", cex = 1) 
+    points(as.POSIXct(stats.EXP.HR.sub$TIME), stats.EXP.HR.sub$meanEXP, col = "orange", pch = "-", cex = 1)
+    
     points(as.POSIXct(stats.EXP.P$TIME), stats.EXP.P$minEXP, col = "white", pch = 24, bg = rgb(red=0, green=0.5, blue=0.5), cex=0.75)
     points(as.POSIXct(stats.EXP.P$TIME), stats.EXP.P$maxEXP, col = "white", pch = 25, bg = rgb(red=0, green=0.5, blue=0.5), cex=0.75)
   }
   
-  legend("top", c("Individual exposure value","Mean"), xpd = FALSE, horiz = TRUE, inset = c(0,0),
-         bty = "n", pch = c("-","-"), col = c(Col.P,"orange"), cex = 1)
-  
-  
-  #abline(v=as.POSIXct("2009-03-29 02:00:00", origin = "1970-01-01"), col = "orange") # start summertime / Daylight saving time (DST)
-  #abline(v=as.POSIXct("2009-10-25 02:00:00", origin = "1970-01-01"), col = "grey") # start wintertime / Standard time
-  abline(v = as.POSIXct(unlist(PHASES[[1]]), origin = "1970-01-01"), col = Col.T2)
-  
-  #abline(v = Time, col = "grey") # hours
-  abline(v = YearDates, col = "grey") # days
-  
-  abline(v = unlist(PHASES[[1]][YearDates %in% BusinesDates][2]), col = Col.T1) # T1
-  
-
-  Sel = which(YearDates %in% BusinesDates) < DAY.start+DAYS & which(YearDates %in% BusinesDates) >= DAY.start
-  for (h in (PHASES[[1]][YearDates %in% BusinesDates][Sel]))
-  {
-    abline(v = h[2], col = "red") # Leave Primary
-    abline(v = h[4], col = "blue") # Leave Secondary
-  }
-  
+  # legend("top", c("Individual exposure value","Mean"), xpd = FALSE, horiz = TRUE, inset = c(0,0),
+  #        bty = "n", pch = c("-","-"), col = c(Col.P,"orange"), cex = 1)
+  # 
+  # 
+  # #abline(v=as.POSIXct("2009-03-29 02:00:00", origin = "1970-01-01"), col = "orange") # start summertime / Daylight saving time (DST)
+  # #abline(v=as.POSIXct("2009-10-25 02:00:00", origin = "1970-01-01"), col = "grey") # start wintertime / Standard time
+  # abline(v = as.POSIXct(unlist(PHASES[[1]]), origin = "1970-01-01"), col = Col.T2)
+  # 
+  # #abline(v = Time, col = "grey") # hours
+  # abline(v = YearDates, col = "grey") # days
+  # 
+  # abline(v = unlist(PHASES[[1]][YearDates %in% BusinesDates][2]), col = Col.T1) # T1
+  # 
+  # 
+  # Sel = which(YearDates %in% BusinesDates) < DAY.start+DAYS & which(YearDates %in% BusinesDates) >= DAY.start
+  # for (h in (PHASES[[1]][YearDates %in% BusinesDates][Sel]))
+  # {
+  #   abline(v = h[2], col = "red") # Leave Primary
+  #   abline(v = h[4], col = "blue") # Leave Secondary
+  # }
+  # 
 }
 
 Weighted.Dynamic <- function(ExposureValue.C, WEIGHTS.C, CalcType, ...)

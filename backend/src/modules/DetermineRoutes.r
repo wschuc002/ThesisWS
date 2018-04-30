@@ -128,7 +128,7 @@ DetermineAddressGoals_FL <- function(FL.Gemeente, Method.nr, ... )
   
   #CRAB_Doel[CRAB_Doel@data$DOEL %in% "Agrarische functie",]
   
-  ## Companies
+  ## Business addresses (8)
   zip_in = file.path("..", "data", "BE_FL", "KboOpenData_0036_2017_01_Full.zip")
   csv.companies_in = file.path("..", "data", "BE_FL", "address.csv")
   

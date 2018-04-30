@@ -43,8 +43,8 @@ SaveAsFile <- function(INput, Filename, Format, Active.Type, OverwriteLayer, ...
   
   if (Format == "csv")
   {
-    csv_out = file.path("..", "output", paste(Active.Type, Filename, "Residence.csv", sep = "_"))
-    write.csv(INput, csv_out, eol = "\n")
+    csv_out = file.path("..", "output", paste0(Filename, ".csv"))
+    write.csv(INput, csv_out, eol = "\n", row.names = FALSE)
   }
   
   if (Format == "GeoTIFF")

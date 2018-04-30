@@ -1,7 +1,11 @@
-# Main script for determining Primary (residence), Secondary (workplace) and
-# Transport routes from address data to combine these with high resolution
-# air quality data NO2 and PM2.5 to produce individual exposure values.
-# Copyright (C) 2017 William Schuch
+# Main script for the Geoscientific Information System for Calculating Air
+# Pollution Exposure (GISCAPE). GISCAPE simulates personal place histories,
+# based on activity-patterns with 4 location phases: Primary (residence),
+# Secondary (workplace/school), Transport out and Transport in. These simu-
+# lated personal place histories are then combined with high-resolution
+# air quality data Nitrogen Dioxide (NO2) and Fine Particulate Matter (PM2.5)
+# to produce individual exposure values.
+# Copyright (C) 2017-2018 William Schuch
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -10,23 +14,17 @@
 #
 # This program is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 # GNU General Public License for more details.
 #
 # You should have received a copy of the GNU General Public License
-# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
 
-## TESTED ON WINDOWS 7 (64-bit), 4GB RAM, R v3.3.2, Timezone GMT
+## TESTED ON WINDOWS 7 (64-bit), 8GB RAM, R v3.3.3, Timezone UTC+01:00
 
-## TODO:  - Weights in S-T aggregation for overlaps in 03.SP
-##        - Improve SummaryStatistics for profile and phase type comparison.
-##        - 
+## TODO:  - Improve readability
 ##        - ?Introduce "spacetime" package and test is.
-##        - Documentation
 ##        - ...
-
-##        - Interactive graph (optional)
-##        - Air Quality Health Standards Exceedance analysis (optional)
 
 ## Clear the workspace?
 Clear.WorkSpace = TRUE
@@ -59,6 +57,7 @@ ftp.pwd = "schuch:<passwordhere>" # fill in the password, without < >
 ## If not, they will be installed automatically.
 
 #### Import modules ####
+# source("modules/Rupdate.r")
 source("modules/DownloadInputFilesFromOneDrive.r")
 source("modules/DownloadInputFilesFromIrcelineFTP.r")
 source("modules/SaveAsFile.r")
@@ -68,7 +67,7 @@ source("modules/HourOfTheYear.r")
 source("modules/Interpolate.r")
 source("modules/ExtractBZ2.r")
 source("modules/SimplifyRoutes.r")
-source("modules/CreateCorrespondingDateAndTime.r")
+#source("modules/CreateCorrespondingDateAndTime.r")
 source("modules/DataFraming.r")
 source("modules/BiWeekly.r")
 source("modules/ToHourValues.r")
@@ -78,16 +77,23 @@ source("modules/SummaryStatistics.r")
 #source("modules/util.r")
 source("modules/DrivingLinearDistanceRatio.r")
 source("modules/BaseAQnetwork.r")
-source("modules/RasterMunicipality.r")
+#source("modules/RasterMunicipality.r")
 source("modules/MeanMunicipality.r")
 
+### Set time zone ###
 OriginalTimezone = Sys.timezone(location = TRUE) # All system settings should be changed to its original state at the end of the code
 Sys.setenv(TZ = "GMT")
 
-
-### Download data from OneDrive or irceline ftp server
+### Settings
 DownloadMode = "OneDrive" # "FPT"
+DriveLetter = "T" # NA (default/local/repository) or e.g. "T" (this is the letter of the external drive to use)
+# The required free space is 400 GB
 
+ReproduceMode = TRUE
+pollutants = c("no2", "pm25")
+GroupSize = 1000 # size per residential profile
+
+### Download data from OneDrive or irceline ftp server ###
 # create 'data' and 'data/BE' folder in case it does not exist
 data.dir = file.path("..", "data")
 if (!dir.exists(data.dir)) { dir.create(data.dir) }
@@ -95,12 +101,12 @@ BE.dir = file.path("..", "data", "BE")
 if (!dir.exists(BE.dir)) { dir.create(BE.dir) }
 
 # Select main folder for hi-res Air Quality data
-DriveLetter = "T" # NA (default) of e.g. "T"
-aq.dir = file.path(data.dir, "BE", "RIO-IFDM")
+if (is.na(DriveLetter)) { aq.dir = file.path(data.dir, "BE", "RIO-IFDM") }
 if (!is.na(DriveLetter))
 {
   aq.dir = file.path(paste0(DriveLetter, ":" ), "RIO-IFDM")
 }
+if (!dir.exists(aq.dir)) { dir.create(aq.dir) }
 
 ## ONE DRIVE
 
@@ -120,14 +126,10 @@ if (DownloadMode == "OneDrive")
   }
 }
 
-ReproduceMode = TRUE
-pollutants = c("no2", "pm25")
-GroupSize = 1000
-
 #### FLANDERS ####
 
 ### General ###
-# Use the official address database of Flanders and add the correct attribute 'Goal of use'
+# Uses the official address database of Flanders and adds the correct attribute 'Goal of use'
 
 Subset.Gemeente = NULL # empty = NULL = no subset = all municipalities |  example subset: c("Gent","Antwerpen")
 
@@ -217,7 +219,7 @@ HealthStandards = fread(csv.HealthStandards_in, sep=",", header=TRUE)
 MoI = c("PST1", "P1", "P7") # Methods of Interest
 
 for (Active.Type in Types)
-#for (Active.Type in Types[c(2,3)])
+  #for (Active.Type in Types[c(2,3)])
 {
   #Active.Type = Types[1]
   print(Active.Type)
@@ -344,13 +346,13 @@ for (Active.Type in Types)
   
   SubProfilesFullPeriodMethodsOfInterest = SubProfilesFullPeriod[SubProfilesFullPeriod %in%
                                                                    paste0(Active.Type, "_", MoI)]
- 
+  
   # SpecificSubprofile = NA
   # if (length(SubProfilesFullPeriod) == 4) {SpecificSubprofile = SpecificSubprofile - 4}
   # if (is.na(SpecificSubprofile)) {SpecificSubprofile = 1:length(SubProfilesFullPeriod)}
   
   for (Active.Subtype in SubProfilesFullPeriodMethodsOfInterest)
-  #for (Active.Subtype in SubProfilesFullPeriod[SpecificSubprofile])  
+    #for (Active.Subtype in SubProfilesFullPeriod[SpecificSubprofile])  
   {
     #Active.Subtype = SubProfilesFullPeriodMethodsOfInterest[1]
     print(Active.Subtype)
@@ -452,7 +454,7 @@ for (Active.Type in Types)
         }
       } # closing Municipality related
       
-      Fragments = 1:10
+      Fragments = 1:20
       DaySplit = length(YearDates)/length(Fragments)
       SeqFragment = floor(seq(0, length(YearDates), DaySplit))
       
@@ -463,7 +465,7 @@ for (Active.Type in Types)
         print(paste("Testing if HR exists of Fragment", f))
         if (file.exists(file.path(output.dir, paste0(Active.Subtype, "_", f),
                                   paste0("HR_", "ALL", ".dbf"))))
-                                  #paste0("HR_", toupper(pol), ".dbf"))))
+          #paste0("HR_", toupper(pol), ".dbf"))))
         {
           print(paste("HR already exists of Fragment", f))
           next # f+1
@@ -511,15 +513,15 @@ for (Active.Type in Types)
         if (Active.Subprofile$Dynamics == "static") {TIME_EXP = c("TIME_P_")}
         if (Active.Subprofile$Dynamics == "dynamic") {TIME_EXP = c("TIME_P_", "TIME_S_","TIME_T1_","TIME_T2_")}
         
-        if (all(file.exists(file.path(output.dir, FolderNameBase, paste0(TIME_EXP, 1:length(PPH.P), ".dbf")))))
+        if (all(file.exists(file.path(output.dir, FolderName, paste0(TIME_EXP, 1:length(PPH.P), ".dbf"))))) #FolderNameBase
         {
           # read from file
-          TIME.P_F = DBFreader("Time", "Primary", PPH.P, YearDates.Sub, FolderNameBase)
+          TIME.P_F = DBFreader("Time", "Primary", PPH.P, YearDates.Sub, FolderName) #FolderNameBase
           if (Active.Subprofile$Dynamics == "dynamic")
           {
-            TIME.S_F = DBFreader("Time", "Secondary", PPH.P, YearDates.Sub, FolderNameBase)
-            TIME.T1_F = DBFreader("Time", "T1", PPH.P, YearDates.Sub, FolderName)
-            TIME.T2_F = DBFreader("Time", "T2", PPH.P, YearDates.Sub, FolderNameBase)
+            TIME.S_F = DBFreader("Time", "Secondary", PPH.P, YearDates.Sub, FolderName) #FolderNameBase
+            TIME.T1_F = DBFreader("Time", "T1", PPH.P, YearDates.Sub, FolderName) #FolderNameBase
+            TIME.T2_F = DBFreader("Time", "T2", PPH.P, YearDates.Sub, FolderName) #FolderNameBase
           }
         } else # TIME files do not exist
         {
@@ -750,6 +752,7 @@ for (Active.Type in Types)
         if (Active.Subprofile$Dynamics == "static") {DF = c("DF_P_")}
         if (Active.Subprofile$Dynamics == "dynamic") {DF = c("DF_P_", "DF_S_","DF_T1_","DF_T2_")}
         
+        
         if (all(file.exists(file.path(output.dir, FolderName, paste0(DF, toupper(pol), ".dbf")))))
         {
           ST.DF.P_F = read.dbf(file = file.path(output.dir, FolderName, paste0("DF_P_", toupper(pol), ".dbf")))
@@ -790,7 +793,7 @@ for (Active.Type in Types)
           if (Active.Subprofile$Dynamics == "dynamic")
           {
             ST.DF.HR_F = ToHourValuesFromDF.Dynamic(PPH.P, Time.Sub, output.dir, FolderName,
-                                            TIME.P_F, TIME.S_F, TIME.T1_F, TIME.T2_F, pollutants)
+                                                    TIME.P_F, TIME.S_F, TIME.T1_F, TIME.T2_F, pollutants)
             
             #SaveAsDBF(ST.DF.HR_F, "HR", "HR", FolderName, OW, toupper(pol), 0)
           } else # if static
@@ -883,7 +886,7 @@ for (Active.Type in Types)
   for (Active.Subtype in MethodsOfInterest2)
   {
     print(Active.Subtype)
-    #Active.Subtype = MethodsOfInterest2[3]
+    #Active.Subtype = MethodsOfInterest2[1]
     s = which(MethodsOfInterest2 %in% Active.Subtype)
     
     # Check if folder with fragments already exist
@@ -920,7 +923,9 @@ for (Active.Type in Types)
             
             #HR_ALL.Li[[f]] = read.dbf(file = file.path(output.dir, FolderName, paste0("HR_", toupper(pol), ".dbf")))[,1:4] #c("TIME", "IND")
             
-            HR_ALL.Li[[f]] = read.dbf(file = file.path(output.dir, FolderName, paste0("HR_ALL", ".dbf")))[,1:4] #c("TIME", "IND")
+            # HR_ALL.Li[[f]] = read.dbf(file = file.path(output.dir, FolderName, paste0("HR_ALL", ".dbf")))[,1:4] #c("TIME", "IND")
+            HR_ALL.Li[[f]] = read.dbf(file = file.path(output.dir, FolderName, paste0("HR_ALL", ".dbf"))) #c("TIME", "IND")
+            
             #colnames(HR_ALL.Li[[f]])[3:4] = paste0("PST1_", colnames(HR_ALL.Li[[f]])[3:4])
           }
           HR_ALL = do.call(rbind, HR_ALL.Li)
@@ -939,7 +944,9 @@ for (Active.Type in Types)
         }
       } else
       {
-        HR_ALL = read.dbf(file = file.path(output.dir, Active.Subtype, paste0("HR_ALL", ".dbf")))[,1:4]
+        # HR_ALL = read.dbf(file = file.path(output.dir, Active.Subtype, paste0("HR_ALL", ".dbf")))[,1:4]
+        HR_ALL = read.dbf(file = file.path(output.dir, Active.Subtype, paste0("HR_ALL", ".dbf")))
+        
         HR_ALL = HR_ALL[order(HR_ALL$TIME),] # order on time
       }
       
@@ -988,7 +995,7 @@ for (Active.Type in Types)
             rm(HR2)
           }
         }
-
+        
         HR_ALL = cbind(HR_ALL, HR[,3:length(HR)])
         HR_ALL = HR_ALL[order(HR_ALL$TIME),] # order on time
         
@@ -1083,7 +1090,7 @@ for (Active.Type in Types)
 ### Collect different calculation methods per profile (Saving 1 file DF per Type)
 for (Active.Type in Types)
 {
-  #Active.Type = Types[3]
+  #Active.Type = Types[1]
   print(Active.Type)
   TypeNr = which(Types %in% Active.Type)
   
@@ -1105,7 +1112,7 @@ for (Active.Type in Types)
     BusinesDates = DateType(YearDates, "Workdays", HoliDates)
     WeekendDates = DateType(YearDates, "Weekends")
   }
-
+  
   MethodsOfInterest = c("PST1", "P1", "P7")
   if (TypeNr == 2) {MethodsOfInterest = c("P1", "P7")}
   
@@ -1133,28 +1140,29 @@ for (Active.Type in Types)
     
     Frag.lst = gsub(x = TimeExp.lst, pattern = paste0(Active.Subtype, "_"), replacement = "")
     Fragments = as.numeric(Frag.lst)
-
+    
     DF.name = c("DF_P", "DF_S","DF_T1","DF_T2")
     
     if (grepl("PST", Active.Subtype))
     {
       for (lp in seq_along(DF.name)) # per Location Phase
       {
+        # lp = 1
         print(DF.name[lp])
         #if (length(list.files(path = file.path(output.dir, Active.Subtype), pattern = DF[lp])) < 1)
         if (!file.exists(file.path(output.dir, Active.Subtype, paste0(DF.name[lp], "_ALL", ".dbf"))))
         {
           DF_ALL.Li = list()
           for (f in Fragments)
-          #for (f in 11:14)
+            #for (f in 11:14)
           {
             print(f)
             FolderName = paste0(Active.Subtype, "_", f)
-
+            
             DaySplit = length(YearDates)/length(Fragments)
             SeqFragment = floor(seq(0, length(YearDates), DaySplit))
             YearDates.Sub = YearDates2(year.active)[(SeqFragment[f]+1):(SeqFragment[f+1])]
-
+            
             # check if the fragment includes a business day
             if (!any(YearDates.Sub %in% BusinesDates) & lp > 1)
             {
@@ -1170,6 +1178,7 @@ for (Active.Type in Types)
             CHECK = NA
             for (p in 1:(length(pollutants)-1))
             {
+              
               CHECK[p] = all(c(all(DF.Li[[p]]$TIME == DF.Li[[p+1]]$TIME), all(DF.Li[[p]]$IND == DF.Li[[p+1]]$IND)))
             }
             if (!all(CHECK))
@@ -1178,7 +1187,7 @@ for (Active.Type in Types)
               #sort
               DF.Li[[1]] = DF.Li[[1]][order(DF.Li[[1]]$IND),]
               # DF.Li[[1]][order(DF.Li[[1]]$TIME),] # order on time
-
+              
             } else
             {
               # merge dataframes
@@ -1200,20 +1209,20 @@ for (Active.Type in Types)
           
           # if (nrow(DF_ALL) == length(Time)*GroupSize)
           # {
-            SaveAsDBF(DF_ALL, "DF", DF.name[lp], Active.Subtype, FALSE, "ALL", 0)
+          SaveAsDBF(DF_ALL, "DF", DF.name[lp], Active.Subtype, FALSE, "ALL", 0)
           # } else
           # {
           #   stop(print(paste0("Data frame should have ", length(Time)*GroupSize, " observations/rows.")))
           # }
         } # closing file existance
-        } # closing location phase (lp)
-      } else # if not "PST"
-      {
-        
-      }
+      } # closing location phase (lp)
+    } else # if not "PST"
+    {
+      
+    }
   } # closing Active.Subtype
 } # closing Active.Type
-    
+
 #       
 #       class(DF_ALL$TIME) = class(YearDates)
 #       
@@ -1345,14 +1354,14 @@ for (Active.Type in Types)
 
 
 ### Stats & Plots 
-for (Active.Type in Types[c(3)])
+for (Active.Type in Types)
 {
-  # Active.Type = Types[1]
+  # Active.Type = Types[3]
   
   HR_ALL = read.dbf(file = file.path(output.dir, Active.Type, paste0("HR_", "ALL", ".dbf")))
   
-  Stats.HR_ALL_HourBased = DF.Stats2(HR_ALL, BasedOn = "TIME", Time)
   Stats.HR_ALL_IndividualBased = DF.Stats2(HR_ALL, BasedOn = "IND", Time)
+  Stats.HR_ALL_HourBased = DF.Stats2(HR_ALL, BasedOn = "TIME", Time)
   
   MethodsOfInterest = c("PST1", "P1", "P7")
   if (Active.Type == "02.HO") {MethodsOfInterest = c("P1", "P7")}
@@ -1372,8 +1381,8 @@ for (Active.Type in Types[c(3)])
   # }
   
   StatsMethod = "mean" # mean, min, max, sd
-  StatsMethodWithMethodsOfInterest = paste(StatsMethod, MethodsOfInterest, sep = "_")
-  StatsMethodWithMethodsOfInterest = c(StatsMethodWithMethodsOfInterest, StatsMethodWithMethodsOfInterest)
+  StatsMethodWithMethodsOfInterest1 = paste(StatsMethod, MethodsOfInterest, sep = "_")
+  StatsMethodWithMethodsOfInterest = c(StatsMethodWithMethodsOfInterest1, StatsMethodWithMethodsOfInterest1)
   #StatsMethodWithMethodsOfInterestPol = paste(StatsMethodWithMethodsOfInterest, toupper(pollutants), sep = "_")
   
   #hist(Stats.HR_ALL_IndividualBased[,StatsMethodWithMethodsOfInterestPol], 100)
@@ -1383,7 +1392,7 @@ for (Active.Type in Types[c(3)])
   
   for (pol in pollutants)
   {
-    # pol = pollutants[1]
+    # pol = pollutants[2]
     
     MethodsOfInterestPol = paste(MethodsOfInterest, toupper(pol), sep = "_")
     StatsMethodWithMethodsOfInterestPol = paste(StatsMethod, MethodsOfInterestPol, sep = "_")
@@ -1391,8 +1400,24 @@ for (Active.Type in Types[c(3)])
     for (cm in MethodsOfInterest)
     {
       # cm = MethodsOfInterest[1]
-      Plot.Group3(Active.Type, 5, 1, HR_ALL, Stats.HR_ALL_HourBased, cm, PlotMinMax = TRUE, pol = pol)
-
+      
+      Active.Subtype = paste0(Active.Type, "_", cm)
+      
+      ST.DF.P = read.dbf(file = file.path(output.dir, Active.Subtype, "DF_P_ALL.dbf"))
+      ST.DF.S = read.dbf(file = file.path(output.dir, Active.Subtype, "DF_S_ALL.dbf"))
+      ST.DF.T1 = read.dbf(file = file.path(output.dir, Active.Subtype, "DF_T1_ALL.dbf"))
+      ST.DF.T2 = read.dbf(file = file.path(output.dir, Active.Subtype, "DF_T2_ALL.dbf"))
+      class(ST.DF.P$TIME) = class(Time)
+      class(ST.DF.S$TIME) = class(Time)
+      class(ST.DF.T1$TIME) = class(Time)
+      class(ST.DF.T2$TIME) = class(Time)
+      
+      
+      
+      Plot.RawExposure(Active.Type, 1, 1, GroupSize, PlotMinMax = FALSE, ST.DF.P, ST.DF.S, ST.DF.T1, ST.DF.T2)
+      
+      Plot.HourExposure(Active.Type, 5, 1, HR_ALL, Stats.HR_ALL_HourBased, cm, PlotMinMax = TRUE, pol = pol)
+      
     } #closing cm
     
     # ScatterplotMatrixAndSave(Active.Type, Stats.HR_ALL_IndividualBased, StatsMethodWithMethodsOfInterestPol,
@@ -1411,10 +1436,12 @@ for (Active.Type in Types[c(3)])
     # # How many individuals of 1000?
     # nrow(HR_ALL[HR_ALL$PST1_NO2 > 100,])
     # nrow(HR_ALL[HR_ALL$PST1_PM25 > 100,])
-
+    
     # CorPlotTable2(Active.Type, "Mixed", StatsMethodWithMethodsOfInterest, toupper(pol), Stats.HR_ALL_IndividualBased)
-
+    
     # ScatterPlotMatrix(Active.Type, StatsMethodWithMethodsOfInterest, Stats.HR_ALL_IndividualBased, pol)
+    ScatterplotMatrixAndSave(Type, Stats.HR_ALL_IndividualBased, StatsMethodWithMethodsOfInterestPol,
+                             PlotSave = FALSE, pol = pol, StatsMethod = StatsMethod)
     
     # CorPlotGraph(Active.Type, paste(StatsMethod, MethodsOfInterest[1], toupper(pol), sep = "_"),
     #              paste(StatsMethod, MethodsOfInterest[2], toupper(pol), sep = "_"),
@@ -1422,99 +1449,1227 @@ for (Active.Type in Types[c(3)])
     # CorPlotGraph(Active.Type, paste(StatsMethod, MethodsOfInterest[1], toupper(pol), sep = "_"),
     #              paste(StatsMethod, MethodsOfInterest[3], toupper(pol), sep = "_"),
     #              Width = 1208, Height = 720, pol, GroupSize, Stats.HR_ALL_IndividualBased)
-
-
-
+    
+    p = Plot.DeltaProposed(Active.Type, MethodsOfInterest, 1, 365, StatsMethodWithMethodsOfInterest1, pol, Stats.HR_ALL_HourBased, InteractivePlot = TRUE,
+                           Location = "Online") #Location = "Online"
+    p
+    
+    
+    
   } # closing pol
   
 } # closign Active.Type
 
+## Exceedance analysis
+
+# pol = pollutants[1]
+# if (pol == "pm25") {pol2 = "pm2.5"}
+# if (pol == "no2") {pol2 = "no2"}
+
+# read Health Standards (HeSt)
+HeSt_1H_NO2 = HealthStandards$Concentration[HealthStandards$'Averaging period' == "1 hour" &
+                                              HealthStandards$Pollutant == toupper("no2") &
+                                              HealthStandards$Agency == "EU"]
+HeSt_1H_PM25 = 60
+
+HeSt_1Y_NO2 = HealthStandards$Concentration[HealthStandards$'Averaging period' == "1 year" &
+                                              HealthStandards$Pollutant == toupper("no2") &
+                                              HealthStandards$Agency == "WHO"]
+
+HeSt_1Y_PM25 = HealthStandards$Concentration[HealthStandards$'Averaging period' == "1 year" &
+                                               HealthStandards$Pollutant == toupper("pm2.5") &
+                                               HealthStandards$Agency == "WHO"]
+
+## Home Office
+Active.Type = Types[2]
+HR_ALL = read.dbf(file = file.path(output.dir, Active.Type, paste0("HR_", "ALL", ".dbf")))
+Stats.HR_ALL_IndividualBased = DF.Stats2(HR_ALL, BasedOn = "IND", Time)
+
+EXC_HO_1H_NO2_P1 = HR_ALL[HR_ALL$P1_NO2 > HealthStandards$Concentration[HealthStandards$'Averaging period' == "1 hour" &
+                                                                          HealthStandards$Pollutant == toupper("no2") &
+                                                                          HealthStandards$Agency == "EU"],][,1:2]
+EXC_HO_1H_NO2_P7 = HR_ALL[HR_ALL$P7_NO2 > HealthStandards$Concentration[HealthStandards$'Averaging period' == "1 hour" &
+                                                                          HealthStandards$Pollutant == toupper("no2") &
+                                                                          HealthStandards$Agency == "EU"],][,1:2]
+EXC_HO_1H_PM25_P1 = HR_ALL[HR_ALL$P1_PM25 > HeSt_1H_PM25,][,1:2]
+EXC_HO_1H_PM25_P7 = HR_ALL[HR_ALL$P7_PM25 > HeSt_1H_PM25,][,1:2]
+
+EXC_HO_1Y_NO2_P1 = Stats.HR_ALL_IndividualBased[Stats.HR_ALL_IndividualBased$mean_P1_NO2 >
+                                                  HealthStandards$Concentration[HealthStandards$'Averaging period' == "1 year" &
+                                                                                  HealthStandards$Pollutant == toupper("no2") &
+                                                                                  HealthStandards$Agency == "WHO"],]$IND
+EXC_HO_1Y_NO2_P7 = Stats.HR_ALL_IndividualBased[Stats.HR_ALL_IndividualBased$mean_P7_NO2 > 
+                                                  HealthStandards$Concentration[HealthStandards$'Averaging period' == "1 year" &
+                                                                                  HealthStandards$Pollutant == toupper("no2") &
+                                                                                  HealthStandards$Agency == "WHO"],]$IND
+EXC_HO_1Y_PM25_P1 = Stats.HR_ALL_IndividualBased[Stats.HR_ALL_IndividualBased$mean_P1_PM25 >
+                                                   HealthStandards$Concentration[HealthStandards$'Averaging period' == "1 year" &
+                                                                                   HealthStandards$Pollutant == toupper("pm2.5") &
+                                                                                   HealthStandards$Agency == "WHO"],]$IND
+EXC_HO_1Y_PM25_P7 = Stats.HR_ALL_IndividualBased[Stats.HR_ALL_IndividualBased$mean_P7_PM25 >
+                                                   HealthStandards$Concentration[HealthStandards$'Averaging period' == "1 year" &
+                                                                                   HealthStandards$Pollutant == toupper("pm2.5") &
+                                                                                   HealthStandards$Agency == "WHO"],]$IND
+# Office Worker
+Active.Type = Types[1]
+HR_ALL = read.dbf(file = file.path(output.dir, Active.Type, paste0("HR_", "ALL", ".dbf")))
+Stats.HR_ALL_IndividualBased = DF.Stats2(HR_ALL, BasedOn = "IND", Time)
+
+EXC_OW_1H_NO2_PST1 = HR_ALL[HR_ALL$PST1_NO2 > HeSt_1H_NO2,][,c(1,2, which(colnames(HR_ALL) == "PST1_NO2"))]
+EXC_OW_1H_NO2_P1 = HR_ALL[HR_ALL$P1_NO2 > HeSt_1H_NO2,][,c(1,2, which(colnames(HR_ALL) == "P1_NO2"))]
+EXC_OW_1H_NO2_P7 = HR_ALL[HR_ALL$P7_NO2 > HeSt_1H_NO2,][,c(1,2, which(colnames(HR_ALL) == "P7_NO2"))]
+
+EXC_OW_1H_PM25_PST1 = HR_ALL[HR_ALL$PST1_PM25 > HeSt_1H_PM25,][,c(1,2, which(colnames(HR_ALL) == "PST1_PM25"))]
+EXC_OW_1H_PM25_P1 = HR_ALL[HR_ALL$P1_PM25 > HeSt_1H_PM25,][,c(1,2, which(colnames(HR_ALL) == "P1_PM25"))]
+EXC_OW_1H_PM25_P7 = HR_ALL[HR_ALL$P7_PM25 > HeSt_1H_PM25,][,c(1,2, which(colnames(HR_ALL) == "P7_PM25"))]
+
+EXC_OW_1Y_NO2_PST1 = Stats.HR_ALL_IndividualBased[Stats.HR_ALL_IndividualBased$mean_PST1_NO2 > HeSt_1Y_NO2,]$IND
+EXC_OW_1Y_NO2_P1 = Stats.HR_ALL_IndividualBased[Stats.HR_ALL_IndividualBased$mean_P1_NO2 > HeSt_1Y_NO2,]$IND
+EXC_OW_1Y_NO2_P7 = Stats.HR_ALL_IndividualBased[Stats.HR_ALL_IndividualBased$mean_P7_NO2 > HeSt_1Y_NO2,]$IND
+EXC_OW_1Y_PM25_PST1 = Stats.HR_ALL_IndividualBased[Stats.HR_ALL_IndividualBased$mean_PST1_PM25 > HeSt_1Y_PM25,]$IND
+EXC_OW_1Y_PM25_P1 = Stats.HR_ALL_IndividualBased[Stats.HR_ALL_IndividualBased$mean_P1_PM25 > HeSt_1Y_PM25,]$IND
+EXC_OW_1Y_PM25_P7 = Stats.HR_ALL_IndividualBased[Stats.HR_ALL_IndividualBased$mean_P7_PM25 > HeSt_1Y_PM25,]$IND
+
+# School pupil
+Active.Type = Types[3]
+HR_ALL = read.dbf(file = file.path(output.dir, Active.Type, paste0("HR_", "ALL", ".dbf")))
+Stats.HR_ALL_IndividualBased = DF.Stats2(HR_ALL, BasedOn = "IND", Time)
+
+EXC_SP_1H_NO2_PST1 = HR_ALL[HR_ALL$PST1_NO2 > HeSt_1H_NO2,][,c(1,2, which(colnames(HR_ALL) == "PST1_NO2"))]
+EXC_SP_1H_NO2_P1 = HR_ALL[HR_ALL$P1_NO2 > HeSt_1H_NO2,][,c(1,2, which(colnames(HR_ALL) == "P1_NO2"))]
+EXC_SP_1H_NO2_P7 = HR_ALL[HR_ALL$P7_NO2 > HeSt_1H_NO2,][,c(1,2, which(colnames(HR_ALL) == "P7_NO2"))]
+
+EXC_SP_1H_PM25_PST1 = HR_ALL[HR_ALL$PST1_PM25 > HeSt_1H_PM25,][,c(1,2, which(colnames(HR_ALL) == "PST1_PM25"))]
+EXC_SP_1H_PM25_P1 = HR_ALL[HR_ALL$P1_PM25 > HeSt_1H_PM25,][,c(1,2, which(colnames(HR_ALL) == "P1_PM25"))]
+EXC_SP_1H_PM25_P7 = HR_ALL[HR_ALL$P7_PM25 > HeSt_1H_PM25,][,c(1,2, which(colnames(HR_ALL) == "P7_PM25"))]
+
+EXC_SP_1Y_NO2_PST1 = Stats.HR_ALL_IndividualBased[Stats.HR_ALL_IndividualBased$mean_PST1_NO2 > HeSt_1Y_NO2,]$IND
+EXC_SP_1Y_NO2_P1 = Stats.HR_ALL_IndividualBased[Stats.HR_ALL_IndividualBased$mean_P1_NO2 > HeSt_1Y_NO2,]$IND
+EXC_SP_1Y_NO2_P7 = Stats.HR_ALL_IndividualBased[Stats.HR_ALL_IndividualBased$mean_P7_NO2 > HeSt_1Y_NO2,]$IND
+EXC_SP_1Y_PM25_PST1 = Stats.HR_ALL_IndividualBased[Stats.HR_ALL_IndividualBased$mean_PST1_PM25 > HeSt_1Y_PM25,]$IND
+EXC_SP_1Y_PM25_P1 = Stats.HR_ALL_IndividualBased[Stats.HR_ALL_IndividualBased$mean_P1_PM25 > HeSt_1Y_PM25,]$IND
+EXC_SP_1Y_PM25_P7 = Stats.HR_ALL_IndividualBased[Stats.HR_ALL_IndividualBased$mean_P7_PM25 > HeSt_1Y_PM25,]$IND
 
 
+class(EXC_OW_1H_NO2_PST1$TIME) = class(Time)
+class(EXC_OW_1H_PM25_PST1$TIME) = class(Time)
+
+# class(EXC_OW_1H_NO2_P1$TIME) = class(Time)
+# class(EXC_OW_1H_PM25_P1$TIME) = class(Time)
+# 
+# class(EXC_OW_1H_NO2_P7$TIME) = class(Time)
+# class(EXC_OW_1H_PM25_P7$TIME) = class(Time)
+
+class(EXC_SP_1H_NO2_PST1$TIME) = class(Time)
+class(EXC_SP_1H_PM25_PST1$TIME) = class(Time)
+
+class(EXC_HO_1H_NO2_P1$TIME) = class(Time)
+class(EXC_HO_1H_PM25_P1$TIME) = class(Time)
+
+EXC_OW_1H_NO2_PST1.Li = list()
+EXC_OW_1H_PM25_PST1.Li = list()
+EXC_OW_1H_PM25 = NA
+EXC_OW_1H_NO2 = NA
+
+# EXC_OW_1H_NO2_P1.Li = list()
+# EXC_OW_1H_PM25_P1.Li = list()
+# EXC_OW_1H_PM25_P1 = NA
+# EXC_OW_1H_NO2_P1 = NA
+
+EXC_SP_1H_NO2_PST1.Li = list()
+EXC_SP_1H_PM25_PST1.Li = list()
+EXC_SP_1H_PM25 = NA
+EXC_SP_1H_NO2 = NA
+
+EXC_HO_1H_NO2_P1.Li = list()
+EXC_HO_1H_PM25_P1.Li = list()
+EXC_HO_1H_PM25 = NA
+EXC_HO_1H_NO2 = NA
+
+for (i in (1:GroupSize))
+{
+  EXC_OW_1H_NO2_PST1.Li[[i]] = EXC_OW_1H_NO2_PST1[EXC_OW_1H_NO2_PST1$IND == i,]
+  EXC_OW_1H_NO2[i] = length(EXC_OW_1H_NO2_PST1.Li[[i]]$IND)
+  EXC_OW_1H_PM25_PST1.Li[[i]] = EXC_OW_1H_PM25_PST1[EXC_OW_1H_PM25_PST1$IND == i,]
+  EXC_OW_1H_PM25[i] = length(EXC_OW_1H_PM25_PST1.Li[[i]]$IND)
+  
+  # EXC_OW_1H_NO2_P1.Li[[i]] = EXC_OW_1H_NO2_P1[EXC_OW_1H_NO2_P1$IND == i,]
+  # EXC_OW_1H_NO2_P1[i] = length(EXC_OW_1H_NO2_P1.Li[[i]]$IND)
+  # EXC_OW_1H_PM25_P1.Li[[i]] = EXC_OW_1H_PM25_P1[EXC_OW_1H_PM25_P1$IND == i,]
+  # EXC_OW_1H_PM25_P1[i] = length(EXC_OW_1H_PM25_P1.Li[[i]]$IND)
+  
+  EXC_SP_1H_NO2_PST1.Li[[i]] = EXC_SP_1H_NO2_PST1[EXC_SP_1H_NO2_PST1$IND == i,]
+  EXC_SP_1H_NO2[i] = length(EXC_SP_1H_NO2_PST1.Li[[i]]$IND)
+  EXC_SP_1H_PM25_PST1.Li[[i]] = EXC_SP_1H_PM25_PST1[EXC_SP_1H_PM25_PST1$IND == i,]
+  EXC_SP_1H_PM25[i] = length(EXC_SP_1H_PM25_PST1.Li[[i]]$IND)
+
+  EXC_HO_1H_NO2_P1.Li[[i]] = EXC_HO_1H_NO2_P1[EXC_HO_1H_NO2_P1$IND == i,]
+  EXC_HO_1H_NO2[i] = length(EXC_HO_1H_NO2_P1.Li[[i]]$IND)
+  EXC_HO_1H_PM25_P1.Li[[i]] = EXC_HO_1H_PM25_P1[EXC_HO_1H_PM25_P1$IND == i,]
+  EXC_HO_1H_PM25[i] = length(EXC_HO_1H_PM25_P1.Li[[i]]$IND)
+}
+
+length(which(EXC_OW_1H_NO2 > 0))
+length(which(EXC_OW_1H_NO2 > 20))
+length(which(EXC_OW_1H_PM25 > 0))
+length(which(EXC_OW_1H_PM25 > 20))
+sum(EXC_OW_1H_NO2)
+sum(EXC_OW_1H_PM25)
+
+length(which(EXC_SP_1H_NO2 > 0))
+length(which(EXC_SP_1H_NO2 > 20))
+length(which(EXC_SP_1H_PM25 > 0))
+length(which(EXC_SP_1H_PM25 > 20))
+sum(EXC_SP_1H_NO2)
+sum(EXC_SP_1H_PM25)
+
+length(which(EXC_HO_1H_NO2 > 0))
+length(which(EXC_HO_1H_NO2 > 20))
+length(which(EXC_HO_1H_PM25 > 0))
+length(which(EXC_HO_1H_PM25 > 20))
+sum(EXC_HO_1H_NO2)
+sum(EXC_HO_1H_PM25)
+
+# %'s of group
+EXC_OW_1Y_NO2_PST1.perc = length(EXC_OW_1Y_NO2_PST1)/GroupSize*100
+EXC_OW_1Y_NO2_P1.perc = length(EXC_OW_1Y_NO2_P1)/GroupSize*100
+EXC_OW_1Y_NO2_P7.perc = length(EXC_OW_1Y_NO2_P7)/GroupSize*100
+
+EXC_OW_1Y_PM25_PST1.perc = length(EXC_OW_1Y_PM25_PST1)/GroupSize*100
+EXC_OW_1Y_PM25_P1.perc = length(EXC_OW_1Y_PM25_P1)/GroupSize*100
+EXC_OW_1Y_PM25_P7.perc = length(EXC_OW_1Y_PM25_P7)/GroupSize*100
+
+EXC_SP_1Y_NO2_PST1.perc = length(EXC_SP_1Y_NO2_PST1)/GroupSize*100
+EXC_SP_1Y_NO2_P1.perc = length(EXC_SP_1Y_NO2_P1)/GroupSize*100
+EXC_SP_1Y_NO2_P7.perc = length(EXC_SP_1Y_NO2_P7)/GroupSize*100
+
+EXC_SP_1Y_PM25_PST1.perc = length(EXC_SP_1Y_PM25_PST1)/GroupSize*100
+EXC_SP_1Y_PM25_P1.perc = length(EXC_SP_1Y_PM25_P1)/GroupSize*100
+EXC_SP_1Y_PM25_P7.perc = length(EXC_SP_1Y_PM25_P7)/GroupSize*100
+
+EXC_HO_1Y_NO2_P1.perc = length(EXC_HO_1Y_NO2_P1)/GroupSize*100
+EXC_HO_1Y_NO2_P7.perc = length(EXC_HO_1Y_NO2_P7)/GroupSize*100
+
+EXC_HO_1Y_PM25_P1.perc = length(EXC_HO_1Y_PM25_P1)/GroupSize*100
+EXC_HO_1Y_PM25_P7.perc = length(EXC_HO_1Y_PM25_P7)/GroupSize*100
+
+
+## Basic statistics
+Active.Type = Types[1]
+
+if (Active.Type == "01.OW")
+{
+  HoliDates = as.POSIXct(OfficialHolidays$Datum)
+  SimplifyRemainingPoints = 100 # desirable resulting amount
+  RandomSamplePoints = 25 # desirable resulting amount of points, after random sampling the equal points
+  
+  BusinesDates = DateType(YearDates, "Workdays", HoliDates)
+  WeekendDates = DateType(YearDates, "Weekends")
+}
+if (Active.Type == "03.SP")
+{
+  HoliDates = HolidayGenerator(SchoolHolidays, Time) #2015 only
+  SimplifyRemainingPoints = 10 # should be desirable resulting amount
+  RandomSamplePoints = 5 # desirable resulting amount of points, after random sampling the equal points
+  
+  BusinesDates = DateType(YearDates, "Workdays", HoliDates)
+  WeekendDates = DateType(YearDates, "Weekends")
+}
+
+# Which hours
+`%ni%` <- Negate(`%in%`)
+
+BasicStatsCalculator <- function(Active.Type, HR_ALL, BusinesDates, ...)
+{
+  # Active.Type = "01.OW"
+  OneHour = 60**2
+  
+  # HR_ALL = read.dbf(file = file.path(output.dir, Active.Type, paste0("HR_", "ALL", ".dbf")))
+  class(HR_ALL$TIME) = class(Time)
+  
+  SubProfilesFullPeriod = ResidentialProfiles$Subtype[ResidentialProfiles$'T-gaps' == 0 &
+                                                        ResidentialProfiles$Type == Active.Type]
+  
+  Type.Dynamics = ResidentialProfiles$Dynamics[ResidentialProfiles$Type == Active.Type][1]
+  
+  if (Type.Dynamics == "dynamic") { MoI = c("PST1", "P1", "P7")} else
+  {MoI = c("P1", "P7")}
+  
+  SubProfilesFullPeriod_MoI = SubProfilesFullPeriod[SubProfilesFullPeriod %in%
+                                                      paste0(Active.Type, "_", MoI)]
+  
+  DF = data.frame("MoI" = NA, "Phase" = NA, "Pollutant" = NA, "Mean" = NA, "SD" = NA, "pPST" = NA, "pwPST" = NA,
+                  "Median" = NA, "Min" = NA, "Max" = NA)
+  
+  for (M in SubProfilesFullPeriod_MoI)
+  {
+    # M = SubProfilesFullPeriod_MoI[1]
+    print(paste0(M, ":" ))
+    m = which(SubProfilesFullPeriod_MoI %in% M)
+    
+    if (ResidentialProfiles$Dynamics[ResidentialProfiles$Subtype == M] == "dynamic")
+    {
+      Leave.P.raw = as.numeric(ResidentialProfiles$TimeLeavingPrimary[ResidentialProfiles$Subtype == M]) / 100
+      Leave.P.Minutes = (Leave.P.raw %% 1) * 100 / 60
+      Leave.P.StartTime = Leave.P.raw - (Leave.P.raw %% 1) + Leave.P.Minutes
+      Leave.S.raw = as.numeric(ResidentialProfiles$TimeLeavingSecondary[ResidentialProfiles$Subtype == M]) / 100
+      Leave.S.Minutes = (Leave.S.raw %% 1) * 100 / 60
+      Leave.S.StartTime = Leave.S.raw - (Leave.S.raw %% 1) + Leave.S.Minutes
+      
+      T1 = which(HR_ALL$TIME %in% (BusinesDates + (ceiling(Leave.P.StartTime+1))*OneHour))
+      T2 = which(HR_ALL$TIME %in% (BusinesDates + (ceiling(Leave.S.StartTime+1))*OneHour))
+      
+      Sseq = seq(ceiling(Leave.P.StartTime)+2, Leave.S.StartTime)
+      S.List = list()
+      for (s in Sseq)
+      {
+        S.List[[s]] = BusinesDates + s*OneHour
+      }
+      Sdates = unlist(S.List)
+      S = which(HR_ALL$TIME %in% Sdates)
+      
+      P = which(seq_along(HR_ALL$TIME) %ni% c(T1, T2, S))
+      
+      length(S)+length(P)+length(T1)+length(T2) == nrow(HR_ALL)
+      
+    } else # when static
+    {
+      
+    }
+    
+    for (pol in pollutants)
+    {
+      # pol = pollutants[1]
+      print(paste0(toupper(pol), ":" ))
+      
+      p = which(pollutants %in% pol)
+      
+      if (p == 1) {RowExtra = -1}
+      if (p == 2) {RowExtra = 0}
+      
+      CoI = paste0(MoI[m], "_", toupper(pol))
+      # CoI2 = which(colnames(HR_ALL) %in% CoI)
+      
+      if (ResidentialProfiles$Dynamics[ResidentialProfiles$Subtype == M] == "dynamic")
+      {
+        PST.mean = mean(HR_ALL[,CoI])
+        PST.sd = sd(HR_ALL[,CoI])
+        PST.med = median(HR_ALL[,CoI])
+        PST.min = min(HR_ALL[,CoI])
+        PST.max = max(HR_ALL[,CoI])
+        
+        P.mean = mean(HR_ALL[P,CoI])
+        P.sd = sd(HR_ALL[P,CoI])
+        P.med = median(HR_ALL[P,CoI])
+        P.min = min(HR_ALL[P,CoI])
+        P.max = max(HR_ALL[P,CoI])
+        
+        S.mean = mean(HR_ALL[S,CoI])
+        S.sd = sd(HR_ALL[S,CoI])
+        S.med = median(HR_ALL[S,CoI])
+        S.min = min(HR_ALL[S,CoI])
+        S.max = max(HR_ALL[S,CoI])
+        
+        T1.mean = mean(HR_ALL[T1,CoI])
+        T1.sd = sd(HR_ALL[T1,CoI])
+        T1.med = median(HR_ALL[T1,CoI])
+        T1.min = min(HR_ALL[T1,CoI])
+        T1.max = max(HR_ALL[T1,CoI])
+        
+        T2.mean = mean(HR_ALL[T2,CoI])
+        T2.sd = sd(HR_ALL[T2,CoI])
+        T2.med = median(HR_ALL[T2,CoI])
+        T2.min = min(HR_ALL[T2,CoI])
+        T2.max = max(HR_ALL[T2,CoI])
+        
+        T.mean = mean(HR_ALL[c(T1,T2),CoI])
+        T.sd = sd(HR_ALL[c(T1,T2),CoI])
+        T.med = median(HR_ALL[c(T1,T2),CoI])
+        T.min = min(HR_ALL[c(T1,T2),CoI])
+        T.max = max(HR_ALL[c(T1,T2),CoI])
+        
+        PST_PST = PST.mean / PST.mean * 100
+        P_PST = P.mean / PST.mean * 100
+        S_PST = S.mean / PST.mean * 100
+        T1_PST = T1.mean / PST.mean * 100
+        T2_PST = T2.mean / PST.mean * 100
+        T_PST = T.mean / PST.mean * 100
+        
+        lPST = length(S)+length(P)+length(T1)+length(T2)
+        
+        wPST_PST = PST.mean*(lPST/lPST) / PST.mean*(lPST/lPST) * 100
+        wP_PST = P.mean*(length(P)/lPST) / PST.mean*(lPST/lPST) * 100
+        wS_PST = S.mean*(length(S)/lPST) / PST.mean*(lPST/lPST) * 100
+        wT1_PST = T1.mean*(length(T1)/lPST) / PST.mean*(lPST/lPST) * 100
+        wT2_PST = T2.mean*(length(T2)/lPST) / PST.mean*(lPST/lPST) * 100
+        wT_PST = T.mean*(length(c(T1,T2))/lPST) / PST.mean*(lPST/lPST) * 100
+        
+        as.character(sum(wP_PST, wS_PST, wT_PST)) == as.character(100)
+        
+        print(c(P.mean, P.sd, P_PST, wP_PST, P.med, P.min, P.max))
+        print(c(S.mean, S.sd, S_PST, wS_PST, S.med, S.min, S.max))
+        print(c(T1.mean, T1.sd, T1_PST, wT1_PST, T1.med, T1.min, T1.max))
+        print(c(T2.mean, T2.sd, T2_PST, wT2_PST, T2.med, T2.min, T2.max))
+        print(c(T.mean, T.sd, T_PST, wT_PST, T.med, T.min, T.max))
+        
+        # if (m == 1) {RowBase = 0}
+        # if (m == 2) {RowBase = 12}
+        # if (m == 3) {RowBase = 14}
+        
+        if (is.na(DF[1,1])) {R = 1}
+        if (!is.na(DF[1,1])) {R = nrow(DF)+1}
+        
+        DF[R,] = c(MoI[m], "PST", pol, PST.mean, PST.sd, PST_PST, wPST_PST, PST.med, PST.min, PST.max)
+        DF[nrow(DF)+1,] = c(MoI[m], "P",pol, P.mean, P.sd, P_PST, wP_PST, P.med, P.min, P.max)
+        DF[nrow(DF)+1,] = c(MoI[m], "S",pol, S.mean, S.sd, S_PST, wS_PST, S.med, S.min, S.max)
+        DF[nrow(DF)+1,] = c(MoI[m], "T1",pol, T1.mean, T1.sd, T1_PST, wT1_PST, T1.med, T1.min, T1.max)
+        DF[nrow(DF)+1,] = c(MoI[m], "T2",pol, T2.mean, T2.sd, T2_PST, wT2_PST, T2.med, T2.min, T2.max)
+        DF[nrow(DF)+1,] = c(MoI[m], "T",pol, T.mean, T.sd, T_PST, wT_PST, T.med, T.min, T.max)
+        
+      } else # if static
+      {
+        P.mean = mean(HR_ALL[,CoI])
+        P.sd = sd(HR_ALL[,CoI])
+        P.med = median(HR_ALL[,CoI])
+        P.min = min(HR_ALL[,CoI])
+        P.max = max(HR_ALL[,CoI])
+        
+        print(c(P.mean, P.sd, P.med, P.min, P.max))
+        
+        # if (m == 1) {RowBase = 0}
+        # if (m == 2) {RowBase = 2}
+        
+        if (is.na(DF[1,1])) {R = 1}
+        if (!is.na(DF[1,1])) {R = nrow(DF)+1}
+        
+        DF[R,] = c(MoI[m], "P", pol, P.mean, P.sd, NA, NA, P.med, P.min, P.max)
+      }
+    } # closing pol
+    # SaveAsFile(DF, paste("BasicStats1", Active.Type, sep = "_"), "csv", TRUE)
+    SaveAsFile(INput = DF, Filename = paste("BasicStats1", Active.Type, sep = "_"),
+               Format = "csv", OverwriteLayer = TRUE)
+  }
+  print(DF)
+  
+  for (pol in pollutants)
+  {
+    # pol = pollutants[1]
+    print(paste0(toupper(pol), ":" ))
+    p = which(pollutants %in% pol)
+    
+    DF.xy = data.frame(cbind(matrix(0, ncol = length(MoI), nrow = length(MoI)), MoI))
+    DF.p = DF.xy
+    
+    for (r in seq_along(MoI))
+    {
+      for (c in seq_along(MoI))
+      {
+        class(DF.xy[,c]) = "numeric"
+        class(DF.p[,c]) = "numeric"
+        
+        DF.xy[r,c] = -1*(as.numeric(DF$Mean[DF$MoI == MoI[r] & DF$Pollutant == pol])[1] - 
+                           as.numeric(DF$Mean[DF$MoI == MoI[c] & DF$Pollutant == pol])[1])
+        
+        DF.p[r,c] = (DF.xy[r,c] / as.numeric(DF$Mean[DF$MoI == MoI[r] & DF$Pollutant == pol])[1]) * 100
+      }
+    }
+    print("Difference:")
+    DF.xy = cbind(DF.xy[,length(DF.xy)], DF.xy[,1:(length(DF.xy)-1)])
+    colnames(DF.xy) = c("MoI", MoI)
+    print(DF.xy)
+    SaveAsFile(INput = DF.xy, Filename = paste("BasicStats2", Active.Type, pol,
+                                               "Difference", sep = "_"), Format = "csv", OverwriteLayer = TRUE)
+    
+    print("Percentage:")
+    DF.p = cbind(DF.p[,length(DF.p)], DF.p[,1:(length(DF.p)-1)])
+    colnames(DF.p) = c("MoI", MoI)
+    print(DF.p)
+    SaveAsFile(INput = DF.p, Filename = paste("BasicStats2", Active.Type, pol,
+                                              "Percentage", sep = "_"), Format = "csv", OverwriteLayer = TRUE)
+  }
+  
+}
+
+BasicStatsCalculator2 <- function(Active.Type, HR_ALL, BusinesDates, ...)
+{
+  # Active.Type = "01.OW"
+  OneHour = 60**2
+  
+  SubProfilesFullPeriod = ResidentialProfiles$Subtype[ResidentialProfiles$'T-gaps' == 0 &
+                                                        ResidentialProfiles$Type == Active.Type]
+  
+  Type.Dynamics = ResidentialProfiles$Dynamics[ResidentialProfiles$Type == Active.Type][1]
+  
+  if (Type.Dynamics == "dynamic") { MoI = c("PST1", "P1", "P7")} else
+  {MoI = c("P1", "P7")}
+  
+  SubProfilesFullPeriod_MoI = SubProfilesFullPeriod[SubProfilesFullPeriod %in%
+                                                      paste0(Active.Type, "_", MoI)]
+  
+  DF = data.frame("MoI" = NA, "Phase" = NA, "Pollutant" = NA, "Mean" = NA, "SD" = NA, "pPST" = NA, "pwPST" = NA,
+                  "Median" = NA, "Min" = NA, "Max" = NA)
+  
+  for (M in SubProfilesFullPeriod_MoI)
+  {
+    # M = SubProfilesFullPeriod_MoI[1]
+    print(paste0(M, ":" ))
+    m = which(SubProfilesFullPeriod_MoI %in% M)
+    
+    HR_ALL = read.dbf(file = file.path(output.dir, M, paste0("HR_", "ALL", ".dbf")))
+    class(HR_ALL$TIME) = class(Time)
+    
+    if (ResidentialProfiles$Dynamics[ResidentialProfiles$Subtype == M] == "dynamic")
+    {
+      # Leave.P.raw = as.numeric(ResidentialProfiles$TimeLeavingPrimary[ResidentialProfiles$Subtype == M]) / 100
+      # Leave.P.Minutes = (Leave.P.raw %% 1) * 100 / 60
+      # Leave.P.StartTime = Leave.P.raw - (Leave.P.raw %% 1) + Leave.P.Minutes
+      # Leave.S.raw = as.numeric(ResidentialProfiles$TimeLeavingSecondary[ResidentialProfiles$Subtype == M]) / 100
+      # Leave.S.Minutes = (Leave.S.raw %% 1) * 100 / 60
+      # Leave.S.StartTime = Leave.S.raw - (Leave.S.raw %% 1) + Leave.S.Minutes
+      # 
+      # T1 = which(HR_ALL$TIME %in% (BusinesDates + (ceiling(Leave.P.StartTime+1))*OneHour))
+      # T2 = which(HR_ALL$TIME %in% (BusinesDates + (ceiling(Leave.S.StartTime+1))*OneHour))
+      # 
+      # Sseq = seq(ceiling(Leave.P.StartTime)+2, Leave.S.StartTime)
+      # S.List = list()
+      # for (s in Sseq)
+      # {
+      #   S.List[[s]] = BusinesDates + s*OneHour
+      # }
+      # Sdates = unlist(S.List)
+      # S = which(HR_ALL$TIME %in% Sdates)
+      # 
+      # P = which(seq_along(HR_ALL$TIME) %ni% c(T1, T2, S))
+      # 
+      # length(S)+length(P)+length(T1)+length(T2) == nrow(HR_ALL)
+      
+      P = which(HR_ALL$Pweight != 0)
+      S = which(HR_ALL$Sweight != 0)
+      T1 = which(HR_ALL$T1weight != 0)
+      T2 = which(HR_ALL$T2weight != 0)
+      # T12 = which(HR_ALL$T1weight != 0 | HR_ALL$T2weight != 0)
+      
+    } else # when static
+    {
+      
+    }
+    
+    for (pol in pollutants)
+    {
+      # pol = pollutants[1]
+      print(paste0(toupper(pol), ":" ))
+      
+      p = which(pollutants %in% pol)
+      
+      if (p == 1) {RowExtra = -1}
+      if (p == 2) {RowExtra = 0}
+      
+      # CoI = paste0(MoI[m], "_", toupper(pol))
+      CoI = paste0("EXP_", toupper(pol))
+      
+      # CoI2 = which(colnames(HR_ALL) %in% CoI)
+      
+      if (ResidentialProfiles$Dynamics[ResidentialProfiles$Subtype == M] == "dynamic")
+      {
+        PST.mean = mean(HR_ALL[,CoI])
+        PST.sd = sd(HR_ALL[,CoI])
+        PST.med = median(HR_ALL[,CoI])
+        PST.min = min(HR_ALL[,CoI])
+        PST.max = max(HR_ALL[,CoI])
+        
+        P.mean = mean(HR_ALL[P,CoI] * HR_ALL$Pweight[P])
+        P.sd = sd(HR_ALL[P,CoI] * HR_ALL$Pweight[P])
+        P.med = median(HR_ALL[P,CoI] * HR_ALL$Pweight[P])
+        P.min = min(HR_ALL[P,CoI] * HR_ALL$Pweight[P])
+        P.max = max(HR_ALL[P,CoI] * HR_ALL$Pweight[P])
+        
+        S.mean = mean(HR_ALL[S,CoI] * HR_ALL$Sweight[S])
+        S.sd = sd(HR_ALL[S,CoI] * HR_ALL$Sweight[S])
+        S.med = median(HR_ALL[S,CoI] * HR_ALL$Sweight[S])
+        S.min = min(HR_ALL[S,CoI] * HR_ALL$Sweight[S])
+        S.max = max(HR_ALL[S,CoI] * HR_ALL$Sweight[S])
+        
+        T1.mean = mean(HR_ALL[T1,CoI] * HR_ALL$T1weight[T1])
+        T1.sd = sd(HR_ALL[T1,CoI] * HR_ALL$T1weight[T1])
+        T1.med = median(HR_ALL[T1,CoI] * HR_ALL$T1weight[T1])
+        T1.min = min(HR_ALL[T1,CoI] * HR_ALL$T1weight[T1])
+        T1.max = max(HR_ALL[T1,CoI] * HR_ALL$T1weight[T1])
+        
+        T2.mean = mean(HR_ALL[T2,CoI] * HR_ALL$T2weight[T2])
+        T2.sd = sd(HR_ALL[T2,CoI] * HR_ALL$T2weight[T2])
+        T2.med = median(HR_ALL[T2,CoI] * HR_ALL$T2weight[T2])
+        T2.min = min(HR_ALL[T2,CoI] * HR_ALL$T2weight[T2])
+        T2.max = max(HR_ALL[T2,CoI] * HR_ALL$T2weight[T2])
+        
+        T.mean = mean(c(HR_ALL[T1,CoI] * HR_ALL$T1weight[T1], HR_ALL[T2,CoI] * HR_ALL$T2weight[T2]))
+        T.sd = sd(c(HR_ALL[T1,CoI] * HR_ALL$T1weight[T1], HR_ALL[T2,CoI] * HR_ALL$T2weight[T2]))
+        T.med = median(c(HR_ALL[T1,CoI] * HR_ALL$T1weight[T1], HR_ALL[T2,CoI] * HR_ALL$T2weight[T2]))
+        T.min = min(c(HR_ALL[T1,CoI] * HR_ALL$T1weight[T1], HR_ALL[T2,CoI] * HR_ALL$T2weight[T2]))
+        T.max = max(c(HR_ALL[T1,CoI] * HR_ALL$T1weight[T1], HR_ALL[T2,CoI] * HR_ALL$T2weight[T2]))
+        
+        PST_PST = PST.mean / PST.mean * 100
+        P_PST = P.mean / PST.mean * 100
+        S_PST = S.mean / PST.mean * 100
+        T1_PST = T1.mean / PST.mean * 100
+        T2_PST = T2.mean / PST.mean * 100
+        T_PST = T.mean / PST.mean * 100
+        
+        lPST = length(S)+length(P)+length(T1)+length(T2)
+        
+        wPST_PST = PST.mean*(lPST/lPST) / PST.mean*(lPST/lPST) * 100
+        wP_PST = P.mean*(length(P)/lPST) / PST.mean*(lPST/lPST) * 100
+        wS_PST = S.mean*(length(S)/lPST) / PST.mean*(lPST/lPST) * 100
+        wT1_PST = T1.mean*(length(T1)/lPST) / PST.mean*(lPST/lPST) * 100
+        wT2_PST = T2.mean*(length(T2)/lPST) / PST.mean*(lPST/lPST) * 100
+        wT_PST = T.mean*(length(c(T1,T2))/lPST) / PST.mean*(lPST/lPST) * 100
+        
+        as.character(sum(wP_PST, wS_PST, wT_PST)) == as.character(100)
+        
+        print(c(P.mean, P.sd, P_PST, wP_PST, P.med, P.min, P.max))
+        print(c(S.mean, S.sd, S_PST, wS_PST, S.med, S.min, S.max))
+        print(c(T1.mean, T1.sd, T1_PST, wT1_PST, T1.med, T1.min, T1.max))
+        print(c(T2.mean, T2.sd, T2_PST, wT2_PST, T2.med, T2.min, T2.max))
+        print(c(T.mean, T.sd, T_PST, wT_PST, T.med, T.min, T.max))
+        
+        # if (m == 1) {RowBase = 0}
+        # if (m == 2) {RowBase = 12}
+        # if (m == 3) {RowBase = 14}
+        
+        if (is.na(DF[1,1])) {R = 1}
+        if (!is.na(DF[1,1])) {R = nrow(DF)+1}
+        
+        DF[R,] = c(MoI[m], "PST", pol, PST.mean, PST.sd, PST_PST, wPST_PST, PST.med, PST.min, PST.max)
+        DF[nrow(DF)+1,] = c(MoI[m], "P",pol, P.mean, P.sd, P_PST, wP_PST, P.med, P.min, P.max)
+        DF[nrow(DF)+1,] = c(MoI[m], "S",pol, S.mean, S.sd, S_PST, wS_PST, S.med, S.min, S.max)
+        DF[nrow(DF)+1,] = c(MoI[m], "T1",pol, T1.mean, T1.sd, T1_PST, wT1_PST, T1.med, T1.min, T1.max)
+        DF[nrow(DF)+1,] = c(MoI[m], "T2",pol, T2.mean, T2.sd, T2_PST, wT2_PST, T2.med, T2.min, T2.max)
+        DF[nrow(DF)+1,] = c(MoI[m], "T",pol, T.mean, T.sd, T_PST, wT_PST, T.med, T.min, T.max)
+        
+      } else # if static
+      {
+        P.mean = mean(HR_ALL[,CoI])
+        P.sd = sd(HR_ALL[,CoI])
+        P.med = median(HR_ALL[,CoI])
+        P.min = min(HR_ALL[,CoI])
+        P.max = max(HR_ALL[,CoI])
+        
+        print(c(P.mean, P.sd, P.med, P.min, P.max))
+        
+        # if (m == 1) {RowBase = 0}
+        # if (m == 2) {RowBase = 2}
+        
+        if (is.na(DF[1,1])) {R = 1}
+        if (!is.na(DF[1,1])) {R = nrow(DF)+1}
+        
+        DF[R,] = c(MoI[m], "P", pol, P.mean, P.sd, NA, NA, P.med, P.min, P.max)
+      }
+    } # closing pol
+    # SaveAsFile(DF, paste("BasicStats1", Active.Type, sep = "_"), "csv", TRUE)
+    SaveAsFile(INput = DF, Filename = paste("BasicStats1", Active.Type, sep = "_"),
+               Format = "csv", OverwriteLayer = TRUE)
+  }
+  print(DF)
+  
+  for (pol in pollutants)
+  {
+    # pol = pollutants[1]
+    print(paste0(toupper(pol), ":" ))
+    p = which(pollutants %in% pol)
+    
+    DF.xy = data.frame(cbind(matrix(0, ncol = length(MoI), nrow = length(MoI)), MoI))
+    DF.p = DF.xy
+    
+    for (r in seq_along(MoI))
+    {
+      for (c in seq_along(MoI))
+      {
+        class(DF.xy[,c]) = "numeric"
+        class(DF.p[,c]) = "numeric"
+        
+        DF.xy[r,c] = as.numeric(DF$Mean[DF$MoI == MoI[r] & DF$Pollutant == pol])[1] - 
+          as.numeric(DF$Mean[DF$MoI == MoI[c] & DF$Pollutant == pol])[1]
+        
+        DF.p[r,c] = (DF.xy[r,c] / as.numeric(DF$Mean[DF$MoI == MoI[r] & DF$Pollutant == pol])[1]) * 100
+      }
+    }
+    print("Difference:")
+    DF.xy = cbind(DF.xy[,length(DF.xy)], DF.xy[,1:(length(DF.xy)-1)])
+    colnames(DF.xy) = c("MoI", MoI)
+    print(DF.xy)
+    SaveAsFile(INput = DF.xy, Filename = paste("BasicStats2", Active.Type, pol,
+                                               "Difference", sep = "_"), Format = "csv", OverwriteLayer = TRUE)
+    
+    print("Percentage:")
+    DF.p = cbind(DF.p[,length(DF.p)], DF.p[,1:(length(DF.p)-1)])
+    colnames(DF.p) = c("MoI", MoI)
+    print(DF.p)
+    SaveAsFile(INput = DF.p, Filename = paste("BasicStats2", Active.Type, pol,
+                                              "Percentage", sep = "_"), Format = "csv", OverwriteLayer = TRUE)
+  }
+  
+}
+
+# plotting the Basic statistics bar chart
+for (Active.Type in Types)
+{
+  # Active.Type = "01.OW"
+  
+  if (!all(file.exists(file.path(output.dir, paste0("BasicStats2", "_", Active.Type, "_", pollutants, "_", "Percentage", ".csv")))))
+  {
+    HR_ALL = read.dbf(file = file.path(output.dir, Active.Type, paste0("HR_", "ALL", ".dbf")))
+    class(HR_ALL$TIME) = class(Time)
+    
+    BasicStatsCalculator(Active.Type, HR_ALL, BusinesDates)
+  }
+  DF.BasicStats1 = read.csv(file.path(output.dir, paste0("BasicStats1", "_", Active.Type, ".csv")))
+  
+  Profiles <- c("Office workers", "Homeworkers","School pupils")
+  pro = which(Types %in% Active.Type)
+  print(Profiles[pro])
+  SubProfilesFullPeriod = ResidentialProfiles$Subtype[ResidentialProfiles$'T-gaps' == 0 &
+                                                        ResidentialProfiles$Type == Active.Type]
+  
+  Type.Dynamics = ResidentialProfiles$Dynamics[ResidentialProfiles$Type == Active.Type][1]
+  if (Type.Dynamics == "dynamic") { MoI = c("PST1", "P1", "P7")} else
+  {MoI = c("P1", "P7")}
+  
+  p.Li = list()
+  for (pol in pollutants)
+  {
+    # pol = pollutants[2]
+    polnr = which(pollutants %in% pol)
+    DF.BasicStats2_Diff = read.csv(file.path(output.dir, paste0("BasicStats2", "_", Active.Type, "_", pol, "_", "Difference", ".csv")))
+    DF.BasicStats2_Perc = read.csv(file.path(output.dir, paste0("BasicStats2", "_", Active.Type, "_", pol, "_", "Percentage", ".csv")))
+    
+    # diagram
+    data = rbind(DF.BasicStats1[DF.BasicStats1$MoI == "PST1" & DF.BasicStats1$Pollutant == pol,][1,], 
+                 DF.BasicStats1[DF.BasicStats1$MoI != "PST1" & DF.BasicStats1$Pollutant == pol,])
+    data = data[!is.na(data[,1]),]
+    
+    diffr = NA
+    Diff = NA
+    Perc = NA
+    counter = 0
+    for (cm1 in data$MoI)
+    {
+      for (cm2 in data$MoI)
+      {
+        if (cm1 == cm2) {next}
+        counter = counter+1
+        diffr[counter] = paste(cm1, cm2, sep = "~")
+        
+        Diff[counter] = DF.BasicStats2_Diff[DF.BasicStats2_Diff$MoI == cm1,cm2]
+        Perc[counter] = DF.BasicStats2_Perc[DF.BasicStats2_Perc$MoI == cm1,cm2]
+      }
+    }
+    rm(counter)
+    x = c(MoI, diffr)
+    means = c(data$Mean, rep(0, each = length(Perc)))
+    SDs = c(data$SD, rep(0, each = length(Perc)))
+    base = c(rep(0, each = length(MoI)), rep(data$Mean, each = length(MoI)-1))
+    diff = c(rep(0, each = length(MoI)), Diff)
+    text1 = c(rep('', each = length(MoI)), round(diff[(length(MoI)+1):length(diff)], 2))
+    text2 = c(paste(round(data$Mean,2), "±", paste(round(data$SD,2))), paste(round(Perc, 2), "%"))
+    
+    
+    FillCol = diff
+    FillCol[diff == 0] = 'rgba(55, 128, 191, 0.7)'
+    FillCol[diff < 0] = 'rgba(219, 64, 82, 0.7)'
+    FillCol[diff > 0] = 'rgba(35, 139, 69, 0.7)'
+    LineCol = diff
+    LineCol[diff == 0] = 'rgba(55, 128, 191, 1)'
+    LineCol[diff < 0] = 'rgba(219, 64, 82, 1)'
+    LineCol[diff > 0] = 'rgba(35, 139, 69, 1)'
+    
+    ErrorBars = FALSE
+    if (ErrorBars) {ErCol = 'black'} else {ErCol = 'rgba(55, 128, 191, 0)'}
+    
+    p <- plot_ly(x = x, y = base, type = 'bar', marker = list(color = 'rgba(1,1,1, 0.0)')) %>%
+      add_trace(y = means, text = text1 , textposition = 'auto', error_y = list(array = SDs, color = ErCol),
+                marker = list(color = 'rgba(55, 128, 191, 0.7)',
+                              line = list(color = 'rgba(55, 128, 191, 0.7)', width = 2))) %>%
+      add_trace(y = diff, text = text2, textposition = 'auto',
+                marker = list(color = FillCol, line = list(color = LineCol, width = 2))) %>%
+      layout(title = paste0('Mean ', toupper(pol), ' concentrations and differences for ', Profiles[pro]),
+             xaxis = list(title = "Calculation methods"),
+             yaxis = list(title = "??g/m³", range = c(min(data$Mean)-2,max(data$Mean)+2)),
+             barmode = 'stack',
+             # paper_bgcolor = 'rgba(245, 246, 249, 1)',
+             # plot_bgcolor = 'rgba(245, 246, 249, 1)',
+             showlegend = FALSE)
+    
+    print(c(min(data$Mean)-2,max(data$Mean)+2))
+    print(pol)
+    p.Li[[polnr]] = p
+    
+    CurrentDateAndTime = Sys.time() + 2*60**2
+    NamePlotType = "GISCAPE_MeanConcentrations"
+    NameForInteractivePlot = paste(NamePlotType, Active.Type, toupper(pol),
+                                   paste0(format(CurrentDateAndTime, "%Y"), format(CurrentDateAndTime, "%m"),
+                                          format(CurrentDateAndTime, "%d")), paste0(format(CurrentDateAndTime, "%H%M")),
+                                   sep = "_")
+    
+    widget_out = gsub(pattern = "backend/src", replacement = paste0("frontend/html/", NameForInteractivePlot, ".html"), x = getwd())
+    htmlwidgets::saveWidget(p, widget_out)
+
+    Sys.sleep(5)
+    
+    rm(p)
+  } # closing pol
+  p.Li[[1]]
+  p.Li[[2]]
+  
+} # closing Active.Type
+
+
+
+# Box plot
+dataBox = head(HR_ALL, GroupSize*24*2)
+
+p <- plot_ly(y = HR_ALL$P1_NO2, type = "box") %>%
+  add_trace(y = ~rnorm(50, 1))
+
+p <- plot_ly(data = dataBox, x = "test_x", y = ~PST1_NO2, type = "box") %>%
+  layout(boxmode = "group")
+p
+
+p <- plot_ly(data = HR_ALL, x = "test_x", y = ~PST1_NO2, type = "box") %>%
+  layout(boxmode = "group")
+
+Profiles <- c("Office workers", "Homeworkers","School pupils")
+pol = pollutants[1]
+
+CurrentDateAndTime = Sys.time() + 1*60**2
+NameForInteractivePlot = paste("GISCAPE_SummaryStats", Profiles[1], toupper(pol),
+                               paste0(format(CurrentDateAndTime, "%Y"), format(CurrentDateAndTime, "%m"),
+                                      format(CurrentDateAndTime, "%d")), paste0(format(CurrentDateAndTime, "%H%M")),
+                               sep = "_")
+
+widget_out = gsub(pattern = "backend/src", replacement = paste0("frontend/html/", NameForInteractivePlot, ".html"), x = getwd())
+htmlwidgets::saveWidget(p, widget_out)
+
+# regular box plot
+boxplot(data = dataBox, x = dataBox$PST1_NO2, y = ~PST1_NO2, main = "SummaryStats",
+        xlab = "test_x", ylab = "??g/m^3")
+
+box1 = boxplot(data = HR_ALL, x = HR_ALL$PST1_NO2, y = ~PST1_NO2, main = "SummaryStats",
+               xlab = "test_x", ylab = "??g/m^3")
+points(max(HR_ALL$PST1_NO2), col = "red", pch = 2)
+points(min(HR_ALL$PST1_NO2), col = "red", pch = 6)
+points(mean(HR_ALL$PST1_NO2), colour = "green", pch = 151)
+
+# efficient box plot (without crashes on large data)
+statsWS = c(quantile(HR_ALL$PST1_NO2), mean(HR_ALL$PST1_NO2), sd(HR_ALL$PST1_NO2))
+names(statsWS)[6] = "Mean"
+names(statsWS)[7] = "SD"
+
+
+# violin plot
+df <- read.csv("https://raw.githubusercontent.com/plotly/datasets/master/violin_data.csv")
+df = dataBox
+
+p <- df %>%
+  plot_ly(x = "test_x", y = ~PST1_NO2, type = 'violin', #split = ~day
+          box = list(visible = T), meanline = list(visible = T)) %>% 
+  layout(xaxis = list(title = "Day"),
+         yaxis = list(title = "Total Bill", zeroline = F)
+  )
+p
+
+p = plot_ly(data = df, x = "test_x", y = ~PST1_NO2, type = 'violin', #split = ~day
+            box = list(visible = T), meanline = list(visible = T)) %>% 
+  
+  
+  unloadNamespace("sqldf")
+
+gg.box = ggplot(dataBox[3], aes(x = colnames(dataBox[3]), y = PST1_NO2)) + 
+  geom_boxplot(outlier.shape = NA) + #avoid plotting outliers twice
+  #geom_jitter(position = position_jitter(width = .1, height = 0), alpha=I(0.01)) +
+  geom_point(y = max(dataBox[3]), colour = "red", pch = 2) +
+  geom_point(y = min(dataBox[3]), colour = "red", pch = 6) +
+  geom_point(y = mean(dataBox[3]), colour = "green", pch = 151) +
+  ggtitle(paste0('Summarized ', toupper(pol), ' concentrations and differences for ', Profiles[pro]))
+gg.box
+
+gg.box = ggplot(HR_ALL[3], aes(x = colnames(HR_ALL[3]), y = PST1_NO2)) + 
+  geom_boxplot(outlier.shape = NA) + #avoid plotting outliers twice
+  #geom_jitter(position = position_jitter(width = .1, height = 0), alpha=I(0.01)) +
+  geom_point(y = max(HR_ALL[3]), colour = "red", pch = 2) +
+  geom_point(y = min(HR_ALL[3]), colour = "red", pch = 6) +
+  geom_point(y = mean(HR_ALL[3]), colour = "green", pch = 151) +
+  ggtitle(paste0('Summarized ', toupper(pol), ' concentrations and differences for ', Profiles[pro]))
+gg.box
+
+
+
+# pie charts for yearly EXC
+
+p = Plot.EXCpie("01.OW",EXC_OW_1Y_NO2_PST1.perc, EXC_OW_1Y_PM25_PST1.perc, "Online")
+p
+p = Plot.EXCpie("03.SP", EXC_SP_1Y_NO2_PST1.perc, EXC_SP_1Y_PM25_PST1.perc, "Online")
+p
+p = Plot.EXCpie("02.HO", EXC_OW_1Y_NO2_P1.perc, EXC_OW_1Y_PM25_P1.perc, "Online")
+p
+
+# Individual hourly EXC percentages
+Profiles2 = c("Office workers", "School pupils", "Homeworkers")
+Col.Profiles = c("#2c7bb6", "#fdae61", "#b8e186")
+
+p = Plot.EXCpercentages(EXC_OW_1H_NO2, EXC_SP_1H_NO2, EXC_HO_1H_NO2,
+                        Profiles2, Col.Profiles, pollutants[1], GroupSize, "Online")
+p
+p = Plot.EXCpercentages(EXC_OW_1H_PM25, EXC_SP_1H_PM25, EXC_HO_1H_PM25,
+                        Profiles2, Col.Profiles, pollutants[2], GroupSize, "Online")
+p
+
+
+
+
+p = Plot.EXCpercentages2(EXC_OW_1H_PM25_PST1, EXC_OW_1H_PM25_P1, EXC_OW_1H_PM25_P7,
+                         EXC_SP_1H_PM25_PST1, EXC_SP_1H_PM25_P1, EXC_SP_1H_PM25_P7,
+                         EXC_HO_1H_PM25_P1, EXC_HO_1H_PM25_P7,
+                         Profiles2, Col.Profiles, pollutants[2], GroupSize)
+p
+
+# Individual hourly EXC frequncies
+
+p = Plot.EXCfrequences(EXC_OW_1H_NO2, EXC_SP_1H_NO2, EXC_HO_1H_NO2,
+                         Profiles2, Col.Profiles, pollutants[1], Location = "Online")
+p
+
+p = Plot.EXCfrequences(EXC_OW_1H_PM25, EXC_SP_1H_PM25, EXC_HO_1H_PM25,
+                       Profiles2, Col.Profiles, pollutants[2], Location = "Online")
+p
 
 
 ## Cumsum (for nice graph, with AQ standards)
 
 for (Active.Type in Types)
 {
-  # Active.Type = Types[1]
+  # Active.Type = Types[2]
   HR_ALL = read.dbf(file = file.path(output.dir, Active.Type, paste0("HR_ALL", ".dbf")))
-
+  
   class(HR_ALL$TIME) = class(Time)
   
-  for (cm in 3:length(HR_ALL))
-  {
-    CumSum = tapply(HR_ALL[,cm], HR_ALL[,"IND"], cumsum)
-    cum = unlist(CumSum)
-    BaseHR = HR_ALL[, c("TIME", "IND")]
-    BaseHR = BaseHR[order(BaseHR$IND),]
-    DF.CumSum = cbind(BaseHR, cum)
-    
-    # Plot.CumExposureGraph2(DF.CumSum[DF.CumSum$IND == 1:GroupSize,], pol)
-    Plot.CumExposureGraph2(DF.CumSum, pol)
-    #Plot.CumExposureGraph2(DF.CumSum[DF.CumSum$IND == 1:250,], pol)
-    
-    DF.CumSum2 = DF.CumSum[DF.CumSum$TIME == tail(Time,1),]
-    DF.CumSum3 = DF.CumSum2[order(DF.CumSum2$cum, decreasing = TRUE),]
-    
-    head(DF.CumSum3, 10)
-    
-    
-  }
-    
-    # Query, Pie chart / donut plot
-  for (cm in 3:length(HR_ALL))
-  {
-    print(HR_ALL[HR_ALL[, cm] > 150, c(1,2,cm)])
-    
-    
-    
-  }
-  HR_ALL[HR_ALL[, (3:length(HR_ALL))] > 150,]
+  pol = pollutants[2]
   
-    # How many individuals above 150?
-    HR_ALL[HR_ALL$PST1_NO2 > 150,]
-    
-    # How many individuals of 1000?
-    nrow(HR_ALL[HR_ALL$PST1_NO2 > 100,])
-    nrow(HR_ALL[HR_ALL$PST1_PM25 > 100,])
-    
-    # # Input the ad data
-    # ad = data.frame(
-    #   type = c("Poster", "Billboard", "Bus", "Digital"),
-    #   n = c(529, 356, 59, 81)
-    # )
-    # 
-    # # Add addition columns to data, needed for donut plot.
-    # ad$fraction = ad$n / sum(ad$n)
-    # ad$ymax = cumsum(ad$fraction)
-    # ad$ymin = c(0, head(ad$ymax, n = -1))
-    # 
-    # ggplot(data = ad, aes(fill = type, ymax = ymax, ymin = ymin, xmax = 4, xmin = 3)) +
-    #   geom_rect(colour = "grey30", show_guide = FALSE) +
-    #   coord_polar(theta = "y") +
-    #   xlim(c(0, 4)) +
-    #   theme_bw() +
-    #   theme(panel.grid=element_blank()) +
-    #   theme(axis.text=element_blank()) +
-    #   theme(axis.ticks=element_blank()) +
-    #   geom_text(aes(x = 3.5, y = ((ymin+ymax)/2), label = type)) +
-    #   xlab("") +
-    #   ylab("")
-    # 
-    
-  } # closing cm
+  # Calculation method and pollutant of interest
+  CMoI_PoI = colnames(HR_ALL)[grepl(MoI[1], colnames(HR_ALL)) & grepl(toupper(pol), colnames(HR_ALL))]
+  
+  cm = which(colnames(HR_ALL) %in% CMoI_PoI)
+  DF.CumSum = cbind(HR_ALL[, c("TIME", "IND")][order(HR_ALL[, c("TIME", "IND")]$IND),],
+                    unlist(tapply(HR_ALL[,cm], HR_ALL[,"IND"], cumsum)))
+  colnames(DF.CumSum)[3] = "cum"
+  class(DF.CumSum$TIME) = class(Time)
+  
+  DF.CumSum[,4] = as.integer(DF.CumSum[,3])
+  colnames(DF.CumSum)[4] = "cumInt"
+  
+  # 
+  # for (cm in 3:length(HR_ALL))
+  # {
+  #   # CumSum = tapply(HR_ALL[,cm], HR_ALL[,"IND"], cumsum)
+  #   # cum = unlist(CumSum)
+  #   # BaseHR = HR_ALL[, c("TIME", "IND")]
+  #   # BaseHR = BaseHR[order(BaseHR$IND),]
+  #   # DF.CumSum = cbind(BaseHR, cum)
+  #   
+  #   
+  #   # Plot.CumExposureGraph2(DF.CumSum[DF.CumSum$IND == 1:GroupSize,], pol)
+  #   # Plot.CumExposureGraph2(DF.CumSum, pol)
+  #   #Plot.CumExposureGraph2(DF.CumSum[DF.CumSum$IND == 1:250,], pol)
+  #   
+  #   # DF.CumSum2 = DF.CumSum[DF.CumSum$TIME == tail(Time,1),]
+  #   # DF.CumSum3 = DF.CumSum2[order(DF.CumSum2$cum, decreasing = TRUE),]
+  #   # 
+  #   # head(DF.CumSum3, 10)
+  # }
+  # 
+  # # Query, Pie chart / donut plot
+  # for (cm in 3:length(HR_ALL))
+  # {
+  #   print(HR_ALL[HR_ALL[, cm] > 150, c(1,2,cm)])
+  # }
+  # HR_ALL[HR_ALL[, (3:length(HR_ALL))] > 150,]
+  
+  # How many individuals above 150?
+  HR_ALL[HR_ALL$PST1_NO2 > 150,]
+  
+  # How many individuals of 1000?
+  nrow(HR_ALL[HR_ALL$PST1_NO2 > 100,])
+  nrow(HR_ALL[HR_ALL$PST1_PM25 > 100,])
+  
+  # CUM EXP and EXC hourly
+  p = Plot.CumExposureGraph4(Active.Type, Time, DF.CumSum, pol, EXC_OW_1H_PM25_PST1, "Local", 2)
+  
   
 } # closing Active.Type
 
 
+
+
+
+p = Plot.CumExposureGraph3(Active.Type, DF.CumSum, pol, EXC_OW_1H_NO2_PST1)
+p
+
+p <- plot_ly(x = EXC_OW_1H_PM25, type = "histogram") %>%
+  layout(title="Office Workers that exceeded WHO health standard of 60 µg/m³ for PM2.5")
+p
+
+p = plot_ly(alpha = 0.3, xbins = list(start=0, end = EXCrange[2], size = 1)) %>%
+  add_histogram(x = EXC_OW_1H_PM25) %>%
+  add_histogram(x = EXC_SP_1H_PM25) %>%
+  add_histogram(x = EXC_HO_1H_PM25) %>%
+  layout(barmode = "stack", title="Office Workers that exceeded WHO health standard of 60 µg/m³ for PM2.5")
+# barmode = "stack" / "overlay"
+p
+
+## Exceedence Histograms
+hist(EXC_OW_1H_PM25)
+
+d1 = density(EXC_OW_1H_PM25, bw = 1)
+d2 = density(EXC_SP_1H_PM25, bw = 1)
+d3 = density(EXC_HO_1H_PM25, bw = 1)
+
+EXCrange = range(c(EXC_OW_1H_PM25, EXC_SP_1H_PM25, EXC_HO_1H_PM25))
+
+f.test = hist(EXC_OW_1H_PM25, xlim = EXCrange, ylim = NULL, breaks = diff(EXCrange))
+length(which(EXC_OW_1H_PM25 == 20))
+
+
+d1[[1]][d1[[1]] < 0] = NA
+d1[[2]][d1[[1]] < 0] = NA
+
+d2[[1]][d2[[1]] < 0] = NA
+d2[[2]][d2[[1]] < 0] = NA
+
+d3[[1]][d3[[1]] < 0] = NA
+d3[[2]][d3[[1]] < 0] = NA
+
+f1 = d1[1:2]
+f1[[2]] = f1[[2]] * GroupSize*10
+
+f2 = d2[1:2]
+f2[[2]] = f2[[2]] * GroupSize*10
+
+f3 = d3[1:2]
+f3[[2]] = f3[[2]] * GroupSize*10
+
+
+Col.Profiles = c("#2c7bb6", "#fdae61", "#b8e186")
+Col.Profiles2 = c("red", "blue", "green")
+
+plot(f1, col= Col.Profiles[1], type = "l", lwd=2, main = paste0("Exceedances frequencies for ", toupper(pol)),
+     xlab = "Amount of exceedances", ylab = "Frequency", 
+     xlim = c(0,max(c(EXC_OW_1H_PM25, EXC_SP_1H_PM25, EXC_HO_1H_PM25))),
+     ylim = c(0,max(c(f1[[2]], f2[[2]], f3[[2]])) + 25))
+lines(f2, col = Col.Profiles[2], lwd=2)
+lines(f3, col = Col.Profiles[3], lwd=2)
+
+legend("topleft", c("Office workers", "School pupils", "Office @home"), xpd = FALSE, horiz = TRUE, inset = c(0,0),
+       bty = "n", bg = "grey", cex = 1, pch = 22, pt.bg = Col.Profiles)
+
+
+
+
+
+
+p = plot_ly(x = ~rnorm(50), type = "histogram", breaks = 50)
+p
+
+price_hist <- function(method = "FD") {
+  # h <- hist(EXC, breaks = method, plot = FALSE)
+  # plot_ly(x = h$mids, y = h$counts) %>% add_bars(name = method)
+  # plot_ly(x = h$mids, y = h$counts) %>% add_bars(name = method)
+  
+  y = NA
+  x = seq(0, max(EXC), 1)
+  for (e in x)
+  {
+    y[e+1] = length(which(EXC == e))
+  }
+  # df.Li[[pr]] = data.frame(x,y)
+  
+  plot_ly(x = x, y = y) %>% add_bars(name = method)
+}
+
+test = price_hist()
+test
+
+length(which(EXC == 0))
+
+
+## Make some sample data
+x <- sample(0:30, 200, replace=T, prob=15 - abs(15 - 0:30))
+
+## Calculate and plot the two histograms
+hcum <- h <- hist(x, plot=FALSE, breaks = diff(EXCrange))
+hcum$counts <- cumsum(hcum$counts)
+plot(hcum, main="")
+plot(h, add=T, col="grey")
+
+## Plot the density and cumulative density
+d <- density(x)
+lines(x = d$x, y = d$y * length(x) * diff(h$breaks)[1], lwd = 2)
+lines(x = d$x, y = cumsum(d$y)/max(cumsum(d$y)) * length(x), lwd = 2)
+
+hcum <- h <- hist(df.Li[[1]], plot=TRUE, breaks = diff(EXCrange))
+plot(df.Li[[1]])
+points(, col = "red")
+
+
+myhist <- hist(x, plot = FALSE)
+dens <- density(x)
+# axis(side=1, at=seq(0,100, 20), labels=seq(0,100,20))
+
+freqs.y = dens$y*(1/sum(myhist$density))*length(x)
+plot(dens$x,freqs.y)
+
+
+
+
+p = plot_ly() %>%
+  add_trace(p, data = d, x = d$x, y = d$y * length(x) * diff(h$breaks)[1], name = Profiles2[1], type="scatter", mode="lines",
+            color = I(Col.Profiles)[1], alpha = 0.5, sizes = 0.75)
+p
+
+# x <- 1:10
+# y <- c(2,4,6,8,7,12,14,16,18,20)
+# lo <- loess(y~x)
+# plot(x,y)
+# lines(predict(lo), col='red', lwd=2)
+# 
+# smoothingSpline = smooth.spline(x, y, spar=0.1)
+# plot(x,y)
+# lines(smoothingSpline)
+# 
+# plot(x,y)
+# xl <- seq(min(x),max(x), (max(x) - min(x))/1000)
+# lines(xl, predict(lo,xl), col='red', lwd=2)
+
+# % plot exccedances
+
+
+
+
+
+y1 = NA
+x1 = seq(0, max(EXC_OW_1H_PM25), 1)
+for (e in x1)
+{
+  y1[e+1] = length(which(EXC_OW_1H_PM25 > e))
+}
+y1 = y1 / GroupSize * 100
+df1 = data.frame(x1,y1)
+
+y2 = NA
+x2 = seq(0, max(EXC_SP_1H_PM25), 1)
+for (e in x2)
+{
+  y2[e+1] = length(which(EXC_SP_1H_PM25 > e))
+}
+y2 = y2 / GroupSize * 100
+df2 = data.frame(x2,y2)
+
+y3 = NA
+x3 = seq(0, max(EXC_HO_1H_PM25), 1)
+for (e in x3)
+{
+  y3[e+1] = length(which(EXC_HO_1H_PM25 > e))
+}
+y3 = y3 / GroupSize * 100
+df3 = data.frame(x3,y3)
+
+
+plot(df1, col= Col.Profiles[1], type = "l", lwd=2, main = paste0("% of exceedances for ", toupper(pol)),
+     xlab = "Amount of exceedances", ylab = "%", 
+     xlim = c(0,max(c(EXC_OW_1H_PM25, EXC_SP_1H_PM25, EXC_HO_1H_PM25))),
+     ylim = c(0, 110))
+lines(df2, col = Col.Profiles[2], lwd=2)
+lines(df3, col = Col.Profiles[3], lwd=2)
+
+Profiles2 = c("Office workers", "School pupils", "Office @home")
+
+legend("topright", Profiles2, xpd = FALSE, horiz = TRUE, inset = c(0,0),
+       bty = "n", bg = "grey", cex = 1, pch = 22, pt.bg = Col.Profiles)
+
+
+# in plotly
+p = plot_ly(df1, x = ~x1, y = ~y1, name = Profiles2[1],
+            type="scatter", mode="markers", color = I(Col.Profiles[1]), alpha = 0.5, sizes = 0.75) %>%
+  layout(
+    images = list(
+      list(source = "https://raw.githubusercontent.com/wschuc002/ThesisWS/master/backend/img/GISCAPE_150px_2.png?raw=true",
+           xref = "paper",
+           yref = "paper",
+           x= 0,
+           y= 1,
+           sizex = 0.2,
+           sizey = 0.2,
+           opacity = 1
+      )
+    )
+  )
+
+p = add_trace(p, data = df2, x = ~x2, y = ~y2, name = Profiles2[2], type="scatter", mode="markers",
+              color = I(Col.Profiles)[2], alpha = 0.5, sizes = 0.75)
+p = add_trace(p, data = df3, x = ~x3, y = ~y3, name = Profiles2[3], type="scatter", mode="markers",
+              color = I(Col.Profiles)[3], alpha = 0.5, sizes = 0.75)
+p
+
+p
+
+
+
+## 
+
+EXC_NO2_ = c(length(which(EXC_OW_1H_NO2 > 0)), length(which(EXC_HO_1H_NO2 > 0)), length(which(EXC_SP_1H_NO2 > 0)))
+EXC_NO2 = EXC_NO2*GroupSize*100
+EXC_PM25 = c(length(which(EXC_OW_1H_NO2 > 0)), length(which(EXC_HO_1H_NO2 > 0)), length(which(EXC_SP_1H_NO2 > 0)))
+EXC_PM25 = EXC_NO2*GroupSize*100
+data <- data.frame(Types, EXC_NO2, EXC_PM25)
+
+p <- plot_ly(data, x = ~Animals, y = ~SF_Zoo, type = 'bar', name = 'SF Zoo') %>%
+  add_trace(y = ~LA_Zoo, name = 'LA Zoo') %>%
+  layout(yaxis = list(title = 'Count'), barmode = 'stack')
+
+x = c("Office Worker", "School Pupil", "Office @ Home")
+y = c(length(which(EXC_OW_1H_PM25 > 0)), length(which(EXC_SP_1H_PM25 > 0)), length(which(EXC_HO_1H_PM25 > 0)))
+y = y/GroupSize*100
+y2 = c(length(which(EXC_OW_1H_PM25 > 20)), length(which(EXC_SP_1H_PM25 > 20)), length(which(EXC_HO_1H_PM25 > 20)))
+y2 = y2/GroupSize*100
+text <- c('27% market share', '24% market share', '19% market share')
+data <- data.frame(x, y, y2, text)
+
+p <- data %>% 
+  plot_ly() %>%
+  add_trace(x = ~x, y = ~y, type = 'bar', name='1 or more', 
+            text = y, textposition = 'auto',
+            marker = list(color = '#fdbb84',
+                          line = list(color = 'rgb(50,50,50)', width = 1))) %>%
+  add_trace(x = ~x, y = ~y2, type = 'bar', name='20+', 
+            text = y2, textposition = 'auto',
+            marker = list(color = '#e34a33',
+                          line = list(color = 'rgb(50,50,50)', width = 1))) %>%
+  layout(title = "Exceedeces WHO health standard of 60 µg/m³ for PM2.5",
+         barmode = 'group',
+         xaxis = list(title = ""),
+         yaxis = list(title = ""))
+p
+
 ### END OF USED CODE
+Sys.setenv(TZ = OriginalTimezone) # changed timezone to its original state
+
+
+
+
+
 
 ### Biweekly subset
 for (Active.Type in Types)
 {
-  # SubProfilesFullPeriod = ResidentialProfiles$Subtype[ResidentialProfiles$'T-gaps' == 0 &
-  #                                                           ResidentialProfiles$Type == Active.Type][c(1,2,5)]
+  SubProfilesFullPeriod = ResidentialProfiles$Subtype[ResidentialProfiles$'T-gaps' == 0 &
+                                                        ResidentialProfiles$Type == Active.Type][c(1,2,5)]
   # SubProfilesBiweeklyPeriod = ResidentialProfiles$Subtype[ResidentialProfiles$'T-gaps' == 1 &
   #                                                       ResidentialProfiles$Type == Active.Type][c(1,2,5)]
   
@@ -1925,7 +3080,7 @@ for (Active.Subtype in SubProfilesBiweeklyPeriod[1:2])
   
   
   ## reversed
-  Fragments = 1:10
+  Fragments = 1:20
   DaySplit = length(YearDates)/length(Fragments)
   SeqFragment = floor(seq(0, length(YearDates), DaySplit))
   
@@ -2861,9 +4016,9 @@ for (i in seq_along(ExposureValue.P)) # per individual
 {
   ExposureValueCum.P[[i]] = cumsum(unlist(ExposureValue.P[[i]]))
   TIME.unlisted.P[[i]] = unlist(TIME.P[[i]])
-
+  
   ExposureValueCumYear.P[i] = tail(ExposureValueCum.P[[i]],1)
-
+  
   ExposureValue.unlisted.P[[i]] = unlist(ExposureValue.P[[i]])
 }
 # 
@@ -2896,9 +4051,9 @@ for (i in seq(1,3))
   {
     diff = ExposureValueCum.P[[i]][h+Hours-1]-ExposureValueCum.P[[i]][h]
     ExposureValueDiff[[i]][h] = diff > norm # only first hour of serie
-
+    
     #ExposureValueDiff2[[i]][h:(h+Hours-1)] = ExposureValueDiff[[i]][h] # for complete serie
-
+    
   }
 }
 # 
