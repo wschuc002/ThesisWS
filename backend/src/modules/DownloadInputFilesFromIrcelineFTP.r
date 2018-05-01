@@ -33,7 +33,7 @@ DownloadInputFilesFromIrcelineFTP <- function(Filenames, ftp.pwd, out.dir, pol, 
   outpol.dir = file.path(out.dir, toupper(pol))
   if (!dir.exists(outpol.dir)) { dir.create(outpol.dir) }
   
-  if (all(file.exists(file.path(Filenames))))
+  if (!all(file.exists(file.path(outpol.dir, Filenames))))
   {
     for (f in Filenames)
     {
