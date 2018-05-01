@@ -183,7 +183,6 @@ csv.SchoolHolidays_in = file.path("..", "data", "BE_FL", "SchoolHolidays.csv")
 SchoolHolidays = fread(csv.SchoolHolidays_in, sep = ";", header=TRUE)
 
 # Set the seed for reproducible results
-ReproduceMode = FALSE
 if (ReproduceMode)
 {
   # Separate SeedNr to prevent PPH.P being identical for all profiles
