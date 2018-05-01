@@ -67,18 +67,18 @@ source("modules/HourOfTheYear.r")
 source("modules/Interpolate.r")
 source("modules/ExtractBZ2.r")
 source("modules/SimplifyRoutes.r")
-#source("modules/CreateCorrespondingDateAndTime.r")
+source("modules/CreateCorrespondingDateAndTime.r")
 source("modules/DataFraming.r")
 source("modules/BiWeekly.r")
 source("modules/ToHourValues.r")
 source("modules/DBFreader.r")
-#source("modules/AreaOfInterest.r")
 source("modules/SummaryStatistics.r")
-#source("modules/util.r")
 source("modules/DrivingLinearDistanceRatio.r")
 source("modules/BaseAQnetwork.r")
-#source("modules/RasterMunicipality.r")
 source("modules/MeanMunicipality.r")
+#source("modules/AreaOfInterest.r")
+#source("modules/RasterMunicipality.r")
+#source("modules/util.r")
 
 ### Set time zone ###
 OriginalTimezone = Sys.timezone(location = TRUE) # All system settings should be changed to its original state at the end of the code
@@ -86,7 +86,7 @@ Sys.setenv(TZ = "GMT")
 
 ### Settings
 DownloadMode = "OneDrive" # "FPT"
-DriveLetter = "T" # NA (default/local/repository) or e.g. "T" (this is the letter of the external drive to use)
+DriveLetter = NA # NA (default/local/repository) or e.g. "T" (this is the letter of the external drive to use)
 # The required free space is 400 GB
 
 ReproduceMode = TRUE
@@ -217,9 +217,10 @@ HealthStandards = fread(csv.HealthStandards_in, sep=",", header=TRUE)
 # Beginning of profile based code
 
 MoI = c("PST1", "P1", "P7") # Methods of Interest
+DownloadMode = "FTP" # In case you still want to use the FTP server for the AQ data.
 
-for (Active.Type in Types)
-  #for (Active.Type in Types[c(2,3)])
+# for (Active.Type in Types)
+for (Active.Type in Types[3])
 {
   #Active.Type = Types[1]
   print(Active.Type)
@@ -460,7 +461,7 @@ for (Active.Type in Types)
       
       TimeTakenInterpolation = NA
       for (f in Fragments)
-        #for (f in 2:10)  
+      # for (f in 1)  
       { # implement EXP_pol ST.DF and HR recognition
         print(paste("Testing if HR exists of Fragment", f))
         if (file.exists(file.path(output.dir, paste0(Active.Subtype, "_", f),
