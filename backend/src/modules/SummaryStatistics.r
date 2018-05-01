@@ -15,7 +15,8 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 ## Check for required packages and install them (incl dependencies) if they are not installed yet.
-list.of.packages <- c("corrplot", "lattice", "ggplot2", "plyr", "plotly", "rmarkdown")
+list.of.packages <- c("corrplot", "lattice", "ggplot2", "plotly","htmlwidgets", "RCurl", "rmarkdown", 
+                      "knitr")
 new.packages <- list.of.packages[!(list.of.packages %in% installed.packages()[,"Package"])]
 if(length(new.packages)) install.packages(new.packages)
 
@@ -27,7 +28,7 @@ library(plotly)
 library(htmlwidgets)
 library(RCurl)
 library(rmarkdown)
-library(rjson)
+# library(rjson)
 library(knitr)
 
 
