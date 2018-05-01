@@ -87,6 +87,7 @@ LinkPointsToTime.Transport <- function(Direction.T, PPH.T, PPH.T.SP, Year, Activ
     MinutesPerLinepartCum = cumsum(MinutesPerLinepart)
     
     TimeVertex = TimeLeaveFrom + MinutesPerLinepartCum*60
+    TimeVertex = c(TimeLeaveFrom, TimeVertex)
     
     # for (t in seq_along(PPH.T.SP[[i]]))
     # {
