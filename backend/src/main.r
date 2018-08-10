@@ -21,9 +21,12 @@
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 ## TESTED ON WINDOWS 7 (64-bit), 8GB RAM, R v3.3.3, Timezone UTC+01:00
+## TESTED ON WINDOWS 10 (64-bit), 4GB RAM, R v3.4.0, Timezone UTC+01:00
 
-## TODO:  - Improve readability
-##        - ?Introduce "spacetime" package and test is.
+## TODO:  - Improve readability;
+##        - Test reproducibility of main exposure calculation (PC1 vs. PC2);
+##        - Support OneDrive download for AQ data;
+##        - Test DownloadInputFilesFromIrcelineFTP when bz2-files are (partly) missing;
 ##        - ...
 
 ## Clear the workspace?
@@ -41,8 +44,8 @@ if (Clear.WorkSpace)
 ## Check with: getwd() | example how to change: setwd("C:/git/ThesisWS/backend/src")
 
 ## Note 3a: To download the input data from OneDrive you need a KEY file (KEY_InputData.csv),
-## which should be placed in backend/data/.
-## Note 3b: To download the input data from the irceline ftp server, you need a password.
+## which should be placed in "../backend/data" manually.
+## Note 3b: To download the input data from the Irceline ftp server, you need a password.
 ## This password should we filled between the double quotes.
 ftp.pwd = "schuch:<passwordhere>" # fill in the password, without < >
 
@@ -86,12 +89,15 @@ Sys.setenv(TZ = "GMT")
 
 ### Settings
 DownloadMode = "OneDrive" # "FPT"
-DriveLetter = NA # NA (default/local/repository) or e.g. "T" (this is the letter of the external drive to use)
+DriveLetter = "I" # NA (default/local/repository) or e.g. "T" (this is the letter of the external drive to use)
+OutputsOnExternalDrive = FALSE
 # The required free space is 400 GB
 
 ReproduceMode = TRUE
 pollutants = c("no2", "pm25")
 GroupSize = 1000 # size per residential profile
+PlotResults = FALSE
+OrgFragments = 1:20
 
 ### Download data from OneDrive or irceline ftp server ###
 # create 'data' and 'data/BE' folder in case it does not exist
@@ -107,6 +113,11 @@ if (!is.na(DriveLetter))
   aq.dir = file.path(paste0(DriveLetter, ":" ), "RIO-IFDM")
 }
 if (!dir.exists(aq.dir)) { dir.create(aq.dir) }
+
+# create 'output' folder in case it does not exist
+if (OutputsOnExternalDrive == FALSE){ output.dir = file.path("..", "output")}
+if (OutputsOnExternalDrive == TRUE) { output.dir = file.path(paste0(DriveLetter, ":" ), "output")}
+if (!dir.exists(output.dir)) { dir.create(output.dir) }
 
 ## ONE DRIVE
 
@@ -155,16 +166,13 @@ Types = unique(ResidentialProfiles$Type)
 csv.Commuting_in = file.path("..", "data", "BE_FL", "CommutingStats.csv")
 Commuting = fread(csv.Commuting_in, sep=",", header=TRUE)
 
-# create 'output' folder in case it does not exist
-output.dir = file.path("..", "output")
-if (!dir.exists(output.dir)) { dir.create(output.dir) }
-
 # Read Flanders polygon)
 Flanders = getData("GADM",country = "Belgium", level = 1, path = output.dir)
 Flanders = Flanders[Flanders@data$NAME_1 == "Vlaanderen",]
 Flanders = spTransform(Flanders, BE_crs)
 Flanders@proj4string = BE_crs
 Flanders@data$NAME_1_EN = "Flanders"
+if (PlotResults) {plot (Flanders)}
 #SaveAsFile(Flanders, "Flanders", "GeoJSON", TRUE)
 
 # Set year of pollutant dataset, determine dates and date types (Workdays~Weekends)
@@ -218,11 +226,52 @@ HealthStandards = fread(csv.HealthStandards_in, sep=",", header=TRUE)
 MoI = c("PST1", "P1", "P7") # Methods of Interest
 DownloadMode = "FTP" # In case you still want to use the FTP server for the AQ data.
 
-# for (Active.Type in Types)
-for (Active.Type in Types[3])
+# Perform main exposure calculations per type (OW, HO and SP)
+for (Active.Type in Types)
 {
-  #Active.Type = Types[1]
+  #Active.Type = Types[3]
   print(Active.Type)
+  
+  # ## Check which output data is already present inside Active Type
+  # # HR
+  # HR_present = NA
+  # for (FC in OrgFragments)
+  # { 
+  #   
+  #   if (file.exists(file.path(output.dir, paste0(Active.Subtype, "_", FC),
+  #                             paste0("HR_", "ALL", ".dbf"))))
+  #   {
+  #     HR_present[FC] = 1
+  #   } else
+  #   {
+  #     HR_present[FC] = 0
+  #   }
+  # }
+  # Fragments = which(HR_present %in% 0)
+  # if (length(Fragments) < 1) {next}
+  
+  # # DF
+  # DF_present = NA
+  # for (FC in Fragments)
+  # { 
+  #   
+  #   # if dynamic
+  #   if Active.Type
+  #   
+  #   # if static
+  #   
+  #   if (file.exists(file.path(output.dir, paste0(Active.Subtype, "_", FC),
+  #                             paste0("HR_", "ALL", ".dbf"))))
+  #   {
+  #     HR_present[FC] = 1
+  #   } else
+  #   {
+  #     HR_present[FC] = 0
+  #   }
+  # }
+  
+  # EXP
+  
   
   FirstSubtype = ResidentialProfiles[ResidentialProfiles$Type == Active.Type][1]
   
@@ -303,7 +352,7 @@ for (Active.Type in Types[3])
     
     ## Determine PPH for the active profile.
     DeterminePPH_FL(CRAB_Doel, Names, GroupSize, Active.Type, FirstSubtype,
-                    Plot = TRUE, SaveResults = TRUE, Belgium, Active.SetSeedNr, Commuting, DrivingDistanceLinearDistance)
+                    Plot = PlotResults, SaveResults = TRUE, Belgium, Active.SetSeedNr, Commuting, DrivingDistanceLinearDistance)
   }
   
   # Remove the data in the environment that will not be used from this point.
@@ -357,6 +406,25 @@ for (Active.Type in Types[3])
     #Active.Subtype = SubProfilesFullPeriodMethodsOfInterest[1]
     print(Active.Subtype)
     
+    ## Check which output data is already present inside Active Type
+    # HR
+    HR_present = NA
+    for (FC in OrgFragments)
+    { 
+      
+      if (file.exists(file.path(output.dir, paste0(Active.Subtype, "_", FC),
+                                paste0("HR_", "ALL", ".dbf"))))
+      {
+        HR_present[FC] = 1
+      } else
+      {
+        HR_present[FC] = 0
+      }
+    }
+    HR_Fragments = which(HR_present %in% 0)
+    if (length(HR_Fragments) < 1) {next}
+    
+    
     # Subtype base (for TIME: one for PST, one for P)
     Active.SubtypeBase = str_sub(Active.Subtype, 1, -2L)
     
@@ -395,14 +463,60 @@ for (Active.Type in Types[3])
     }
     
     for (pol in pollutants)
-      #for (pol in pollutants[2]) #[2] = pm25 only | [1] = no2 only
+      # for (pol in pollutants[2]) #[2] = pm25 only | [1] = no2 only
     {
+      print(paste("Starting", toupper(pol)))
+      
+      ## Check which output data is already present inside Active Type
+      # DF
+      if (Active.Subprofile$Dynamics == "static") {DF = c("DF_P_")}
+      if (Active.Subprofile$Dynamics == "dynamic") {DF = c("DF_P_", "DF_S_","DF_T1_","DF_T2_")}
+      
+      DF_present = NA
+      for (FC in OrgFragments)
+      { 
+        if (all(file.exists(file.path(output.dir, paste0(Active.Subtype, "_", FC),
+                                  paste0(DF, toupper(pol), ".dbf")))))
+        {
+          DF_present[FC] = 1
+        } else
+        {
+          DF_present[FC] = 0
+        }
+      }
+      DF_Fragments = which(DF_present %in% 0)
+
+      # Combine the HR and DF fragments
+      Fragments = HR_Fragments[which(HR_Fragments %in% DF_Fragments)]
+      
       ## irceline ftp server for downloading hi-res Air Quality data (as alternative for OneDrive)
       if (DownloadMode == "FTP")
       {
-        ftp.filenames = paste0(format(Time, "%Y"), format(Time, "%m"), format(Time, "%d"),
-                               "_", 1:24, "_", toupper(pol), ".txt.bz2")
-        DownloadInputFilesFromIrcelineFTP(ftp.filenames, ftp.pwd, aq.dir, pol)
+        # Check if TXT (uncompressed) files already exist
+        
+        txt.filenames = paste0(format(Time, "%Y"), format(Time, "%m"), format(Time, "%d"),
+                                     "_", 1:24, "_", toupper(pol), ".txt")
+        # tail(txt.filenames2,30)
+        if (!all(format(Time, "%Y") != year.active))
+        {
+          Order_txt.filenames = order(txt.filenames)
+          txt.filename = paste0(format(Time[Order_txt.filenames], "%Y"), format(Time[Order_txt.filenames], "%m"), format(Time[Order_txt.filenames], "%d"),
+                                  "_", 1:24, "_", toupper(pol), ".txt")
+          Wrong = which(format(Time, "%Y") != year.active)
+          txt.filenames[Wrong] = paste0(format(Time[Wrong-1], "%Y"), format(Time[Wrong-1], "%m"), format(Time[Wrong-1], "%d"),
+                                         "_", 24, "_", toupper(pol), ".txt")
+          # tail(txt.filenames2,30)
+        }
+        
+        if (all(file.exists(file.path(aq.dir, toupper(pol), txt.filenames))))
+        {
+          paste0("All the TXT-files for ", toupper(pol), " already exist on the hard drive. Continuing scipt...")
+        } else
+        {
+          DownloadInputFilesFromIrcelineFTP(ftp.filenames, ftp.pwd, aq.dir, pol)
+          # stop(paste(""))
+        }
+
       }
       
       Points.NoVal = BaseAQnetwork(pol, aq.dir)
@@ -454,14 +568,15 @@ for (Active.Type in Types[3])
         }
       } # closing Municipality related
       
-      Fragments = 1:20
-      DaySplit = length(YearDates)/length(Fragments)
+      # Fragments = 1:20
+      DaySplit = length(YearDates)/length(OrgFragments)
       SeqFragment = floor(seq(0, length(YearDates), DaySplit))
       
       TimeTakenInterpolation = NA
       for (f in Fragments)
-      # for (f in 1)  
-      { # implement EXP_pol ST.DF and HR recognition
+      # for (f in 1)
+      {
+        
         print(paste("Testing if HR exists of Fragment", f))
         if (file.exists(file.path(output.dir, paste0(Active.Subtype, "_", f),
                                   paste0("HR_", "ALL", ".dbf"))))
@@ -470,37 +585,65 @@ for (Active.Type in Types[3])
           print(paste("HR already exists of Fragment", f))
           next # f+1
         }
+        
+        # print(paste("Testing if DFs exists of Fragment", f))
+        # 
+        # if (Active.Subprofile$Dynamics == "static") {DF = c("DF_P_")}
+        # if (Active.Subprofile$Dynamics == "dynamic") {DF = c("DF_P_", "DF_S_","DF_T1_","DF_T2_")}
+        # 
+        # if (all(file.exists(file.path(output.dir, paste0(Active.Subtype, "_", f),
+        #                           paste0(DF, toupper(pollutants), ".dbf")))))
+        #   #paste0("HR_", toupper(pol), ".dbf"))))
+        # {
+        #   print(paste("DFs already exist of Fragment", f))
+        #   next # f+1
+        # }
+        
         print(paste("Starting Fragment", f))
         
-        if (length(Fragments) > 1)
+        YearDates.Sub = YearDates2(year.active)[(SeqFragment[f]+1):(SeqFragment[f+1])]
+        Time.Sub = Time[Time > YearDates.Sub[1] & Time <= (tail(YearDates.Sub,1) + 24*60**2)]
+        #MuniDF.Sub = MuniDF[,Time > YearDates.Sub[1] & Time <= (tail(YearDates.Sub,1) + 24*60**2)]
+        
+        # if (exists("PPH.T1.PNT.RS")) {rm(PPH.T1.PNT.RS)}
+        # if (exists("PPH.T2.PNT.RS")) {rm(PPH.T2.PNT.RS)}
+        # gc()
+        
+        CalculateRS = FALSE
+        if (Active.Subprofile$Dynamics == "dynamic") {CalculateRS = TRUE}
+        
+        # Check the number from the current FolderName
+        if (Active.Subprofile$Dynamics == "dynamic" & exists("FolderName"))
         {
-          YearDates.Sub = YearDates2(year.active)[(SeqFragment[f]+1):(SeqFragment[f+1])]
-          Time.Sub = Time[Time > YearDates.Sub[1] & Time <= (tail(YearDates.Sub,1) + 24*60**2)]
-          #MuniDF.Sub = MuniDF[,Time > YearDates.Sub[1] & Time <= (tail(YearDates.Sub,1) + 24*60**2)]
-          
-          if (exists("PPH.T1.PNT.RS")) {rm(PPH.T1.PNT.RS)}
-          if (exists("PPH.T2.PNT.RS")) {rm(PPH.T2.PNT.RS)}
-          gc()
-          
-          if (Active.Subprofile$Dynamics == "dynamic")
+          if (FolderName == paste0(Active.Subtype, "_", f))
           {
-            print(paste("Calculating (pseudo) random points in routes..."))
-            PPH.T1.PNT.RS = RandomSampleRoutesYears(PPH.T1, PPH.T1.Pnt.eq.Li, FALSE, RandomSamplePoints,
-                                                    YearDates.Sub, BusinesDates, Active.SetSeedNr, f)
-            PPH.T2.PNT.RS = RandomSampleRoutesYears(PPH.T2, PPH.T2.Pnt.eq.Li, FALSE, RandomSamplePoints,
-                                                    YearDates.Sub, BusinesDates, Active.SetSeedNr, f)
+            CalculateRS = FALSE
+            print(paste("RandomSampleRoutesYears (RS) are already in memory.
+                          Skipping process."))
           }
-          FolderName = paste0(Active.Subtype, "_", f)
-          FolderNameBase = paste0(Active.SubtypeBase, "_", f)
-        } else # length(Fragments) <= 1
-        {
-          YearDates.Sub = YearDates2(year.active)
-          Time.Sub = Time
-          
-          FolderName = Active.Subtype
-          FolderNameBase = Active.SubtypeBase
         }
         
+        if (CalculateRS)
+        {
+          print(paste("Calculating (pseudo) random points in routes..."))
+          PPH.T1.PNT.RS = RandomSampleRoutesYears(PPH.T1, PPH.T1.Pnt.eq.Li, FALSE, RandomSamplePoints,
+                                                  YearDates.Sub, BusinesDates, Active.SetSeedNr, f)
+          PPH.T2.PNT.RS = RandomSampleRoutesYears(PPH.T2, PPH.T2.Pnt.eq.Li, FALSE, RandomSamplePoints,
+                                                  YearDates.Sub, BusinesDates, Active.SetSeedNr, f)
+        } # end Calculate RS
+        
+        FolderName = paste0(Active.Subtype, "_", f)
+        FolderNameBase = paste0(Active.SubtypeBase, "_", f)
+          
+        # if (Active.Subprofile$Dynamics == "static")
+        # {
+        #   YearDates.Sub = YearDates2(year.active)
+        #   Time.Sub = Time
+        #   
+        #   FolderName = Active.Subtype
+        #   FolderNameBase = Active.SubtypeBase
+        # }
+
         if (!file.exists(file.path(output.dir, FolderName)))
         {
           dir.create(file.path(output.dir, FolderName))
@@ -513,15 +656,15 @@ for (Active.Type in Types[3])
         if (Active.Subprofile$Dynamics == "static") {TIME_EXP = c("TIME_P_")}
         if (Active.Subprofile$Dynamics == "dynamic") {TIME_EXP = c("TIME_P_", "TIME_S_","TIME_T1_","TIME_T2_")}
         
-        if (all(file.exists(file.path(output.dir, FolderName, paste0(TIME_EXP, 1:length(PPH.P), ".dbf"))))) #FolderNameBase
+        if (all(file.exists(file.path(output.dir, FolderNameBase, paste0(TIME_EXP, 1:length(PPH.P), ".dbf"))))) #FolderNameBase
         {
           # read from file
-          TIME.P_F = DBFreader("Time", "Primary", PPH.P, YearDates.Sub, FolderName) #FolderNameBase
+          TIME.P_F = DBFreader("Time", "Primary", PPH.P, YearDates.Sub, FolderNameBase) #FolderNameBase
           if (Active.Subprofile$Dynamics == "dynamic")
           {
-            TIME.S_F = DBFreader("Time", "Secondary", PPH.P, YearDates.Sub, FolderName) #FolderNameBase
-            TIME.T1_F = DBFreader("Time", "T1", PPH.P, YearDates.Sub, FolderName) #FolderNameBase
-            TIME.T2_F = DBFreader("Time", "T2", PPH.P, YearDates.Sub, FolderName) #FolderNameBase
+            TIME.S_F = DBFreader("Time", "Secondary", PPH.P, YearDates.Sub, FolderNameBase) #FolderNameBase
+            TIME.T1_F = DBFreader("Time", "T1", PPH.P, YearDates.Sub, FolderNameBase) #FolderNameBase
+            TIME.T2_F = DBFreader("Time", "T2", PPH.P, YearDates.Sub, FolderNameBase) #FolderNameBase
           }
         } else # TIME files do not exist
         {
@@ -551,7 +694,7 @@ for (Active.Type in Types[3])
           
           # Write TIME to disk
           WriteToDisk = TRUE
-          OW = FALSE
+          OW = TRUE
           if (WriteToDisk)
           {
             SaveAsDBF(TIME.P_F, "Time", "Primary", FolderNameBase, OW, pol, 0)
@@ -601,7 +744,7 @@ for (Active.Type in Types[3])
               HOURS.T2_F = HourOfTheYear7(year.active, TIME.T2_F, 0)
             }
             
-            # Detect which hours belong to which points | change name systematically to HoP (Hour of Point) = HoP.P etc.
+            # Detect which hours belong to which points | HoP (Hour of Point)
             if (Active.Subprofile$Dynamics == "dynamic")
             {
               HOP = WhichHourForWhichPoint(PPH.P, Time.Sub, HOURS.P_F, HOURS.S_F, HOURS.T1_F, HOURS.T2_F,
@@ -624,7 +767,7 @@ for (Active.Type in Types[3])
           if (Active.Subprofile$`S-gaps` == 0 & Active.Subprofile$`S-aggr` == 0 & Active.Subprofile$'T-aggr' == 0) # PST1
           {
             ExposureValue.All = PPH.TIN.InterpolationWS(PPH.P, PPH.S, PPH.T1.PNT.RS, PPH.T2.PNT.RS
-                                                        ,Points.NoVal, PolDir, Plot = TRUE, pol
+                                                        ,Points.NoVal, PolDir, Plot = PlotResults, pol
                                                         ,StartHour = SeqFragment[f]*24+1 # Time[(SeqFragment[f]*24+1)]
                                                         ,EndHour = (SeqFragment[f+1])*24 # Time[(SeqFragment[f+1])*24]
                                                         ,HOURS.P = HOURS.P_F, HOURS.S = HOURS.S_F
@@ -640,12 +783,15 @@ for (Active.Type in Types[3])
           {
             ExposureValue.All = PPH.TIN.InterpolationWS(PPH.P = PPH.P, POL = Points.NoVal
                                                         ,PolDir = PolDir
-                                                        ,Plot = FALSE, pol = pol
-                                                        ,StartHour = 1, EndHour = length(Time)
-                                                        ,HOURS.P = HOURS.P_F,  NearestPoints = 50
+                                                        ,Plot = PlotResults, pol = pol
+                                                        ,StartHour = SeqFragment[f]*24+1
+                                                        ,EndHour = (SeqFragment[f+1])*24
+                                                        ,HOURS.P = HOURS.P_F, NearestPoints = 50
                                                         ,wP = HoP.P_F
                                                         ,Active.Subprofile = Active.Subprofile
-                                                        ,seq = 0)
+                                                        ,seq = SeqFragment[f],
+                                                        Include_P = TRUE, Include_S = FALSE,
+                                                        Include_T1 = FALSE, Include_T2 = FALSE)
           }
           
           ## Points from Municipality
@@ -699,8 +845,7 @@ for (Active.Type in Types[3])
           if (Active.Subprofile$`S-gaps` == 0 & Active.Subprofile$`S-aggr` == 1 & Active.Subprofile$'T-aggr' == 1) # PST7
           {
           }
-          
-          #! not tested
+          ## Points from Municipality and daily means
           if (Active.Subprofile$`S-gaps` == 1 & Active.Subprofile$`S-aggr` == 1 & Active.Subprofile$'T-aggr' == 1) # P7
           {
             ExposureValue.All = MeanMunicipalityIndividualCentric(PPH.P = PPH.P
@@ -845,21 +990,21 @@ for (Active.Type in Types[3])
       
     } # closing pol
     
-    rm(PPH.P, BASEAQ, Points.NoVal, MuniDF)
+    rm(BASEAQ, Points.NoVal, MuniDF)
     if (Active.Subprofile$Dynamics == "dynamic")
     {
       rm(Fragments, SeqFragment, DaySplit)
-      rm(PPH.S, PPH.T1, PPH.T2)
     }
     gc()
     
   } # closing Subprofile
   
-  rm(dir.P)
+  rm(dir.P, PPH.P)
   rm(HoliDates, SimplifyRemainingPoints, RandomSamplePoints, BusinesDates, WeekendDates)
   if (FirstSubtype$Dynamics == "dynamic")
   {
     rm(dir.S, dir.T1, dir.T2)
+    rm(PPH.S, PPH.T1, PPH.T2)
     rm(PPH.T1.Pnt.Li, PPH.T2.Pnt.Li)
     rm(PPH.T1.Pnt.eq.Li, PPH.T2.Pnt.eq.Li)
     rm(TimeVertex.T1, TimeVertex.T2)
@@ -869,7 +1014,56 @@ for (Active.Type in Types[3])
 } # closing Type
 
 
+## test EXP/DF/HR on strange outputs
+TEST_F1 = 1
+TEST_F2 = 2
+TEST_Type = "03.SP"
+TEST_Subber = "PST"
+TEST_Nr = 1 # 1 7
+TEST_pol = "no2"
+
+Test.DifferentOutcomesFragments <- function(TEST_F1, TEST_F2, TEST_Type, TEST_Subber, TEST_Nr, TEST_pol)
+{
+  YearDates.Sub_F1 = YearDates2(year.active)[(SeqFragment[TEST_F1]+1):(SeqFragment[TEST_F1+1])]
+  YearDates.Sub_F2 = YearDates2(year.active)[(SeqFragment[TEST_F2]+1):(SeqFragment[TEST_F2+1])]
+  
+  Time.Sub_F1 = Time[Time > YearDates.Sub_F1[1] & Time <= (tail(YearDates.Sub_F1,1) + 24*60**2)]
+  Time.Sub_F2 = Time[Time > YearDates.Sub_F2[1] & Time <= (tail(YearDates.Sub_F2,1) + 24*60**2)]
+  
+  
+  TEST_SubType = paste0(TEST_Type, "_", TEST_Subber)
+  
+  FolderNameBase_F1 = paste0(TEST_SubType, "_", TEST_F1)
+  FolderNameBase_F2 = paste0(TEST_SubType, "_", TEST_F2)
+  FolderName_F1 = paste0(TEST_SubType, TEST_Nr, "_", TEST_F1)
+  FolderName_F2 = paste0(TEST_SubType, TEST_Nr, "_", TEST_F2)
+  
+  TEST_dir.P = file.path("..", "output", paste(TEST_Type, paste0("Primary", paste(""),".geojson"), sep = "_"))
+  TEST_PPH.P = readOGR(TEST_dir.P, layer = 'OGRGeoJSON')
+  TEST_PPH.P@proj4string = BE_crs
+  
+  TEST_TIME.P_F1 = DBFreader("Time", "Primary", TEST_PPH.P[1,], YearDates.Sub_F1, FolderNameBase_F1)
+  TEST_TIME.P_F2 = DBFreader("Time", "Primary", TEST_PPH.P[1,], YearDates.Sub_F2, FolderNameBase_F2)
+  
+  TEST_ExposureValue.P_F1 = DBFreader("Exposure", "Primary", TEST_PPH.P[1,], YearDates.Sub_F1, FolderName_F1, TEST_pol)
+  TEST_ExposureValue.P_F2 = DBFreader("Exposure", "Primary", TEST_PPH.P[1,], YearDates.Sub_F2, FolderName_F2, TEST_pol)
+  
+  TEST = TEST_ExposureValue.P_F1[[1]][[1]][1] == TEST_ExposureValue.P_F2[[1]][[1]][1]
+  if (TEST) {warning(paste0("Did not past the test."))}
+  if (!TEST) {print(paste0("Passed the test."))}
+  
+  return(list(TEST_ExposureValue.P_F1[[1]][[1]], TEST_ExposureValue.P_F2[[1]][[1]]))
+  
+}
+
+TEST = Test.DifferentOutcomesFragments(15, 16, "02.HO", "P", 1, "no2")
+TEST[[1]]
+TEST[[2]]
+
+
+
 ### Collect different calculation methods per profile (Saving 1 file HR_ALL per Type)
+# for (Active.Type in Types)
 for (Active.Type in Types)
 {
   #Active.Type = Types[1]
