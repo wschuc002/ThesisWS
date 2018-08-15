@@ -1,7 +1,7 @@
 # GISCAPE
 **Geoscientific Information System for Calculating Air Pollution Exposure**
 
-Information available in week 17, 2018.
+Instructions available medio August, 2018.
 
 ![screenshot](https://raw.githubusercontent.com/wschuc002/ThesisWS/master/backend/img/ThesisWS2_cover_20180123.png "GISCAPE")
 **Links to interactive plots**
