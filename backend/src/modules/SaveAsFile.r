@@ -133,7 +133,7 @@ SaveAsDBF <- function(INput, FileType, PhaseType, FolderName, OverwriteLayer, po
     
     dbf_out = file.path(Folder, paste0(FileString, PhaseLetter, "_", toupper(pol), ".dbf"))
     
-    #class(DF[,1]) = "integer"
+    class(DF[,1]) = "integer"
 
     write.dbf(DF, dbf_out, factor2char = TRUE, max_nchar = 254)
   }

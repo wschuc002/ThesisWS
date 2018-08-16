@@ -27,22 +27,20 @@ BaseAQnetwork <- function(pol, aq.dir, ...)
 {
   PolDir = file.path(aq.dir, toupper(pol))
   
-  # unzip for sure
-  base.txt.dr = ExtractBZ2(pol, PolDir, 1, 1)
-  # Read the base | # Read from compressed bz2 file
+  # Check if the TXT base already is present, otherwise look for compressed bz2 file
   BaseFile = paste0(year.active, "0101_1_", toupper(pol), ".txt")
   txt.Points = file.path(PolDir, BaseFile)
   
-  if (base.txt.dr != txt.Points)
-  {
-    stop(paste("Base file", BaseFile, "is probably missing."))
-  }
-  
   if (!file.exists(txt.Points))
   {
-    txt.Points = ExtractBZ2(pol, PolDir, 1, 1)
-    #bunzip2(bz2.Points_in, txt.Points, remove = FALSE, skip = TRUE)
+    # unzip
+    base.txt.dr = ExtractBZ2(pol, PolDir, 1, 1)
   }
+  
+  # if (base.txt.dr != txt.Points)
+  # {
+  #   stop(paste("Base file", BaseFile, "is probably missing."))
+  # }
   
   Points.NoVal = fread(txt.Points, sep=";", header=TRUE)
   coordinates(Points.NoVal) = ~x+y

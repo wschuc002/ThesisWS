@@ -33,6 +33,10 @@ library(utils)
 library(stringr)
 library(XML)
 
+# new.packages <- list.of.packages[!(list.of.packages %in% installed.packages()[,"Package"])]
+# if (new.packages == "data.table") { devtools::install_github("Rdatatable/data.table") }
+# library(data.table)
+
 DetermineAddressGoals_FL <- function(FL.Gemeente, Method.nr, ... )
 {
   shp.associates = c(".shp", ".dbf", ".prj", ".shx")

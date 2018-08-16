@@ -36,7 +36,12 @@ ExtractBZ2 <- function(pol, PolDir, StartHour = 1, EndHour = length(YearDates)*2
   txt.dr = file.path(PolDir, txt.lst)
   txt.dr = mixedsort(txt.dr)
   
-  if (!(length(txt.lst) == (EndHour - StartHour + 1)))
+  if (all(file.exists(txt.dr)))
+  {
+    txt.dr = txt.dr[StartHour:EndHour] # subset
+  }
+  
+  if (!all(file.exists(txt.dr))) # when not all the txt file exist = unzip
   {
     bz2.lst = list.files(path = PolDir, pattern = paste0("[0-9]*_[0-9]*_", toupper(pol), ".txt.bz2"))
     bz2.lst = mixedsort(bz2.lst) # fixes string order 1 10 11 -> 1 2 3
@@ -56,5 +61,13 @@ ExtractBZ2 <- function(pol, PolDir, StartHour = 1, EndHour = length(YearDates)*2
       }
     }
   }
+  
+  
+  
+  # if (!(length(txt.lst) == (EndHour - StartHour + 1)))
+  # {
+  #   
+  # }
+  
   return(txt.dr)
 }
