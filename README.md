@@ -33,9 +33,6 @@ More instruction on this part will follow soon.
 
 **Links to interactive plots**
 
-These environments are still in progress. All the main interactive plots from my thesis report will be
-available before Monday 2018-04-30.
-
 <a href="https://wageningenur4-my.sharepoint.com/:f:/g/personal/william_schuch_wur_nl/EtbwkZgdsNpCphofWuZxy20BUaXYN5pepXvcpTo-RKcX6g?e=FxHarC" target="_blank" New Tab>OneDrive interactive plots</a>
 
 <a href="https://plot.ly/~wschuc002" target="_blank" New Tab>Plotly interactive plots</a>
